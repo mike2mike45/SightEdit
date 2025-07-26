@@ -1,0 +1,1227 @@
+/* ローディング表示 */
+.git-loading {
+  text-align: center;
+  color: #6c757d;
+  font-style: italic;
+  padding: 20px;
+  font-size: 13px;
+}
+
+.dark-theme .git-loading {
+  color: #ccc;
+}.dark-theme .git-important-notice {
+  background: #3d3d2f;
+  border-color: #5a5a3f;
+}
+
+.dark-theme .git-important-notice p {
+  color: #ffd60a;
+}
+
+.dark-theme .git-changes-list {
+  background: #404040;
+  border-color: #555;
+}
+
+.dark-theme .git-panel-content {
+  background: #2d2d2d;
+}/* アカウント管理（コンパクト化） *//* Git機能の改善されたスタイル */
+
+.git-panel {
+  position: fixed;
+  top: 60px;
+  right: 20px;
+  width: 450px;
+  max-width: calc(100vw - 40px);
+  max-height: calc(100vh - 120px);
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* 小さい画面での位置調整 */
+@media (max-width: 1024px) {
+  .git-panel {
+    right: 10px;
+    width: 400px;
+    max-height: calc(100vh - 80px);
+  }
+}
+
+@media (max-width: 800px) {
+  .git-panel {
+    right: 5px;
+    left: 5px;
+    width: auto;
+    max-height: calc(100vh - 60px);
+  }
+}
+
+.git-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #eee;
+  background: #f8f9fa;
+  border-radius: 8px 8px 0 0;
+  flex-shrink: 0;
+}
+
+.git-header-nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.git-nav-btn {
+  background: none;
+  border: 1px solid #dee2e6;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #495057;
+  transition: all 0.2s;
+}
+
+.git-nav-btn:hover {
+  background: #e9ecef;
+  border-color: #adb5bd;
+}
+
+.git-panel-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+.git-panel-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #666;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+
+.git-panel-close:hover {
+  background: #e9ecef;
+}
+
+.git-panel-content {
+  flex: 1;
+  padding: 16px 20px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* スクロール可能なビューのスタイル */
+.git-scrollable-view {
+  max-height: calc(100vh - 200px);
+  overflow-y: auto !important;
+  overflow-x: hidden;
+  padding-right: 10px;
+}
+
+/* ビュー管理 */
+.git-view {
+  display: none;
+  flex: 1;
+  overflow: hidden;
+}
+
+.git-view.active {
+  display: block;
+}
+
+/* セクション間のスペース調整 */
+.git-section {
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.git-section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.git-section h4 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #495057;
+}
+
+/* 基本的なメッセージスタイル */
+.git-message {
+  padding: 12px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.git-error {
+  background: #f8d7da;
+  border: 1px solid #f5c6cb;
+  color: #721c24;
+}
+
+.git-error h4 {
+  margin: 0 0 6px 0;
+  color: #721c24;
+  font-size: 14px;
+}
+
+.git-error p {
+  margin: 4px 0;
+}
+
+.git-error a {
+  color: #721c24;
+  font-weight: 600;
+}
+
+/* リポジトリ情報 */
+.git-repo-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.git-repo-header h4 {
+  margin: 0;
+  color: #333;
+  word-break: break-word;
+}
+
+.git-branch {
+  background: #28a745;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.git-repo-details {
+  font-size: 13px;
+}
+
+.git-detail-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+  flex-wrap: wrap;
+}
+
+.git-label {
+  font-weight: 500;
+  color: #666;
+  min-width: 60px;
+  white-space: nowrap;
+}
+
+/* アクションボタン */
+.git-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+/* 改善されたボタンスタイル */
+.git-btn {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.2s;
+  text-decoration: none;
+  display: inline-block;
+  text-align: center;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.git-btn:hover {
+  background: #0056b3;
+  color: white !important;
+}
+
+.git-btn:active {
+  background: #004494;
+  color: white !important;
+}
+
+.git-btn:disabled {
+  background: #6c757d;
+  cursor: not-allowed;
+  color: white !important;
+}
+
+.git-btn-primary {
+  background: #007bff;
+  color: white !important;
+}
+
+.git-btn-primary:hover {
+  background: #0056b3;
+  color: white !important;
+}
+
+.git-btn-primary:active {
+  background: #004494;
+  color: white !important;
+}
+
+.git-btn-success {
+  background: #28a745;
+  color: white !important;
+}
+
+.git-btn-success:hover {
+  background: #1e7e34;
+  color: white !important;
+}
+
+.git-btn-success:active {
+  background: #1c7430;
+  color: white !important;
+}
+
+.git-btn-small {
+  background: #f8f9fa;
+  color: #495057;
+  border: 1px solid #dee2e6;
+  padding: 3px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.git-btn-small:hover {
+  background: #e9ecef;
+  border-color: #adb5bd;
+  color: #495057;
+}
+
+.git-btn-small:active {
+  background: #dee2e6;
+  color: #495057;
+}
+
+.git-btn-danger {
+  background: #dc3545 !important;
+  color: white !important;
+  border-color: #dc3545 !important;
+}
+
+.git-btn-danger:hover {
+  background: #c82333 !important;
+  border-color: #bd2130 !important;
+  color: white !important;
+}
+
+.git-btn-danger:active {
+  background: #bd2130 !important;
+  color: white !important;
+}
+
+/* フォーム要素（入力機能の修正） */
+.git-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.git-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.git-form-group label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #495057;
+  cursor: default;
+  user-select: none;
+}
+
+.git-form-group input[type="text"],
+.git-form-group input[type="email"],
+.git-form-group textarea {
+  padding: 8px 12px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s;
+  background: white;
+  color: #495057;
+  box-sizing: border-box;
+  font-family: inherit;
+  line-height: 1.4;
+}
+
+.git-form-group input:focus,
+.git-form-group textarea:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+  background: white;
+}
+
+.git-form-group input:disabled,
+.git-form-group textarea:disabled {
+  background: #e9ecef;
+  color: #6c757d;
+  cursor: not-allowed;
+}
+
+.git-form-group textarea {
+  resize: vertical;
+  min-height: 50px;
+  font-family: inherit;
+  background: white !important;
+  color: #495057 !important;
+}
+
+/* インライン フォーム */
+.git-form-inline {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.git-form-inline input {
+  flex: 1;
+}
+
+/* 設定UI（コンパクト化） */
+.git-config-scope-label {
+  margin-bottom: 6px !important;
+}
+
+.git-radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 6px 0;
+}
+
+.git-radio-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.git-radio-option:hover {
+  border-color: #007bff;
+  background: #f8f9fa;
+}
+
+.git-radio-option input[type="radio"] {
+  margin: 2px 0 0 0;
+  cursor: pointer;
+}
+
+.git-radio-option input[type="radio"]:checked + .git-radio-text {
+  color: #007bff;
+  font-weight: 600;
+}
+
+.git-radio-text {
+  flex: 1;
+  line-height: 1.3;
+}
+
+.git-radio-text strong {
+  font-size: 13px;
+}
+
+.git-radio-text small {
+  color: #6c757d;
+  font-size: 11px;
+}
+
+.git-help-text {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #004085;
+}
+
+/* 最初にすべきこと画面（スクロール対応） */
+.git-getting-started-content {
+  max-height: calc(100vh - 300px);
+  overflow-y: auto;
+  margin-right: -10px;
+  padding-right: 10px;
+}
+
+.git-step {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border-left: 4px solid #007bff;
+}
+
+.git-step h5 {
+  margin: 0 0 6px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+}
+
+.git-step p {
+  margin: 6px 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #495057;
+}
+
+/* Git設定の重要な注意 */
+.git-important-notice {
+  background: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 4px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+}
+
+.git-important-notice p {
+  margin: 0;
+  font-size: 12px;
+  color: #856404;
+  line-height: 1.4;
+}
+.git-existing-accounts {
+  margin-bottom: 12px;
+}
+
+.git-existing-accounts h4 {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #495057;
+}
+
+.git-accounts-list {
+  margin-bottom: 8px;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.git-account-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px;
+  margin: 6px 0;
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  transition: border-color 0.2s;
+}
+
+.git-account-item:hover {
+  border-color: #007bff;
+}
+
+.git-account-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.git-account-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: #333;
+  word-break: break-all;
+}
+
+.git-account-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.git-account-buttons {
+  margin: 12px 0;
+  text-align: center;
+}
+
+.git-account-form {
+  border-top: 1px solid #e0e0e0;
+  padding-top: 12px;
+  margin-top: 12px;
+}
+
+/* 変更ファイル一覧（スクロール対応強化） */
+.git-changes-list {
+  max-height: 200px !important;
+  overflow-y: auto !important;
+  overflow-x: hidden;
+  margin-right: -10px;
+  padding-right: 10px;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  background: #f8f9fa;
+  padding: 8px;
+}
+
+.git-scrollable-content {
+  max-height: 180px !important;
+  overflow-y: auto !important;
+  overflow-x: hidden;
+}
+
+/* Git設定画面全体のスクロール対応 */
+.git-panel-content {
+  flex: 1;
+  padding: 16px 20px;
+  overflow-y: auto !important;
+  overflow-x: hidden;
+  max-height: calc(100vh - 160px);
+}
+
+.git-change-item {
+  margin: 6px 0;
+  padding: 6px;
+  background: #f8f9fa;
+  border-radius: 4px;
+  border-left: 3px solid #dee2e6;
+}
+
+.git-change-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.git-change-actions {
+  display: flex;
+  gap: 3px;
+}
+
+.git-status-modified {
+  color: #fd7e14;
+}
+
+.git-status-added {
+  color: #28a745;
+}
+
+.git-status-deleted {
+  color: #dc3545;
+}
+
+.git-status-renamed {
+  color: #6f42c1;
+}
+
+.git-status-untracked {
+  color: #6c757d;
+}
+
+.git-no-changes,
+.git-no-history {
+  text-align: center;
+  color: #6c757d;
+  font-style: italic;
+  padding: 16px;
+  font-size: 13px;
+}
+
+/* ブランチ一覧（コンパクト化） */
+.git-branch-list {
+  max-height: 120px;
+  overflow-y: auto;
+  margin-bottom: 8px;
+  margin-right: -10px;
+  padding-right: 10px;
+}
+
+.git-branch-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 6px;
+  margin: 3px 0;
+  border-radius: 4px;
+  background: #f8f9fa;
+}
+
+.git-branch-item.current {
+  background: #d4edda;
+  border-left: 3px solid #28a745;
+}
+
+.git-branch-name {
+  font-size: 12px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+}
+
+/* リモート設定フォーム */
+.git-input-wide {
+  width: 100% !important;
+}
+
+/* ダイアログスタイル */
+.git-dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.git-dialog-content {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  max-width: 600px;
+  max-height: 80vh;
+  width: 90%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.git-dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #eee;
+  background: #f8f9fa;
+}
+
+.git-dialog-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+.git-dialog-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #666;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+
+.git-dialog-close:hover {
+  background: #e9ecef;
+}
+
+.git-dialog-body {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.git-dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 16px 20px;
+  border-top: 1px solid #eee;
+  background: #f8f9fa;
+}
+
+.git-dialog-ok {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.git-dialog-ok:hover {
+  background: #0056b3;
+}
+
+.git-dialog-cancel {
+  background: #6c757d;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.git-dialog-cancel:hover {
+  background: #545b62;
+}
+
+/* コミット履歴（改善されたスクロール対応） */
+.git-history-list {
+  max-height: 400px;
+  overflow-y: auto;
+  margin-right: -10px;
+  padding-right: 10px;
+}
+
+.git-commit-item {
+  margin: 6px 0;
+  padding: 8px;
+  background: #f8f9fa;
+  border-radius: 4px;
+  border-left: 3px solid #007bff;
+}
+
+.git-commit-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.git-commit-hash {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 10px;
+  background: #e9ecef;
+  padding: 2px 4px;
+  border-radius: 3px;
+  color: #495057;
+}
+
+.git-commit-date {
+  font-size: 10px;
+  color: #6c757d;
+}
+
+.git-commit-message {
+  font-size: 12px;
+  font-weight: 500;
+  margin-bottom: 3px;
+  color: #333;
+  word-break: break-word;
+}
+
+.git-commit-author {
+  font-size: 10px;
+  color: #6c757d;
+}
+
+/* コミット作成ダイアログ */
+.git-commit-info {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.git-commit-files-list {
+  max-height: 150px;
+  overflow-y: auto;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  padding: 8px;
+  background: #f8f9fa;
+}
+
+.git-commit-file-item {
+  padding: 4px 0;
+  font-size: 12px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+}
+
+/* ブランチ管理ダイアログ */
+.git-branch-management {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* スクロールバーの改善 */
+.git-changes-list::-webkit-scrollbar,
+.git-history-list::-webkit-scrollbar,
+.git-branch-list::-webkit-scrollbar,
+.git-panel-content::-webkit-scrollbar,
+.git-getting-started-content::-webkit-scrollbar,
+.git-accounts-list::-webkit-scrollbar,
+.git-commit-files-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.git-changes-list::-webkit-scrollbar-track,
+.git-history-list::-webkit-scrollbar-track,
+.git-branch-list::-webkit-scrollbar-track,
+.git-panel-content::-webkit-scrollbar-track,
+.git-getting-started-content::-webkit-scrollbar-track,
+.git-accounts-list::-webkit-scrollbar-track,
+.git-commit-files-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.git-changes-list::-webkit-scrollbar-thumb,
+.git-history-list::-webkit-scrollbar-thumb,
+.git-branch-list::-webkit-scrollbar-thumb,
+.git-panel-content::-webkit-scrollbar-thumb,
+.git-getting-started-content::-webkit-scrollbar-thumb,
+.git-accounts-list::-webkit-scrollbar-thumb,
+.git-commit-files-list::-webkit-scrollbar-thumb {
+  background-color: rgba(0,0,0,0.2);
+  border-radius: 3px;
+}
+
+.git-changes-list::-webkit-scrollbar-thumb:hover,
+.git-history-list::-webkit-scrollbar-thumb:hover,
+.git-branch-list::-webkit-scrollbar-thumb:hover,
+.git-panel-content::-webkit-scrollbar-thumb:hover,
+.git-getting-started-content::-webkit-scrollbar-thumb:hover,
+.git-accounts-list::-webkit-scrollbar-thumb:hover,
+.git-commit-files-list::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0,0,0,0.4);
+}
+
+/* 折りたたみ機能 */
+.git-section-collapsible {
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.git-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e0e0e0;
+  cursor: pointer;
+  user-select: none;
+}
+
+.git-section-header:hover {
+  background: #e9ecef;
+}
+
+.git-section-header h4 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.git-section-toggle {
+  font-size: 12px;
+  color: #6c757d;
+  transition: transform 0.2s;
+}
+
+.git-section-collapsible.collapsed .git-section-toggle {
+  transform: rotate(-90deg);
+}
+
+.git-section-body {
+  padding: 12px;
+  border-bottom: none;
+}
+
+.git-section-collapsible.collapsed .git-section-body {
+  display: none;
+}
+
+/* ダークテーマ対応 */
+.dark-theme .git-panel {
+  background: #2d2d2d;
+  border-color: #404040;
+  color: #fff;
+}
+
+.dark-theme .git-panel-header {
+  background: #1a1a1a;
+  border-bottom-color: #404040;
+}
+
+.dark-theme .git-panel-header h3 {
+  color: #fff;
+}
+
+.dark-theme .git-nav-btn {
+  background: #404040;
+  border-color: #555;
+  color: #fff;
+}
+
+.dark-theme .git-nav-btn:hover {
+  background: #555;
+  border-color: #666;
+}
+
+.dark-theme .git-panel-close {
+  color: #ccc;
+}
+
+.dark-theme .git-panel-close:hover {
+  background: #404040;
+}
+
+.dark-theme .git-section {
+  border-bottom-color: #404040;
+}
+
+.dark-theme .git-section h4 {
+  color: #fff;
+}
+
+.dark-theme .git-error {
+  background: #722d2d;
+  border-color: #5a2a2a;
+  color: #ffb3b3;
+}
+
+.dark-theme .git-error h4 {
+  color: #ffb3b3;
+}
+
+.dark-theme .git-error a {
+  color: #ffb3b3;
+}
+
+.dark-theme .git-branch {
+  background: #1e7e34;
+}
+
+.dark-theme .git-label {
+  color: #ccc;
+}
+
+.dark-theme .git-btn-small {
+  background: #404040;
+  color: #fff;
+  border-color: #555;
+}
+
+.dark-theme .git-btn-small:hover {
+  background: #555;
+  border-color: #666;
+  color: #fff;
+}
+
+.dark-theme .git-form-group label {
+  color: #fff;
+}
+
+.dark-theme .git-form-group input,
+.dark-theme .git-form-group textarea {
+  background: #1a1a1a !important;
+  border-color: #404040;
+  color: #fff !important;
+}
+
+.dark-theme .git-form-group input:focus,
+.dark-theme .git-form-group textarea:focus {
+  border-color: #007bff;
+}
+
+.dark-theme .git-change-item {
+  background: #404040;
+  border-left-color: #555;
+}
+
+.dark-theme .git-commit-item {
+  background: #404040;
+  border-left-color: #007bff;
+}
+
+.dark-theme .git-commit-hash {
+  background: #555;
+  color: #fff;
+}
+
+.dark-theme .git-commit-message {
+  color: #fff;
+}
+
+.dark-theme .git-branch-item {
+  background: #404040;
+}
+
+.dark-theme .git-branch-item.current {
+  background: #2d5a3d;
+  border-left-color: #28a745;
+}
+
+.dark-theme .git-no-changes,
+.dark-theme .git-no-history {
+  color: #ccc;
+}
+
+.dark-theme .git-radio-option {
+  border-color: #555;
+  background: #404040;
+}
+
+.dark-theme .git-radio-option:hover {
+  border-color: #007bff;
+  background: #4a4a4a;
+}
+
+.dark-theme .git-radio-option input[type="radio"]:checked + .git-radio-text {
+  color: #4db8ff;
+}
+
+.dark-theme .git-radio-text small {
+  color: #ccc;
+}
+
+.dark-theme .git-help-text {
+  color: #d1ecf1;
+}
+
+.dark-theme .git-existing-accounts h4 {
+  color: #fff;
+}
+
+.dark-theme .git-account-item {
+  background: #404040;
+  border-color: #555;
+}
+
+.dark-theme .git-account-item:hover {
+  border-color: #007bff;
+}
+
+.dark-theme .git-account-name {
+  color: #fff;
+}
+
+.dark-theme .git-account-form {
+  border-top-color: #555;
+}
+
+.dark-theme .git-step {
+  background: #404040;
+  border-left-color: #007bff;
+}
+
+.dark-theme .git-step h5 {
+  color: #fff;
+}
+
+.dark-theme .git-step p {
+  color: #ccc;
+}
+
+.dark-theme .git-dialog-content {
+  background: #2d2d2d;
+  color: #fff;
+}
+
+.dark-theme .git-dialog-header {
+  background: #1a1a1a;
+  border-bottom-color: #404040;
+}
+
+.dark-theme .git-dialog-header h3 {
+  color: #fff;
+}
+
+.dark-theme .git-dialog-close {
+  color: #ccc;
+}
+
+.dark-theme .git-dialog-close:hover {
+  background: #404040;
+}
+
+.dark-theme .git-dialog-footer {
+  background: #1a1a1a;
+  border-top-color: #404040;
+}
+
+.dark-theme .git-commit-files-list {
+  background: #404040;
+  border-color: #555;
+  color: #fff;
+}
+
+.dark-theme .git-section-collapsible {
+  border-color: #404040;
+}
+
+.dark-theme .git-section-header {
+  background: #404040;
+  border-bottom-color: #555;
+}
+
+.dark-theme .git-section-header:hover {
+  background: #4a4a4a;
+}
+
+.dark-theme .git-changes-list::-webkit-scrollbar-thumb,
+.dark-theme .git-history-list::-webkit-scrollbar-thumb,
+.dark-theme .git-branch-list::-webkit-scrollbar-thumb,
+.dark-theme .git-panel-content::-webkit-scrollbar-thumb,
+.dark-theme .git-getting-started-content::-webkit-scrollbar-thumb,
+.dark-theme .git-accounts-list::-webkit-scrollbar-thumb,
+.dark-theme .git-commit-files-list::-webkit-scrollbar-thumb {
+  background-color: rgba(255,255,255,0.2);
+}
+
+.dark-theme .git-changes-list::-webkit-scrollbar-thumb:hover,
+.dark-theme .git-history-list::-webkit-scrollbar-thumb:hover,
+.dark-theme .git-branch-list::-webkit-scrollbar-thumb:hover,
+.dark-theme .git-panel-content::-webkit-scrollbar-thumb:hover,
+.dark-theme .git-getting-started-content::-webkit-scrollbar-thumb:hover,
+.dark-theme .git-accounts-list::-webkit-scrollbar-thumb:hover,
+.dark-theme .git-commit-files-list::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255,255,255,0.4);
+}

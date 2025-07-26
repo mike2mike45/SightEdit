@@ -1,0 +1,118 @@
+{
+  "name": "sightedit",
+  "version": "2.0.1",
+  "description": "A WYSIWYG Markdown Editor for Windows",
+  "main": "src/main/main.js",
+  "author": "DuckEngine LLC",
+  "license": "MIT",
+  "homepage": "https://duckengine.com",
+  "scripts": {
+    "start": "npm run build && electron .",
+    "build": "webpack",
+    "dev": "webpack --watch",
+    "dist": "npm run build && electron-builder",
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:portable": "npm run build && electron-builder --win portable",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "keywords": ["markdown", "editor", "wysiwyg", "electron"],
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1",
+    "webpack": "^5.89.0",
+    "webpack-cli": "^5.1.4",
+    "html-webpack-plugin": "^5.5.3",
+    "css-loader": "^6.8.1",
+    "style-loader": "^3.3.3"
+  },
+  "dependencies": {
+    "@tiptap/core": "^2.1.13",
+    "@tiptap/pm": "^2.1.13",
+    "@tiptap/starter-kit": "^2.1.13",
+    "@tiptap/extension-link": "^2.1.13",
+    "@tiptap/extension-image": "^2.1.13",
+    "@tiptap/extension-table": "^2.1.13",
+    "@tiptap/extension-table-row": "^2.1.13",
+    "@tiptap/extension-table-cell": "^2.1.13",
+    "@tiptap/extension-table-header": "^2.1.13",
+    "@tiptap/extension-task-list": "^2.1.13",
+    "@tiptap/extension-task-item": "^2.1.13",
+    "@tiptap/extension-code-block-lowlight": "^2.1.13",
+    "@tiptap/extension-placeholder": "^2.1.13",
+    "lowlight": "^3.1.0",
+    "marked": "^11.1.0",
+    "turndown": "^7.1.2"
+  },
+  "build": {
+    "appId": "com.duckengine.sightedit",
+    "productName": "SightEdit",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "dist/**/*.js",
+      "dist/**/*.css",
+      "dist/index.html",
+      "src/main/**/*",
+      "assets/**/*",
+      "!**/node_modules/**/*",
+      "!**/*.map",
+      "!**/*.log",
+      "!src/renderer/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "assets/",
+        "to": "assets/",
+        "filter": ["**/*"]
+      }
+    ],
+    "asar": {
+      "smartUnpack": true
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "assets/icon.ico",
+      "publisherName": "DuckEngine LLC"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeaderIcon": "assets/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "SightEdit",
+      "license": "LICENSE.txt",
+      "language": "1041",
+      "installerLanguages": ["ja"],
+      "menuCategory": "SightEdit",
+      "uninstallDisplayName": "SightEdit - WYSIWYG Markdown Editor"
+    },
+    "fileAssociations": [
+      {
+        "ext": "md",
+        "name": "Markdown",
+        "description": "Markdown Document",
+        "icon": "assets/icon.ico",
+        "role": "Editor"
+      },
+      {
+        "ext": "markdown",
+        "name": "Markdown",
+        "description": "Markdown Document",
+        "icon": "assets/icon.ico",
+        "role": "Editor"
+      }
+    ],
+    "protocols": []
+  }
+}

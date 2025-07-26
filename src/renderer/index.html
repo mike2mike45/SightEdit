@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SightEdit - WYSIWYGマークダウンエディター</title>
+</head>
+<body>
+  <!-- ツールバー -->
+  <div class="toolbar">
+    <div class="toolbar-group">
+      <button id="new-btn" title="新規ファイル (Ctrl+N)">📄</button>
+      <button id="open-btn" title="ファイルを開く (Ctrl+O)">📂</button>
+      <button id="save-btn" title="保存 (Ctrl+S)">💾</button>
+    </div>
+    
+    <div class="toolbar-group">
+      <button id="bold-btn" title="太字 (Ctrl+B)"><b>B</b></button>
+      <button id="italic-btn" title="斜体 (Ctrl+I)"><i>I</i></button>
+      <button id="strike-btn" title="取り消し線"><s>S</s></button>
+      <button id="clear-format-btn" title="書式解除">🚫</button>
+    </div>
+    
+    <div class="toolbar-group">
+      <button id="h1-btn" title="見出し1">H1</button>
+      <button id="h2-btn" title="見出し2">H2</button>
+      <button id="h3-btn" title="見出し3">H3</button>
+      <button id="h4-btn" title="見出し4">H4</button>
+      <button id="h5-btn" title="見出し5">H5</button>
+      <button id="h6-btn" title="見出し6">H6</button>
+    </div>
+    
+    <div class="toolbar-group">
+      <button id="ul-btn" title="番号なしリスト">•</button>
+      <button id="ol-btn" title="番号付きリスト">1.</button>
+      <button id="task-btn" title="チェックリスト">☑</button>
+      <button id="quote-btn" title="引用">"</button>
+      <button id="hr-btn" title="水平線">―</button>
+    </div>
+    
+    <div class="toolbar-group">
+      <button id="table-btn" title="テーブル">⊞</button>
+      <button id="link-btn" title="リンク (Ctrl+K)">🔗</button>
+      <button id="image-btn" title="画像">🖼️</button>
+      <button id="code-btn" title="コードブロック">{ }</button>
+      <button id="toc-btn" title="目次を生成 (Ctrl+Shift+T)">📑</button>
+    </div>
+    
+    <div class="toolbar-group">
+      <button id="undo-btn" title="元に戻す (Ctrl+Z)">↶</button>
+      <button id="redo-btn" title="やり直し (Ctrl+Y)">↷</button>
+    </div>
+    
+    <div class="toolbar-group">
+      <div class="mode-switch">
+        <button id="wysiwyg-btn" class="active">WYSIWYG</button>
+        <button id="source-btn">ソース</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- エディターコンテナ -->
+  <div id="editor-container">
+    <div id="wysiwyg-editor" class="editor"></div>
+    <textarea id="source-editor" class="source-editor" style="display: none;"></textarea>
+  </div>
+  
+  <!-- ステータスバー -->
+  <div class="status-bar">
+    <div class="status-left">
+      <span id="file-name">無題のドキュメント</span>
+      <span id="file-status" class="saved">保存済み</span>
+    </div>
+    <div class="status-right">
+      <span id="word-count">0 words</span>
+      <span id="char-count">0 chars</span>
+    </div>
+  </div>
+
+  <!-- メッセージ表示用 -->
+  <div id="message-container"></div>
+</body>
+</html>
