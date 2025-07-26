@@ -3,7 +3,6 @@ const path = require('path');
 const fs = require('fs');
 const ConfigManager = require('./config-manager');
 const GitManager = require('./git-manager');
-const UpdateManager = require('./update-manager');
 
 // package.jsonから情報を取得
 const packageInfo = require('../../package.json');
@@ -11,7 +10,6 @@ const packageInfo = require('../../package.json');
 let mainWindow;
 let configManager;
 let gitManager;
-let updateManager;
 let openFilePath = null; // 起動時に開くファイルパス
 
 // アプリケーションの準備ができてから実行
@@ -33,20 +31,10 @@ app.whenReady().then(async () => {
   // Git機能を初期化
   gitManager = new GitManager();
   
-  // 更新機能を初期化
-  updateManager = new UpdateManager();
-  
   createMainWindow();
   createApplicationMenu();
   setupIPCHandlers();
   setupGitIPCHandlers();
-  setupUpdateIPCHandlers();
-  
-  // 更新機能にメインウィンドウを設定
-  updateManager.setMainWindow(mainWindow);
-  
-  // 自動更新チェックを開始（起動時）
-  updateManager.checkForUpdatesAutomatically();
   
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -102,11 +90,6 @@ function createMainWindow() {
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
     mainWindow.webContents.send('set-initial-theme', configManager.get('theme'));
-    
-    // 更新機能にメインウィンドウを設定
-    if (updateManager) {
-      updateManager.setMainWindow(mainWindow);
-    }
     
     // 起動時にファイルを開く
     if (openFilePath) {
@@ -380,11 +363,14 @@ function setupGitIPCHandlers() {
     }
   });
 
-  // リポジトリ状態取得
+  // リポジトリ状態取得（修正版）
   ipcMain.handle('git:getStatus', async (event, repoPath) => {
     try {
-      const status = await gitManager.getRepositoryStatus(repoPath);
-      return { success: true, status };
+      const result = await gitManager.getRepositoryStatus(repoPath);
+      
+      // getRepositoryStatusは既にsuccessフィールドを含むオブジェクトを返すように修正されているため、
+      // そのまま返す
+      return result;
     } catch (error) {
       return { success: false, error: error.message };
     }
@@ -591,51 +577,6 @@ function setupGitIPCHandlers() {
     } catch (error) {
       return { success: false, error: error.message };
     }
-  });
-}
-
-function setupUpdateIPCHandlers() {
-  // 更新チェック（手動）
-  ipcMain.handle('update:checkForUpdates', async () => {
-    try {
-      return await updateManager.checkForUpdatesManually();
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  });
-
-  // 更新ダウンロード
-  ipcMain.handle('update:downloadUpdate', async () => {
-    try {
-      return await updateManager.downloadUpdate();
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  });
-
-  // 更新インストール（再起動）
-  ipcMain.handle('update:installUpdate', async () => {
-    try {
-      return updateManager.installUpdate();
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  });
-
-  // 更新状態取得
-  ipcMain.handle('update:getStatus', async () => {
-    try {
-      return { success: true, status: updateManager.getStatus() };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  });
-
-  // 再起動準備通知（レンダラーから）
-  ipcMain.on('update:readyForRestart', () => {
-    setTimeout(() => {
-      updateManager.installUpdate();
-    }, 500);
   });
 }
 
@@ -943,11 +884,6 @@ function createApplicationMenu() {
           label: 'ヘルプを表示',
           accelerator: 'F1',
           click: () => mainWindow?.webContents.send('menu-show-help')
-        },
-        { type: 'separator' },
-        {
-          label: '更新をチェック',
-          click: () => mainWindow?.webContents.send('menu-check-updates')
         },
         { type: 'separator' },
         {

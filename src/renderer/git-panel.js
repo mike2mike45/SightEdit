@@ -105,9 +105,6 @@ export class GitPanel {
       this.hideUserConfigForm();
     });
 
-    // リモート設定
-    // リモート設定ボタンを削除したため、この処理も削除
-
     // リモート設定のOK/キャンセル
     document.getElementById('remote-setup-ok')?.addEventListener('click', () => {
       this.handleRemoteSetup();
@@ -426,12 +423,15 @@ export class GitPanel {
 
     try {
       const result = await window.electronAPI.git.getRepositoryStatus(this.currentRepository);
-      if (result.success) {
+      if (result.success && result.status) {
         this.gitStatus = result.status;
         await this.updateRepositoryInfo();
         await this.updateChangesList();
         await this.updateBranchList();
         this.updateCountDisplays();
+      } else {
+        console.error('Failed to get repository status:', result.error);
+        window.showMessage(`Git状態の取得に失敗: ${result.error}`, 'error');
       }
     } catch (error) {
       console.error('Git status error:', error);
@@ -445,11 +445,50 @@ export class GitPanel {
     const repoInfo = document.getElementById('git-repo-info');
     const repoName = document.getElementById('git-repo-name');
     const currentBranch = document.getElementById('git-current-branch');
+    const branchName = document.getElementById('git-branch-name');
     const remoteUrl = document.getElementById('git-remote-url');
+    const currentUser = document.getElementById('git-current-user');
 
+    // リポジトリ名とブランチ情報を設定
     repoName.textContent = this.currentRepository.split('/').pop() || this.currentRepository.split('\\').pop();
-    currentBranch.textContent = this.gitStatus.currentBranch || 'unknown';
+    const branch = this.gitStatus.currentBranch || 'unknown';
+    currentBranch.textContent = branch;
+    branchName.textContent = branch;
     remoteUrl.textContent = this.gitStatus.remoteUrl || '未設定';
+
+    // 現在のGitユーザー情報を取得・表示
+    currentUser.textContent = '取得中...';
+    currentUser.className = 'git-user-info git-user-loading';
+    
+    try {
+      const userConfigResult = await window.electronAPI.git.checkUserConfig(this.currentRepository);
+      
+      if (userConfigResult.success && userConfigResult.config) {
+        const config = userConfigResult.config;
+        
+        if (config.isConfigured && config.name && config.email) {
+          // ユーザーが設定されている場合
+          currentUser.textContent = `${config.name} <${config.email}>`;
+          currentUser.className = 'git-user-info git-user-configured';
+          currentUser.title = `名前: ${config.name}\nメール: ${config.email}`;
+        } else {
+          // ユーザーが設定されていない場合
+          currentUser.textContent = '未設定';
+          currentUser.className = 'git-user-info git-user-not-configured';
+          currentUser.title = 'Gitユーザー設定が必要です。「Gitユーザー設定」ボタンから設定してください。';
+        }
+      } else {
+        // エラーが発生した場合
+        currentUser.textContent = '取得エラー';
+        currentUser.className = 'git-user-info git-user-error';
+        currentUser.title = 'Gitユーザー設定の取得に失敗しました';
+      }
+    } catch (error) {
+      console.error('User config error:', error);
+      currentUser.textContent = '取得エラー';
+      currentUser.className = 'git-user-info git-user-error';
+      currentUser.title = `エラー: ${error.message}`;
+    }
 
     repoInfo.style.display = 'block';
 
@@ -534,7 +573,7 @@ export class GitPanel {
 
   async loadUserAccounts() {
     try {
-      const accountsResult = await window.electronAPI.git.getAllGitAccounts();
+      const accountsResult = await window.electronAPI.git.getAllAccounts();
       const existingAccounts = accountsResult.success ? accountsResult.accounts : [];
       
       if (existingAccounts.length > 0) {
@@ -663,6 +702,8 @@ export class GitPanel {
       if (result.success) {
         window.showMessage(result.message, 'success');
         this.uiManager.showMainView();
+        // ユーザー情報を更新
+        await this.refreshStatus();
       } else {
         window.showMessage(`設定に失敗: ${result.error}`, 'error');
       }
@@ -691,6 +732,8 @@ export class GitPanel {
       if (result.success) {
         window.showMessage(result.message, 'success');
         await this.loadUserAccounts();
+        // ユーザー情報を更新
+        await this.refreshStatus();
       } else {
         window.showMessage(`削除に失敗: ${result.error}`, 'error');
       }
@@ -762,6 +805,9 @@ export class GitPanel {
         window.showMessage(result.message, 'success');
         this.hideUserConfigForm();
         await this.loadUserAccounts();
+        // メイン画面に戻ってユーザー情報を更新
+        this.uiManager.showMainView();
+        await this.refreshStatus();
       } else {
         window.showMessage(`設定に失敗: ${result.error}`, 'error');
       }

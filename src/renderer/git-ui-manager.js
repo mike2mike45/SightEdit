@@ -47,8 +47,16 @@ export class GitUIManager {
               </div>
               <div class="git-repo-details">
                 <div class="git-detail-item">
+                  <span class="git-label">ブランチ:</span>
+                  <span id="git-branch-name">main</span>
+                </div>
+                <div class="git-detail-item">
                   <span class="git-label">リモート:</span>
                   <span id="git-remote-url">未設定</span>
+                </div>
+                <div class="git-detail-item">
+                  <span class="git-label">ユーザー:</span>
+                  <span id="git-current-user" class="git-user-info">読み込み中...</span>
                 </div>
               </div>
             </div>
@@ -92,7 +100,6 @@ export class GitUIManager {
                 </div>
               </div>
             </div>
-
 
           </div>
 

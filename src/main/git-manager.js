@@ -117,10 +117,13 @@ sightedit-config.json
     }
   }
 
-  // リポジトリの状態を取得
+  // リポジトリの状態を取得（改善版）
   async getRepositoryStatus(repoPath = this.currentRepository) {
     if (!repoPath || !this.isGitAvailable) {
-      return null;
+      return {
+        success: false,
+        error: 'リポジトリパスまたはGitが利用できません'
+      };
     }
 
     try {
@@ -130,17 +133,55 @@ sightedit-config.json
         env: {
           ...process.env,
           LC_ALL: 'C.UTF-8',
-          LANG: 'C.UTF-8'
+          LANG: 'C.UTF-8',
+          // Windowsでの文字化け対策
+          LESSCHARSET: 'utf-8'
         },
-        encoding: 'utf8'
+        encoding: 'utf8',
+        maxBuffer: 1024 * 1024 * 10 // 10MBに拡張
       };
 
+      // .gitディレクトリの存在確認
+      try {
+        await fs.access(path.join(repoPath, '.git'));
+      } catch {
+        return {
+          success: false,
+          error: 'Gitリポジトリが見つかりません'
+        };
+      }
+
       // ブランチ情報を取得
-      const { stdout: branchOutput } = await execAsync('git branch --show-current', execOptions);
-      const currentBranch = branchOutput.trim();
+      let currentBranch = 'main';
+      try {
+        const { stdout: branchOutput } = await execAsync('git branch --show-current', execOptions);
+        currentBranch = branchOutput.trim() || 'main';
+      } catch (error) {
+        console.log('Branch detection fallback:', error.message);
+        // フォールバック: symbolic-refを使用
+        try {
+          const { stdout: refOutput } = await execAsync('git symbolic-ref --short HEAD', execOptions);
+          currentBranch = refOutput.trim() || 'main';
+        } catch {
+          currentBranch = 'main';
+        }
+      }
 
       // ステータス情報を取得（UTF-8で正しく表示されるようにオプション追加）
-      const { stdout: statusOutput } = await execAsync('git status --porcelain -z', execOptions);
+      let statusOutput = '';
+      try {
+        const { stdout } = await execAsync('git status --porcelain -z', execOptions);
+        statusOutput = stdout;
+      } catch (error) {
+        console.log('Status detection error:', error.message);
+        // フォールバック: 通常のstatus
+        try {
+          const { stdout } = await execAsync('git status --porcelain', execOptions);
+          statusOutput = stdout;
+        } catch {
+          statusOutput = '';
+        }
+      }
       
       // リモートリポジトリ情報を取得
       let remoteUrl = null;
@@ -151,35 +192,70 @@ sightedit-config.json
         // リモートが設定されていない場合
       }
 
-      // コミット履歴を取得（最新10件）
+      // コミット履歴を取得（最新10件、エンコーディング対応強化）
       let commits = [];
       try {
         const { stdout: logOutput } = await execAsync(
-          'git log --oneline -10 --pretty=format:"%h|%an|%ar|%s"', 
+          'git log --oneline -10 --pretty=format:"%h|%an|%ar|%s" --encoding=UTF-8', 
           execOptions
         );
-        commits = logOutput.split('\n').filter(line => line).map(line => {
-          const [hash, author, date, message] = line.split('|');
-          return { hash, author, date, message };
-        });
-      } catch {
-        // コミットがない場合
+        
+        if (logOutput.trim()) {
+          commits = logOutput.split('\n').filter(line => line.trim()).map(line => {
+            const parts = line.split('|');
+            if (parts.length >= 4) {
+              return {
+                hash: parts[0] || 'unknown',
+                author: parts[1] || 'unknown',
+                date: parts[2] || 'unknown',
+                message: parts.slice(3).join('|') || 'No message'
+              };
+            }
+            return {
+              hash: 'unknown',
+              author: 'unknown', 
+              date: 'unknown',
+              message: line || 'No message'
+            };
+          });
+        }
+      } catch (error) {
+        console.log('Commit history error:', error.message);
+        // コミットがない場合やエラーの場合は空配列
       }
 
-      // 変更ファイルの詳細を解析（null区切りで処理）
-      const changes = this.parseGitStatusZ(statusOutput);
+      // 変更ファイルの詳細を解析（null区切りで処理、フォールバック対応）
+      let changes = [];
+      try {
+        if (statusOutput.includes('\0')) {
+          // null区切りの場合
+          changes = this.parseGitStatusZ(statusOutput);
+        } else {
+          // 通常の改行区切りの場合
+          changes = this.parseGitStatus(statusOutput);
+        }
+      } catch (error) {
+        console.log('Status parsing error:', error.message);
+        changes = [];
+      }
 
       return {
-        currentBranch,
-        remoteUrl,
-        changes,
-        commits,
-        hasChanges: changes.length > 0,
-        hasRemote: !!remoteUrl
+        success: true,
+        status: {
+          currentBranch,
+          remoteUrl,
+          changes,
+          commits,
+          hasChanges: changes.length > 0,
+          hasRemote: !!remoteUrl
+        }
       };
     } catch (error) {
       console.error('Git status error:', error);
-      return null;
+      return {
+        success: false,
+        error: `Git状態の取得に失敗しました: ${error.message}`
+      };
     }
   }
 
@@ -201,7 +277,8 @@ sightedit-config.json
           LC_ALL: 'C.UTF-8',
           LANG: 'C.UTF-8'
         },
-        encoding: 'utf8'
+        encoding: 'utf8',
+        maxBuffer: 1024 * 1024 * 50 // 50MBに拡張
       };
 
       // 指定されたコミットからファイル内容を取得
@@ -216,19 +293,20 @@ sightedit-config.json
         execOptions
       );
 
-      const [hash, author, date, message] = commitInfo.split('|');
+      const parts = commitInfo.split('|');
+      const commitData = {
+        hash: parts[0] || commitHash,
+        author: parts[1] || 'unknown',
+        date: parts[2] || 'unknown',
+        message: parts.slice(3).join('|') || 'No message'
+      };
 
       return {
         success: true,
         content: fileContent,
         filePath,
         fileName: path.basename(filePath),
-        commitInfo: {
-          hash,
-          author,
-          date,
-          message
-        }
+        commitInfo: commitData
       };
     } catch (error) {
       return {
@@ -273,17 +351,18 @@ sightedit-config.json
         execOptions
       );
 
-      const [hash, author, date, message] = commitInfo.split('|');
+      const parts = commitInfo.split('|');
+      const commitData = {
+        hash: parts[0] || commitHash,
+        author: parts[1] || 'unknown',
+        date: parts[2] || 'unknown',
+        message: parts.slice(3).join('|') || 'No message'
+      };
 
       return {
         success: true,
         files,
-        commitInfo: {
-          hash,
-          author,
-          date,
-          message
-        }
+        commitInfo: commitData
       };
     } catch (error) {
       return {
@@ -326,9 +405,13 @@ sightedit-config.json
   // Gitステータスの出力を解析（従来版 - フォールバック用）
   parseGitStatus(statusOutput) {
     const changes = [];
-    const lines = statusOutput.split('\n').filter(line => line);
+    if (!statusOutput) return changes;
+    
+    const lines = statusOutput.split('\n').filter(line => line.trim());
 
     for (const line of lines) {
+      if (line.length < 3) continue;
+      
       const status = line.substring(0, 2);
       const filePath = line.substring(3);
       
@@ -438,7 +521,18 @@ sightedit-config.json
         };
       }
 
-      await execAsync(`git commit -m "${message.replace(/"/g, '\\"')}"`, { cwd: repoPath });
+      const execOptions = {
+        cwd: repoPath,
+        env: {
+          ...process.env,
+          LC_ALL: 'C.UTF-8',
+          LANG: 'C.UTF-8'
+        }
+      };
+
+      // メッセージのエスケープ処理を改善
+      const escapedMessage = message.replace(/"/g, '\\"').replace(/\n/g, '\\n');
+      await execAsync(`git commit -m "${escapedMessage}"`, execOptions);
       return { success: true, message: 'コミットを作成しました' };
     } catch (error) {
       return { success: false, error: error.message };
@@ -448,8 +542,17 @@ sightedit-config.json
   // Gitユーザー設定をチェック
   async checkUserConfiguration(repoPath = this.currentRepository) {
     try {
-      const { stdout: nameOutput } = await execAsync('git config user.name', { cwd: repoPath });
-      const { stdout: emailOutput } = await execAsync('git config user.email', { cwd: repoPath });
+      const execOptions = {
+        cwd: repoPath,
+        env: {
+          ...process.env,
+          LC_ALL: 'C.UTF-8',
+          LANG: 'C.UTF-8'
+        }
+      };
+
+      const { stdout: nameOutput } = await execAsync('git config user.name', execOptions);
+      const { stdout: emailOutput } = await execAsync('git config user.email', execOptions);
       
       const name = nameOutput.trim();
       const email = emailOutput.trim();
@@ -493,8 +596,9 @@ sightedit-config.json
       // ローカル設定を取得（現在のリポジトリがある場合）
       if (this.currentRepository) {
         try {
-          const { stdout: localName } = await execAsync('git config --local user.name', { cwd: this.currentRepository });
-          const { stdout: localEmail } = await execAsync('git config --local user.email', { cwd: this.currentRepository });
+          const execOptions = { cwd: this.currentRepository };
+          const { stdout: localName } = await execAsync('git config --local user.name', execOptions);
+          const { stdout: localEmail } = await execAsync('git config --local user.email', execOptions);
           
           if (localName.trim() && localEmail.trim()) {
             accounts.push({
@@ -510,15 +614,15 @@ sightedit-config.json
         }
       }
 
-      return accounts;
+      return { success: true, accounts };
     } catch (error) {
       console.error('Error getting git accounts:', error);
-      return [];
+      return { success: false, accounts: [] };
     }
   }
 
   // Gitアカウントを削除
-  async removeGitAccount(type, repoPath = null) {
+  async removeAccount(type, repoPath = null) {
     try {
       const execOptions = repoPath ? { cwd: repoPath } : {};
       
@@ -539,15 +643,17 @@ sightedit-config.json
   }
 
   // 既存アカウントを選択して適用
-  async selectExistingAccount(account, targetType, targetRepoPath = null) {
+  async selectAccount(account, targetType, targetRepoPath = null) {
     try {
+      const execOptions = targetRepoPath ? { cwd: targetRepoPath } : {};
+      
       if (targetType === 'global') {
-        await execAsync(`git config --global user.name "${account.name}"`);
-        await execAsync(`git config --global user.email "${account.email}"`);
+        await execAsync(`git config --global user.name "${account.name}"`, execOptions);
+        await execAsync(`git config --global user.email "${account.email}"`, execOptions);
         return { success: true, message: 'グローバル設定を更新しました' };
       } else if (targetType === 'local' && targetRepoPath) {
-        await execAsync(`git config --local user.name "${account.name}"`, { cwd: targetRepoPath });
-        await execAsync(`git config --local user.email "${account.email}"`, { cwd: targetRepoPath });
+        await execAsync(`git config --local user.name "${account.name}"`, execOptions);
+        await execAsync(`git config --local user.email "${account.email}"`, execOptions);
         return { success: true, message: 'ローカル設定を更新しました' };
       } else {
         return { success: false, error: '設定対象が不正です' };
@@ -781,7 +887,16 @@ sightedit-config.json
     }
 
     try {
-      const { stdout } = await execAsync(`git diff "${filePath}"`, { cwd: repoPath });
+      const execOptions = {
+        cwd: repoPath,
+        env: {
+          ...process.env,
+          LC_ALL: 'C.UTF-8',
+          LANG: 'C.UTF-8'
+        }
+      };
+
+      const { stdout } = await execAsync(`git diff "${filePath}"`, execOptions);
       return this.parseDiff(stdout);
     } catch (error) {
       console.error('Diff error:', error);
@@ -822,21 +937,32 @@ sightedit-config.json
   // ブランチ一覧を取得
   async getBranches(repoPath = this.currentRepository) {
     if (!repoPath || !this.isGitAvailable) {
-      return [];
+      return { success: false, branches: [] };
     }
 
     try {
-      const { stdout } = await execAsync('git branch -a', { cwd: repoPath });
-      return stdout.split('\n')
+      const execOptions = {
+        cwd: repoPath,
+        env: {
+          ...process.env,
+          LC_ALL: 'C.UTF-8',
+          LANG: 'C.UTF-8'
+        }
+      };
+
+      const { stdout } = await execAsync('git branch -a', execOptions);
+      const branches = stdout.split('\n')
         .map(line => line.trim())
-        .filter(line => line)
+        .filter(line => line && !line.startsWith('('))
         .map(line => ({
           name: line.replace(/^\*\s*/, '').replace(/^remotes\//, ''),
           isCurrent: line.startsWith('*'),
           isRemote: line.includes('remotes/')
         }));
+
+      return { success: true, branches };
     } catch (error) {
-      return [];
+      return { success: false, branches: [], error: error.message };
     }
   }
 
@@ -857,7 +983,16 @@ sightedit-config.json
     }
 
     try {
-      await execAsync(`git checkout -b "${branchName}"`, { cwd: repoPath });
+      const execOptions = {
+        cwd: repoPath,
+        env: {
+          ...process.env,
+          LC_ALL: 'C.UTF-8',
+          LANG: 'C.UTF-8'
+        }
+      };
+
+      await execAsync(`git checkout -b "${branchName}"`, execOptions);
       return { success: true, message: `ブランチ "${branchName}" を作成しました` };
     } catch (error) {
       // エラーメッセージをより分かりやすく
@@ -892,7 +1027,16 @@ sightedit-config.json
     }
 
     try {
-      await execAsync(`git checkout "${branchName}"`, { cwd: repoPath });
+      const execOptions = {
+        cwd: repoPath,
+        env: {
+          ...process.env,
+          LC_ALL: 'C.UTF-8',
+          LANG: 'C.UTF-8'
+        }
+      };
+
+      await execAsync(`git checkout "${branchName}"`, execOptions);
       return { success: true, message: `ブランチ "${branchName}" に切り替えました` };
     } catch (error) {
       // エラーメッセージをより分かりやすく
