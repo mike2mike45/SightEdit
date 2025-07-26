@@ -347,7 +347,7 @@ function handleContextMenuAction(action, editor) {
   }
 }
 
-// 貼り付け処理を分離（リスト構造の修正版）
+// 貼り付け処理を分離（大幅改良版）
 async function handlePasteAction(editor) {
   try {
     // まずHTML形式を試す
@@ -360,7 +360,7 @@ async function handlePasteAction(editor) {
           const blob = await clipboardItem.getType(type);
           const html = await blob.text();
           
-          // HTMLをクリーニングしてから挿入（リスト処理強化）
+          // HTMLをクリーニングしてから挿入（大幅改良版）
           const cleanedHtml = cleanHtmlForEditor(html);
           editor.chain().focus().insertContent(cleanedHtml).run();
           window.showMessage('リッチテキストを貼り付けました', 'success');
@@ -395,11 +395,17 @@ async function handlePasteAction(editor) {
   }
 }
 
-// HTMLをエディター用にクリーニングする関数（リスト処理大幅改良版）
+// HTMLをエディター用にクリーニングする関数（完全書き直し版）
 function cleanHtmlForEditor(html) {
+  console.log('Original HTML:', html);
+  
   // 一時的なDIV要素でHTMLをパース
   const tempDiv = document.createElement('div');
   tempDiv.innerHTML = html;
+  
+  // DOM操作で構造を正規化
+  normalizeListStructure(tempDiv);
+  normalizeCodeBlocks(tempDiv);
   
   // 許可するタグと属性を定義
   const allowedTags = {
@@ -414,66 +420,6 @@ function cleanHtmlForEditor(html) {
     'table': [], 'thead': [], 'tbody': [], 'tr': [], 'th': [], 'td': []
   };
   
-  // リスト構造の前処理（重要な修正）
-  function preprocessLists(element) {
-    // 連続するli要素を検出してul/olで囲む
-    const listItems = element.querySelectorAll('li');
-    const processedItems = new Set();
-    
-    listItems.forEach(li => {
-      if (processedItems.has(li) || li.parentElement.matches('ul, ol')) {
-        return; // 既に処理済みまたは適切な親要素がある
-      }
-      
-      // 連続するli要素を収集
-      const siblingItems = [li];
-      let nextSibling = li.nextElementSibling;
-      
-      while (nextSibling && nextSibling.tagName === 'LI') {
-        siblingItems.push(nextSibling);
-        nextSibling = nextSibling.nextElementSibling;
-      }
-      
-      if (siblingItems.length > 0) {
-        // 番号付きリストか判定（より精密な判定）
-        const hasNumbers = siblingItems.some(item => {
-          const text = item.textContent.trim();
-          return /^\d+\./.test(text) || item.querySelector('*[start]');
-        });
-        
-        // 適切なリストタグで囲む
-        const listTag = hasNumbers ? 'ol' : 'ul';
-        const listElement = document.createElement(listTag);
-        
-        // li要素の内容をクリーニング
-        siblingItems.forEach(item => {
-          processedItems.add(item);
-          
-          // 番号プレフィックスを除去
-          const textContent = item.textContent.trim();
-          const cleanedText = textContent.replace(/^\d+\.\s*/, '');
-          
-          if (cleanedText !== textContent) {
-            item.textContent = cleanedText;
-          }
-          
-          listElement.appendChild(item.cloneNode(true));
-        });
-        
-        // 元の要素を置換
-        li.parentNode.insertBefore(listElement, li);
-        siblingItems.forEach(item => {
-          if (item.parentNode) {
-            item.parentNode.removeChild(item);
-          }
-        });
-      }
-    });
-  }
-  
-  // リスト前処理を実行
-  preprocessLists(tempDiv);
-  
   // 再帰的にHTMLをクリーニング
   function cleanNode(node) {
     if (node.nodeType === Node.TEXT_NODE) {
@@ -482,15 +428,6 @@ function cleanHtmlForEditor(html) {
     
     if (node.nodeType === Node.ELEMENT_NODE) {
       const tagName = node.tagName.toLowerCase();
-      
-      // 空のdiv/span/pを li として扱う特別処理
-      if (['div', 'span', 'p'].includes(tagName)) {
-        const text = node.textContent.trim();
-        if (text && (text.startsWith('•') || text.startsWith('-') || /^\d+\./.test(text))) {
-          const cleanedText = text.replace(/^[•\-]\s*/, '').replace(/^\d+\.\s*/, '');
-          return `<li>${cleanedText}</li>`;
-        }
-      }
       
       // 許可されていないタグの場合、内容のみを返す
       if (!allowedTags.hasOwnProperty(tagName)) {
@@ -542,26 +479,191 @@ function cleanHtmlForEditor(html) {
     cleanedContent += cleanNode(child);
   }
   
-  // 後処理：リスト構造の最終調整
-  cleanedContent = cleanedContent
-    // 連続するli要素をul/olで囲む
-    .replace(/(<li[^>]*>.*?<\/li>)(\s*<li[^>]*>.*?<\/li>)+/gs, (match) => {
-      const hasNumbers = /<li[^>]*>\s*\d+\./.test(match);
-      const listType = hasNumbers ? 'ol' : 'ul';
-      return `<${listType}>${match}</${listType}>`;
-    })
-    // 空のリスト項目を除去
-    .replace(/<li[^>]*>\s*<\/li>/g, '')
-    // 空のリストを除去
-    .replace(/<(ul|ol)[^>]*>\s*<\/(ul|ol)>/g, '')
-    // 余分な空白を除去
-    .replace(/\s+/g, ' ')
-    .trim();
-  
-  console.log('Original HTML:', html);
   console.log('Cleaned HTML:', cleanedContent);
   
   return cleanedContent;
+}
+
+// リスト構造を正規化（完全書き直し版）
+function normalizeListStructure(container) {
+  // 1. 番号付きリストの検出と変換
+  const numberedItems = container.querySelectorAll('p, div, span');
+  const detectedLists = new Map();
+  
+  numberedItems.forEach(item => {
+    const text = item.textContent.trim();
+    const match = text.match(/^(\d+)\.\s+(.+)$/);
+    if (match) {
+      const number = parseInt(match[1]);
+      const content = match[2];
+      
+      // 連続する番号付き項目をグループ化
+      let listGroup = null;
+      for (let [key, group] of detectedLists) {
+        const lastNumber = group[group.length - 1].number;
+        if (number === lastNumber + 1) {
+          listGroup = group;
+          break;
+        }
+      }
+      
+      if (!listGroup) {
+        listGroup = [];
+        detectedLists.set(item, listGroup);
+      }
+      
+      listGroup.push({ element: item, number, content });
+    }
+  });
+  
+  // 検出したリストをol要素に変換
+  for (let [firstItem, group] of detectedLists) {
+    if (group.length > 0) {
+      const ol = document.createElement('ol');
+      if (group[0].number !== 1) {
+        ol.setAttribute('start', group[0].number.toString());
+      }
+      
+      group.forEach(item => {
+        const li = document.createElement('li');
+        li.textContent = item.content;
+        ol.appendChild(li);
+        
+        // 元の要素を削除
+        if (item.element.parentNode) {
+          item.element.parentNode.removeChild(item.element);
+        }
+      });
+      
+      // 最初の要素の位置にol要素を挿入
+      if (firstItem.parentNode) {
+        firstItem.parentNode.insertBefore(ol, firstItem);
+      }
+    }
+  }
+  
+  // 2. ビュレットポイントの検出と変換
+  const bulletItems = container.querySelectorAll('p, div, span');
+  const bulletGroups = [];
+  let currentGroup = [];
+  
+  bulletItems.forEach(item => {
+    const text = item.textContent.trim();
+    if (text.match(/^[•\-\*]\s+(.+)$/)) {
+      const content = text.replace(/^[•\-\*]\s+/, '');
+      currentGroup.push({ element: item, content });
+    } else if (currentGroup.length > 0) {
+      bulletGroups.push(currentGroup);
+      currentGroup = [];
+    }
+  });
+  
+  if (currentGroup.length > 0) {
+    bulletGroups.push(currentGroup);
+  }
+  
+  // ビュレットポイントをul要素に変換
+  bulletGroups.forEach(group => {
+    if (group.length > 0) {
+      const ul = document.createElement('ul');
+      
+      group.forEach(item => {
+        const li = document.createElement('li');
+        li.textContent = item.content;
+        ul.appendChild(li);
+        
+        // 元の要素を削除
+        if (item.element.parentNode) {
+          item.element.parentNode.removeChild(item.element);
+        }
+      });
+      
+      // 最初の要素の位置にul要素を挿入
+      const firstItem = group[0].element;
+      if (firstItem.parentNode) {
+        firstItem.parentNode.insertBefore(ul, firstItem);
+      }
+    }
+  });
+  
+  // 3. 既存のli要素をul/olで適切に囲む
+  const orphanedLis = container.querySelectorAll('li');
+  orphanedLis.forEach(li => {
+    if (!li.parentNode || !['UL', 'OL'].includes(li.parentNode.tagName)) {
+      const ul = document.createElement('ul');
+      li.parentNode.insertBefore(ul, li);
+      ul.appendChild(li);
+    }
+  });
+}
+
+// コードブロックを正規化（改行保持）
+function normalizeCodeBlocks(container) {
+  // preタグ内のテキストの改行を保持
+  const preElements = container.querySelectorAll('pre');
+  preElements.forEach(pre => {
+    // 改行を明示的に保持
+    const text = pre.textContent;
+    pre.innerHTML = ''; // 内容をクリア
+    
+    const codeElement = document.createElement('code');
+    // 改行を保持してテキストを設定
+    codeElement.textContent = text;
+    pre.appendChild(codeElement);
+  });
+  
+  // コードブロックパターンの検出（```で囲まれたテキスト）
+  const textNodes = getTextNodes(container);
+  textNodes.forEach(textNode => {
+    const text = textNode.textContent;
+    const codeBlockPattern = /```(\w*)\n([\s\S]*?)\n```/g;
+    
+    if (codeBlockPattern.test(text)) {
+      const newHTML = text.replace(codeBlockPattern, (match, language, code) => {
+        const lang = language || 'text';
+        return `<pre><code class="language-${lang}">${escapeHtml(code)}</code></pre>`;
+      });
+      
+      // テキストノードをHTMLに置換
+      const wrapper = document.createElement('div');
+      wrapper.innerHTML = newHTML;
+      
+      while (wrapper.firstChild) {
+        textNode.parentNode.insertBefore(wrapper.firstChild, textNode);
+      }
+      textNode.parentNode.removeChild(textNode);
+    }
+  });
+}
+
+// テキストノードを取得
+function getTextNodes(node) {
+  const textNodes = [];
+  const walker = document.createTreeWalker(
+    node,
+    NodeFilter.SHOW_TEXT,
+    null,
+    false
+  );
+  
+  let textNode;
+  while (textNode = walker.nextNode()) {
+    textNodes.push(textNode);
+  }
+  
+  return textNodes;
+}
+
+// HTMLエスケープ
+function escapeHtml(text) {
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  };
+  return text.replace(/[&<>"']/g, m => map[m]);
 }
 
 // ソースエディタのアクション処理
