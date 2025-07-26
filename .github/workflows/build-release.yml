@@ -1,0 +1,73 @@
+name: Build and Release SightEdit
+
+# タグがプッシュされた時に実行
+on:
+  push:
+    tags:
+      - 'v*'
+  # 手動実行も可能
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    
+    steps:
+    - name: リポジトリをチェックアウト
+      uses: actions/checkout@v4
+
+    - name: Node.js 18 をセットアップ
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: 依存関係をインストール
+      run: npm ci
+
+    - name: アプリケーションをビルド
+      run: npm run build
+
+    - name: Electron アプリをビルド
+      run: npm run dist:win
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: ビルド成果物をアップロード
+      uses: actions/upload-artifact@v4
+      with:
+        name: sightedit-windows
+        path: |
+          dist/*.exe
+          dist/*.zip
+        retention-days: 30
+
+    # タグがプッシュされた場合はリリースを作成
+    - name: GitHub リリースを作成
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        name: SightEdit ${{ github.ref_name }}
+        body: |
+          ## SightEdit ${{ github.ref_name }} リリース
+          
+          ### 新機能・改善
+          - 新機能や改善点をここに記載してください
+          
+          ### バグ修正
+          - 修正されたバグをここに記載してください
+          
+          ### インストール方法
+          - `SightEdit Setup.exe` をダウンロードして実行してください
+          - ポータブル版が必要な場合は `.zip` ファイルを使用してください
+          
+          ### システム要件
+          - Windows 10/11 (64-bit)
+          
+        files: |
+          dist/*.exe
+          dist/*.zip
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

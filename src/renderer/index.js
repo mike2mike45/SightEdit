@@ -21,6 +21,7 @@ let helpDialog = null;
 let fileOps = null;
 let searchReplaceDialog = null;
 let gitPanel = null;
+let updateStatus = null;
 
 // 統計更新用のタイマー（デバウンス用）
 let statsUpdateTimer = null;
@@ -47,6 +48,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Git機能の初期化
   await initializeGitFeatures();
   
+  // 更新機能の初期化
+  await initializeUpdateFeatures();
+  
   initializeEditor();
   setupEventListeners();
   setupMenuListeners();
@@ -71,6 +75,266 @@ async function initializeGitFeatures() {
     
   } catch (error) {
     console.error('Git features initialization failed:', error);
+  }
+}
+
+// 更新機能の初期化
+async function initializeUpdateFeatures() {
+  try {
+    if (!window.electronAPI || !window.electronAPI.update) {
+      console.log('Update API not available');
+      return;
+    }
+    
+    // 更新状態リスナーを設定
+    window.electronAPI.update.onUpdateStatus((statusData) => {
+      handleUpdateStatus(statusData);
+    });
+    
+    // 再起動準備リスナーを設定
+    window.electronAPI.update.onPrepareForRestart(() => {
+      handlePrepareForRestart();
+    });
+    
+    // 初期状態を取得
+    const statusResult = await window.electronAPI.update.getStatus();
+    if (statusResult.success) {
+      updateStatus = statusResult.status;
+    }
+    
+    console.log('Update features initialized');
+  } catch (error) {
+    console.error('Update features initialization failed:', error);
+  }
+}
+
+// 更新状態の処理
+function handleUpdateStatus(statusData) {
+  const { status, data } = statusData;
+  
+  switch (status) {
+    case 'checking':
+      console.log('Checking for updates...');
+      break;
+      
+    case 'available':
+      console.log('Update available:', data.version);
+      showUpdateNotification(data);
+      break;
+      
+    case 'not-available':
+      console.log('No updates available');
+      break;
+      
+    case 'downloading':
+      console.log('Downloading update:', Math.round(data.percent) + '%');
+      showDownloadProgress(data);
+      break;
+      
+    case 'downloaded':
+      console.log('Update downloaded:', data.version);
+      showUpdateReadyNotification(data);
+      break;
+      
+    case 'error':
+      console.error('Update error:', data.message);
+      break;
+  }
+}
+
+// 更新通知を表示
+function showUpdateNotification(updateInfo) {
+  // すでに通知が表示されている場合は重複を避ける
+  if (document.getElementById('update-notification')) {
+    return;
+  }
+  
+  const notification = document.createElement('div');
+  notification.id = 'update-notification';
+  notification.className = 'update-notification';
+  notification.innerHTML = `
+    <div class="update-notification-content">
+      <div class="update-notification-icon">🆙</div>
+      <div class="update-notification-text">
+        <div class="update-notification-title">新しいバージョンが利用可能です</div>
+        <div class="update-notification-version">v${updateInfo.version}</div>
+      </div>
+      <div class="update-notification-actions">
+        <button id="update-download-btn" class="update-btn update-btn-primary">ダウンロード</button>
+        <button id="update-dismiss-btn" class="update-btn">後で</button>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(notification);
+  
+  // アニメーション表示
+  setTimeout(() => {
+    notification.classList.add('show');
+  }, 100);
+  
+  // イベントリスナー
+  document.getElementById('update-download-btn').addEventListener('click', async () => {
+    await window.electronAPI.update.downloadUpdate();
+    hideUpdateNotification();
+  });
+  
+  document.getElementById('update-dismiss-btn').addEventListener('click', () => {
+    hideUpdateNotification();
+  });
+  
+  // 10秒後に自動で消す
+  setTimeout(() => {
+    if (document.getElementById('update-notification')) {
+      hideUpdateNotification();
+    }
+  }, 10000);
+}
+
+// ダウンロード進行状況を表示
+function showDownloadProgress(progressData) {
+  let progressNotification = document.getElementById('download-progress-notification');
+  
+  if (!progressNotification) {
+    progressNotification = document.createElement('div');
+    progressNotification.id = 'download-progress-notification';
+    progressNotification.className = 'update-notification progress-notification';
+    progressNotification.innerHTML = `
+      <div class="update-notification-content">
+        <div class="update-notification-icon">⬇️</div>
+        <div class="update-notification-text">
+          <div class="update-notification-title">更新をダウンロード中...</div>
+          <div class="progress-bar">
+            <div id="progress-bar-fill" class="progress-bar-fill"></div>
+          </div>
+          <div id="progress-text" class="progress-text">0%</div>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(progressNotification);
+    
+    setTimeout(() => {
+      progressNotification.classList.add('show');
+    }, 100);
+  }
+  
+  // 進行状況を更新
+  const progressFill = document.getElementById('progress-bar-fill');
+  const progressText = document.getElementById('progress-text');
+  
+  if (progressFill && progressText) {
+    const percent = Math.round(progressData.percent);
+    progressFill.style.width = percent + '%';
+    progressText.textContent = `${percent}%`;
+  }
+}
+
+// 更新準備完了通知を表示
+function showUpdateReadyNotification(updateInfo) {
+  // ダウンロード進行状況通知を削除
+  const progressNotification = document.getElementById('download-progress-notification');
+  if (progressNotification) {
+    progressNotification.remove();
+  }
+  
+  // すでに通知が表示されている場合は重複を避ける
+  if (document.getElementById('update-ready-notification')) {
+    return;
+  }
+  
+  const notification = document.createElement('div');
+  notification.id = 'update-ready-notification';
+  notification.className = 'update-notification ready-notification';
+  notification.innerHTML = `
+    <div class="update-notification-content">
+      <div class="update-notification-icon">✅</div>
+      <div class="update-notification-text">
+        <div class="update-notification-title">更新の準備が完了しました</div>
+        <div class="update-notification-version">v${updateInfo.version}</div>
+      </div>
+      <div class="update-notification-actions">
+        <button id="update-install-btn" class="update-btn update-btn-primary">今すぐ再起動</button>
+        <button id="update-later-btn" class="update-btn">後で</button>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(notification);
+  
+  // アニメーション表示
+  setTimeout(() => {
+    notification.classList.add('show');
+  }, 100);
+  
+  // イベントリスナー
+  document.getElementById('update-install-btn').addEventListener('click', () => {
+    installUpdateAfterSave();
+  });
+  
+  document.getElementById('update-later-btn').addEventListener('click', () => {
+    hideUpdateReadyNotification();
+  });
+}
+
+// 再起動準備処理
+function handlePrepareForRestart() {
+  // ファイルが変更されている場合は保存を促す
+  if (isModified) {
+    const shouldSave = confirm('変更されたファイルを保存してから再起動しますか？');
+    if (shouldSave && fileOps) {
+      fileOps.saveFile().then(() => {
+        window.electronAPI.update.readyForRestart();
+      });
+    } else {
+      window.electronAPI.update.readyForRestart();
+    }
+  } else {
+    window.electronAPI.update.readyForRestart();
+  }
+}
+
+// 保存後に更新をインストール
+async function installUpdateAfterSave() {
+  try {
+    // 変更がある場合は保存
+    if (isModified && fileOps) {
+      const saveResult = await fileOps.saveFile();
+      if (!saveResult.success) {
+        // 保存に失敗した場合
+        const forceUpdate = confirm('保存に失敗しました。保存せずに更新を適用しますか？');
+        if (!forceUpdate) {
+          return;
+        }
+      }
+    }
+    
+    // 更新をインストール
+    await window.electronAPI.update.installUpdate();
+  } catch (error) {
+    console.error('Install update error:', error);
+    window.showMessage('更新のインストールに失敗しました', 'error');
+  }
+}
+
+// 通知を非表示
+function hideUpdateNotification() {
+  const notification = document.getElementById('update-notification');
+  if (notification) {
+    notification.classList.remove('show');
+    setTimeout(() => {
+      notification.remove();
+    }, 300);
+  }
+}
+
+function hideUpdateReadyNotification() {
+  const notification = document.getElementById('update-ready-notification');
+  if (notification) {
+    notification.classList.remove('show');
+    setTimeout(() => {
+      notification.remove();
+    }, 300);
   }
 }
 
@@ -379,6 +643,38 @@ function setupGitMenuHandlers() {
   });
 }
 
+// 更新関連メニューハンドラー
+function setupUpdateMenuHandlers() {
+  // 手動更新チェック
+  window.electronAPI.onMenuAction('menu-check-updates', async () => {
+    try {
+      if (!window.electronAPI.update) {
+        window.showMessage('更新機能が利用できません', 'error');
+        return;
+      }
+      
+      console.log('Manual update check triggered');
+      window.showMessage('更新をチェックしています...', 'info');
+      
+      const result = await window.electronAPI.update.checkForUpdates();
+      console.log('Update check result:', result);
+      
+      if (!result.success) {
+        if (result.reason === 'development_mode') {
+          window.showMessage('開発モードでは更新機能は無効です', 'warning');
+        } else if (result.reason === 'already_checking') {
+          window.showMessage('既に更新をチェック中です', 'warning');
+        } else {
+          window.showMessage('更新チェックに失敗しました', 'error');
+        }
+      }
+    } catch (error) {
+      console.error('Update check error:', error);
+      window.showMessage('更新チェックエラー', 'error');
+    }
+  });
+}
+
 function setupMenuListeners() {
   if (!window.electronAPI) return;
   
@@ -547,6 +843,9 @@ function setupMenuListeners() {
   
   // Git関連メニュー（修正版）
   setupGitMenuHandlers();
+  
+  // 更新関連メニュー
+  setupUpdateMenuHandlers();
   
   // ウィンドウを閉じる前の確認
   window.electronAPI.onMenuAction('before-close', async () => {
@@ -734,6 +1033,29 @@ window.getCurrentFile = function() {
 // 現在のファイル情報をグローバル変数としても公開
 window.currentFile = currentFile;
 
+// コミットからファイルを読み込む機能
+window.loadFileContent = function(fileData) {
+  if (fileData && fileData.content) {
+    if (currentMode === 'wysiwyg') {
+      setMarkdownContent(editor, fileData.content);
+    } else {
+      const sourceEditor = document.getElementById('source-editor');
+      if (sourceEditor) {
+        sourceEditor.value = fileData.content;
+      }
+    }
+    
+    currentFile = {
+      path: fileData.filePath,
+      name: fileData.fileName,
+      saved: true
+    };
+    window.currentFile = currentFile;
+    setModified(false);
+    performStatsUpdate();
+  }
+};
+
 // キーボードショートカットの設定
 function setupKeyboardShortcuts() {
   document.addEventListener('keydown', (e) => {
@@ -777,3 +1099,150 @@ function setupKeyboardShortcuts() {
     }
   });
 }
+
+// 更新通知のスタイルを追加
+const updateStyles = document.createElement('style');
+updateStyles.textContent = `
+  .update-notification {
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    z-index: 10000;
+    min-width: 300px;
+    max-width: 400px;
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+  }
+
+  .update-notification.show {
+    transform: translateX(0);
+  }
+
+  .update-notification-content {
+    display: flex;
+    align-items: center;
+    padding: 16px;
+    gap: 12px;
+  }
+
+  .update-notification-icon {
+    font-size: 24px;
+    flex-shrink: 0;
+  }
+
+  .update-notification-text {
+    flex: 1;
+  }
+
+  .update-notification-title {
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 4px;
+  }
+
+  .update-notification-version {
+    font-size: 12px;
+    color: #666;
+  }
+
+  .update-notification-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .update-btn {
+    padding: 6px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: white;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s;
+  }
+
+  .update-btn:hover {
+    background: #f8f9fa;
+  }
+
+  .update-btn-primary {
+    background: #007bff !important;
+    color: white !important;
+    border-color: #007bff !important;
+  }
+
+  .update-btn-primary:hover {
+    background: #0056b3 !important;
+  }
+
+  .progress-notification {
+    background: #e3f2fd !important;
+    border-color: #2196f3 !important;
+  }
+
+  .progress-bar {
+    width: 100%;
+    height: 4px;
+    background: #e0e0e0;
+    border-radius: 2px;
+    margin: 8px 0 4px 0;
+    overflow: hidden;
+  }
+
+  .progress-bar-fill {
+    height: 100%;
+    background: #2196f3;
+    transition: width 0.3s ease;
+  }
+
+  .progress-text {
+    font-size: 11px;
+    color: #666;
+    text-align: center;
+  }
+
+  .ready-notification {
+    background: #e8f5e8 !important;
+    border-color: #4caf50 !important;
+  }
+
+  /* ダークテーマ対応 */
+  .dark-theme .update-notification {
+    background: #2d2d2d;
+    border-color: #404040;
+    color: #fff;
+  }
+
+  .dark-theme .update-notification-version {
+    color: #ccc;
+  }
+
+  .dark-theme .update-btn {
+    background: #404040;
+    border-color: #555;
+    color: #fff;
+  }
+
+  .dark-theme .update-btn:hover {
+    background: #555;
+  }
+
+  .dark-theme .progress-notification {
+    background: #1a2b3d !important;
+    border-color: #2196f3 !important;
+  }
+
+  .dark-theme .ready-notification {
+    background: #1a2b1a !important;
+    border-color: #4caf50 !important;
+  }
+
+  .dark-theme .progress-text {
+    color: #ccc;
+  }
+`;
+document.head.appendChild(updateStyles);

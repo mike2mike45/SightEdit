@@ -1,18 +1,25 @@
 {
   "name": "sightedit",
-  "version": "2.0.1",
+  "version": "3.0.0",
   "description": "A WYSIWYG Markdown Editor for Windows",
   "main": "src/main/main.js",
   "author": "DuckEngine LLC",
   "license": "MIT",
   "homepage": "https://duckengine.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mike2mike45/sightedit.git"
+  },
   "scripts": {
     "start": "npm run build && electron .",
     "build": "webpack",
     "dev": "webpack --watch",
     "dist": "npm run build && electron-builder",
     "dist:win": "npm run build && electron-builder --win",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:linux": "npm run build && electron-builder --linux",
     "dist:portable": "npm run build && electron-builder --win portable",
+    "dist:all": "npm run build && electron-builder --win --mac --linux",
     "postinstall": "electron-builder install-app-deps"
   },
   "keywords": ["markdown", "editor", "wysiwyg", "electron"],
@@ -70,15 +77,55 @@
     "asar": {
       "smartUnpack": true
     },
+    "publish": {
+      "provider": "github",
+      "owner": "mike2mike45",
+      "repo": "sightedit"
+    },
     "win": {
       "target": [
         {
           "target": "nsis",
           "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
         }
       ],
       "icon": "assets/icon.ico",
-      "publisherName": "DuckEngine LLC"
+      "publisherName": "DuckEngine LLC",
+      "artifactName": "${productName} Setup ${version}.${ext}"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        }
+      ],
+      "icon": "assets/icon.icns",
+      "category": "public.app-category.productivity",
+      "artifactName": "${productName}-${version}.${ext}"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": ["x64"]
+        },
+        {
+          "target": "deb",
+          "arch": ["x64"]
+        },
+        {
+          "target": "rpm",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "assets/icon.png",
+      "category": "Office",
+      "artifactName": "${productName}-${version}.${ext}"
     },
     "nsis": {
       "oneClick": false,
@@ -112,7 +159,6 @@
         "icon": "assets/icon.ico",
         "role": "Editor"
       }
-    ],
-    "protocols": []
+    ]
   }
 }

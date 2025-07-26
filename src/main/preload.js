@@ -39,7 +39,11 @@ const validMenuChannels = [
   'menu-git-switch-branch',
   'menu-git-setup-remote',
   'menu-git-config',
-  'menu-git-show-history'
+  'menu-git-show-history',
+  // 更新関連メニューチャンネル
+  'menu-check-updates',
+  'update-status',
+  'prepare-for-restart'
 ];
 
 // Git機能API
@@ -124,6 +128,36 @@ const gitAPI = {
   selectDirectory: () => ipcRenderer.invoke('git:selectDirectory')
 };
 
+// 更新機能API
+const updateAPI = {
+  // 更新チェック（手動）
+  checkForUpdates: () => ipcRenderer.invoke('update:checkForUpdates'),
+  
+  // 更新ダウンロード
+  downloadUpdate: () => ipcRenderer.invoke('update:downloadUpdate'),
+  
+  // 更新インストール（再起動）
+  installUpdate: () => ipcRenderer.invoke('update:installUpdate'),
+  
+  // 更新状態取得
+  getStatus: () => ipcRenderer.invoke('update:getStatus'),
+  
+  // 再起動準備完了通知
+  readyForRestart: () => ipcRenderer.send('update:readyForRestart'),
+  
+  // 更新状態リスナー
+  onUpdateStatus: (callback) => {
+    ipcRenderer.removeAllListeners('update-status');
+    ipcRenderer.on('update-status', (event, statusData) => callback(statusData));
+  },
+  
+  // 再起動準備リスナー
+  onPrepareForRestart: (callback) => {
+    ipcRenderer.removeAllListeners('prepare-for-restart');
+    ipcRenderer.on('prepare-for-restart', callback);
+  }
+};
+
 // ElectronAPIを公開
 contextBridge.exposeInMainWorld('electronAPI', {
   // アプリケーション情報
@@ -146,6 +180,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // Git機能
   git: gitAPI,
+  
+  // 更新機能
+  update: updateAPI,
   
   // メニューアクション用のリスナー設定
   onMenuAction: (channel, callback) => {
