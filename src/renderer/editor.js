@@ -11,8 +11,8 @@ import TaskItem from '@tiptap/extension-task-item';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import Placeholder from '@tiptap/extension-placeholder';
 import { createLowlight, common } from 'lowlight';
-import { markdownToHtml, htmlToMarkdown } from './markdown';
-import { createDialog, addDialogStyles } from './dialog-helper';
+import { markdownToHtml, htmlToMarkdown } from './markdown.js';
+import { createDialog, addDialogStyles } from './dialog-helper.js';
 
 // lowlightインスタンスを作成
 const lowlight = createLowlight(common);

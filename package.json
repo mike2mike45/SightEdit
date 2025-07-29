@@ -2,6 +2,7 @@
   "name": "sightedit",
   "version": "3.0.0",
   "description": "A WYSIWYG Markdown Editor for Windows",
+  "type": "module",
   "main": "src/main/main.js",
   "author": "DuckEngine LLC",
   "license": "MIT",
@@ -30,8 +31,8 @@
   ],
   "devDependencies": {
     "css-loader": "^6.8.1",
-    "electron": "^28.0.0",
-    "electron-builder": "^24.9.1",
+    "electron": "^31.0.0",
+    "electron-builder": "^25.0.0",
     "html-webpack-plugin": "^5.5.3",
     "style-loader": "^3.3.3",
     "webpack": "^5.89.0",

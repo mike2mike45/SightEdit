@@ -1,5 +1,10 @@
-const fs = require('fs').promises;
-const path = require('path');
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// ESMでの__dirname代替
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 class ConfigManager {
   constructor() {
@@ -78,4 +83,4 @@ class ConfigManager {
   }
 }
 
-module.exports = ConfigManager;
+export default ConfigManager;

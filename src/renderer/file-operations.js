@@ -1,4 +1,4 @@
-import { getMarkdownContent, setMarkdownContent } from './editor';
+import { getMarkdownContent, setMarkdownContent } from './editor.js';
 
 let currentEditor = null;
 let currentFile = null;

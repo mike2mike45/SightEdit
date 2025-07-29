@@ -161,8 +161,8 @@ function showInputContextMenu(e, inputElement) {
       
       if (item.enabled) {
         menuItem.addEventListener('click', async () => {
-          await handleInputContextMenuAction(item.action, inputElement);
           contextMenu.remove();
+          await handleInputMenuAction(item.action, inputElement);
         });
       }
       
@@ -172,53 +172,18 @@ function showInputContextMenu(e, inputElement) {
 
   document.body.appendChild(contextMenu);
 
-  // メニューが画面外に出ないように位置を調整
-  setTimeout(() => {
-    const rect = contextMenu.getBoundingClientRect();
-    const windowWidth = window.innerWidth;
-    const windowHeight = window.innerHeight;
-    
-    let newLeft = parseFloat(contextMenu.style.left);
-    let newTop = parseFloat(contextMenu.style.top);
-    
-    // 右端がはみ出る場合
-    if (rect.right > windowWidth) {
-      newLeft = Math.max(10, windowWidth - rect.width - 10);
-    }
-    
-    // 左端がはみ出る場合
-    if (newLeft < 10) {
-      newLeft = 10;
-    }
-    
-    // 下端がはみ出る場合
-    if (rect.bottom > windowHeight) {
-      newTop = Math.max(10, windowHeight - rect.height - 10);
-    }
-    
-    // 上端がはみ出る場合
-    if (newTop < 10) {
-      newTop = 10;
-    }
-    
-    contextMenu.style.left = newLeft + 'px';
-    contextMenu.style.top = newTop + 'px';
-  }, 0);
-
-  // クリックでメニューを閉じる
+  // クリック外で閉じる
   setTimeout(() => {
     document.addEventListener('click', function closeMenu() {
-      if (document.body.contains(contextMenu)) {
-        contextMenu.remove();
-      }
+      contextMenu.remove();
       document.removeEventListener('click', closeMenu);
     });
-  }, 100);
+  }, 0);
 }
 
-// 入力フィールドのコンテキストメニューアクション（リッチテキスト対応版）
-async function handleInputContextMenuAction(action, inputElement) {
-  switch(action) {
+// 入力フィールドのメニューアクション処理
+async function handleInputMenuAction(action, inputElement) {
+  switch (action) {
     case 'copy':
       const selectedText = inputElement.value.substring(
         inputElement.selectionStart,
@@ -301,6 +266,110 @@ async function handleInputContextMenuAction(action, inputElement) {
       inputElement.select();
       break;
   }
+}
+
+// 目次生成ダイアログを作成
+export function createTOCDialog() {
+  // ダイアログのHTML
+  const dialogHTML = `
+    <div id="toc-dialog" class="dialog-overlay" style="display: none;">
+      <div class="dialog-content">
+        <div class="dialog-header">
+          <h3>目次の形式を選択</h3>
+          <button class="dialog-close">&times;</button>
+        </div>
+        <div class="dialog-body">
+          <div class="toc-dialog-content">
+            <p>生成する目次の形式を選択してください：</p>
+            <div class="toc-options">
+              <label class="toc-radio-option">
+                <input type="radio" name="toc-type" value="linked" checked>
+                <div class="toc-option-content">
+                  <strong>リンク付き目次</strong>
+                  <div class="toc-option-description">
+                    見出しへのジャンプリンク付き<br>
+                    <small>GitHub、GitLab、SightEdit等で動作</small>
+                  </div>
+                  <div class="toc-example">
+                    例: <code>- [見出し1](#見出し1)</code>
+                  </div>
+                </div>
+              </label>
+              <label class="toc-radio-option">
+                <input type="radio" name="toc-type" value="simple">
+                <div class="toc-option-content">
+                  <strong>シンプル目次</strong>
+                  <div class="toc-option-description">
+                    テキストのみ、リンクなし<br>
+                    <small>すべてのMarkdown環境で動作</small>
+                  </div>
+                  <div class="toc-example">
+                    例: <code>- 見出し1</code>
+                  </div>
+                </div>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="dialog-footer">
+          <button class="dialog-cancel">キャンセル</button>
+          <button class="dialog-ok">目次を生成</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const dialogDiv = document.createElement('div');
+  dialogDiv.innerHTML = dialogHTML;
+  document.body.appendChild(dialogDiv.firstElementChild);
+
+  const dialog = document.getElementById('toc-dialog');
+  const closeBtn = dialog.querySelector('.dialog-close');
+  const cancelBtn = dialog.querySelector('.dialog-cancel');
+  const okBtn = dialog.querySelector('.dialog-ok');
+
+  let resolvePromise = null;
+
+  // ダイアログを表示
+  function show() {
+    dialog.style.display = 'flex';
+    
+    // デフォルト選択を復元
+    const linkedRadio = dialog.querySelector('input[value="linked"]');
+    if (linkedRadio) {
+      linkedRadio.checked = true;
+    }
+
+    return new Promise((resolve) => {
+      resolvePromise = resolve;
+    });
+  }
+
+  // ダイアログを閉じる
+  function close(result = null) {
+    dialog.style.display = 'none';
+    if (resolvePromise) {
+      resolvePromise(result);
+      resolvePromise = null;
+    }
+  }
+
+  // イベントリスナー
+  closeBtn.addEventListener('click', () => close(null));
+  cancelBtn.addEventListener('click', () => close(null));
+  okBtn.addEventListener('click', () => {
+    const selectedType = dialog.querySelector('input[name="toc-type"]:checked')?.value;
+    close(selectedType);
+  });
+
+  // 背景クリックで閉じる
+  dialog.addEventListener('click', (e) => {
+    if (e.target === dialog) {
+      close(null);
+    }
+  });
+
+  return { show };
 }
 
 // ダイアログのスタイルを追加

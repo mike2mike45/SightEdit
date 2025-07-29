@@ -114,7 +114,7 @@ export class GitPanel {
       this.hide(); // パネルを閉じる
     });
 
-    // インデックスに追加（確認ダイアログ付き）
+    // ステージング（確認ダイアログ付き）
     document.getElementById('git-stage-all')?.addEventListener('click', () => {
       this.stageAllChangesWithConfirm();
     });
@@ -253,7 +253,7 @@ export class GitPanel {
     }
   }
 
-  // 確認ダイアログ付き全ファイルのインデックス追加（修正版）
+  // 確認ダイアログ付き全ステージング（修正版 - リポジトリ状態チェック強化）
   async stageAllChangesWithConfirm() {
     if (!this.currentRepository) {
       window.showMessage('Gitリポジトリが初期化されていません', 'error');
@@ -267,40 +267,26 @@ export class GitPanel {
         window.showMessage('Gitリポジトリの状態を確認できません。リポジトリが正しく初期化されているか確認してください。', 'error');
         return;
       }
-
-      // 変更があるかチェック（修正版 - 安全なチェック）
-      const hasChanges = statusResult.status.hasChanges && 
-                        Array.isArray(statusResult.status.changes) && 
-                        statusResult.status.changes.length > 0;
-      
-      if (!hasChanges) {
-        window.showMessage('インデックスに追加する変更はありません', 'info');
-        return;
-      }
     } catch (error) {
       console.error('Repository status check error:', error);
       window.showMessage('Gitリポジトリにアクセスできません', 'error');
       return;
     }
 
-    const confirmed = confirm('全ての変更をインデックスに追加しますか？\n\nこの操作により、変更されたファイルがコミット対象になります。');
+    const confirmed = confirm('全ての変更をステージングエリアに追加しますか？\n\nこの操作により、変更されたファイルがコミット対象になります。');
     if (!confirmed) return;
 
     try {
       const result = await window.electronAPI.git.stageAllChanges(this.currentRepository);
       if (result.success) {
         await this.refreshStatus();
-        if (result.stagedCount > 0) {
-          window.showMessage(result.message, 'success');
-        } else {
-          window.showMessage(result.message, 'info');
-        }
+        window.showMessage('全ての変更をステージングしました', 'success');
       } else {
-        window.showMessage(`インデックスへの追加に失敗: ${result.error || 'Unknown error'}`, 'error');
+        window.showMessage(`ステージングに失敗: ${result.error || 'Unknown error'}`, 'error');
       }
     } catch (error) {
       console.error('Stage all error:', error);
-      window.showMessage('インデックス追加エラー', 'error');
+      window.showMessage('ステージングエラー', 'error');
     }
   }
 
@@ -445,15 +431,6 @@ export class GitPanel {
       
       if (result.success && result.status) {
         this.gitStatus = result.status;
-        
-        // gitStatusが正しく設定されているか確認
-        if (!this.gitStatus.changes) {
-          this.gitStatus.changes = [];
-        }
-        if (!this.gitStatus.commits) {
-          this.gitStatus.commits = [];
-        }
-        
         await this.updateRepositoryInfo();
         await this.updateChangesList();
         await this.updateBranchList();
@@ -463,37 +440,11 @@ export class GitPanel {
         const errorMsg = result.error || 'リポジトリの状態を取得できませんでした';
         console.error('Git status failed:', errorMsg);
         window.showMessage(`Git状態の取得に失敗: ${errorMsg}`, 'error');
-        
-        // エラー時も空のステータスを設定
-        this.gitStatus = {
-          currentBranch: 'unknown',
-          remoteUrl: null,
-          changes: [],
-          commits: [],
-          hasChanges: false,
-          hasRemote: false
-        };
-        
-        await this.updateRepositoryInfo();
-        await this.updateChangesList();
       }
     } catch (error) {
       console.error('Git status error:', error);
       const errorMsg = error?.message || error?.toString() || 'Unknown error';
       window.showMessage(`Git状態の取得に失敗: ${errorMsg}`, 'error');
-      
-      // エラー時も空のステータスを設定
-      this.gitStatus = {
-        currentBranch: 'unknown',
-        remoteUrl: null,
-        changes: [],
-        commits: [],
-        hasChanges: false,
-        hasRemote: false
-      };
-      
-      await this.updateRepositoryInfo();
-      await this.updateChangesList();
     }
   }
 
@@ -505,23 +456,15 @@ export class GitPanel {
     const currentBranch = document.getElementById('git-current-branch');
     const remoteUrl = document.getElementById('git-remote-url');
 
-    if (repoName) {
-      repoName.textContent = this.currentRepository.split('/').pop() || this.currentRepository.split('\\').pop();
-    }
-    if (currentBranch) {
-      currentBranch.textContent = this.gitStatus.currentBranch || 'unknown';
-    }
-    if (remoteUrl) {
-      remoteUrl.textContent = this.gitStatus.remoteUrl || '未設定';
-    }
+    repoName.textContent = this.currentRepository.split('/').pop() || this.currentRepository.split('\\').pop();
+    currentBranch.textContent = this.gitStatus.currentBranch || 'unknown';
+    remoteUrl.textContent = this.gitStatus.remoteUrl || '未設定';
 
-    if (repoInfo) {
-      repoInfo.style.display = 'block';
-    }
+    repoInfo.style.display = 'block';
 
     // リモート操作セクションの表示制御
     const remoteSection = document.getElementById('git-remote-section');
-    if (remoteSection && this.gitStatus.hasRemote) {
+    if (this.gitStatus.hasRemote) {
       remoteSection.style.display = 'block';
       if (this.collapsedSections.has('remote')) {
         remoteSection.classList.add('collapsed');
@@ -530,25 +473,10 @@ export class GitPanel {
   }
 
   async updateChangesList() {
-    // gitStatusが存在しない場合の安全な処理
-    if (!this.gitStatus) {
-      console.warn('gitStatus is not available');
-      return;
-    }
+    if (!this.gitStatus) return;
 
     const changesList = document.getElementById('git-changes-list');
     const changesSection = document.getElementById('git-changes');
-
-    if (!changesList || !changesSection) {
-      console.warn('Changes UI elements not found');
-      return;
-    }
-
-    // changesが配列でない場合は空配列に設定
-    if (!Array.isArray(this.gitStatus.changes)) {
-      console.warn('gitStatus.changes is not an array, setting to empty array');
-      this.gitStatus.changes = [];
-    }
 
     if (this.gitStatus.changes.length === 0) {
       changesList.innerHTML = '<p class="git-no-changes">変更はありません</p>';
@@ -567,28 +495,19 @@ export class GitPanel {
     // 変更ファイル一覧を生成
     changesList.innerHTML = '';
     this.gitStatus.changes.forEach((change, index) => {
-      // changeオブジェクトの存在確認
-      if (!change || !change.filePath) {
-        console.warn(`Invalid change object at index ${index}:`, change);
-        return;
-      }
-      
       const changeItem = document.createElement('div');
       changeItem.className = 'git-change-item';
       
       const statusIcon = this.getChangeIcon(change.changeType);
       const statusClass = `git-status-${change.changeType}`;
       
-      // ファイルパスをエスケープして安全に処理
-      const escapedFilePath = change.filePath.replace(/'/g, "\\'");
-      
       changeItem.innerHTML = `
         <div class="git-change-header">
           <span class="${statusClass}">${statusIcon} ${change.filePath}</span>
           <div class="git-change-actions">
             ${!change.staged ? 
-              `<button class="git-btn-small" onclick="gitPanel.stageFile('${escapedFilePath}', ${index})">+</button>` :
-              `<button class="git-btn-small" onclick="gitPanel.unstageFile('${escapedFilePath}', ${index})">-</button>`
+              `<button class="git-btn-small" onclick="gitPanel.stageFile('${change.filePath}', ${index})">+</button>` :
+              `<button class="git-btn-small" onclick="gitPanel.unstageFile('${change.filePath}', ${index})">-</button>`
             }
           </div>
         </div>
@@ -614,10 +533,10 @@ export class GitPanel {
     return;
   }
 
-  // 数字表示を更新（安全な処理）
+  // 数字表示を更新
   updateCountDisplays() {
     const changesCount = document.getElementById('git-changes-count');
-    if (changesCount && this.gitStatus && Array.isArray(this.gitStatus.changes)) {
+    if (changesCount && this.gitStatus) {
       changesCount.textContent = this.gitStatus.changes.length;
     }
   }
@@ -630,10 +549,7 @@ export class GitPanel {
       if (existingAccounts.length > 0) {
         this.showExistingAccounts(existingAccounts);
       } else {
-        const existingAccountsElement = document.getElementById('git-existing-accounts');
-        if (existingAccountsElement) {
-          existingAccountsElement.style.display = 'none';
-        }
+        document.getElementById('git-existing-accounts').style.display = 'none';
       }
       
       this.existingAccounts = existingAccounts;
@@ -645,11 +561,6 @@ export class GitPanel {
   showExistingAccounts(accounts) {
     const existingAccountsDiv = document.getElementById('git-existing-accounts');
     const accountsList = document.getElementById('git-accounts-list');
-    
-    if (!existingAccountsDiv || !accountsList) {
-      console.warn('Account UI elements not found');
-      return;
-    }
     
     accountsList.innerHTML = '';
     
@@ -675,19 +586,9 @@ export class GitPanel {
   }
 
   showUserConfigForm() {
-    const existingAccountsElement = document.getElementById('git-existing-accounts');
-    const accountButtonsElement = document.getElementById('git-account-buttons');
-    const accountFormElement = document.getElementById('git-account-form');
-    
-    if (existingAccountsElement) {
-      existingAccountsElement.style.display = 'none';
-    }
-    if (accountButtonsElement) {
-      accountButtonsElement.style.display = 'none';
-    }
-    if (accountFormElement) {
-      accountFormElement.style.display = 'block';
-    }
+    document.getElementById('git-existing-accounts').style.display = 'none';
+    document.getElementById('git-account-buttons').style.display = 'none';
+    document.getElementById('git-account-form').style.display = 'block';
     
     const nameInput = document.getElementById('git-user-name');
     const emailInput = document.getElementById('git-user-email');
@@ -749,20 +650,12 @@ export class GitPanel {
   }
 
   hideUserConfigForm() {
-    const accountFormElement = document.getElementById('git-account-form');
-    const existingAccountsElement = document.getElementById('git-existing-accounts');
-    const accountButtonsElement = document.getElementById('git-account-buttons');
+    document.getElementById('git-account-form').style.display = 'none';
     
-    if (accountFormElement) {
-      accountFormElement.style.display = 'none';
+    if (this.existingAccounts && this.existingAccounts.length > 0) {
+      document.getElementById('git-existing-accounts').style.display = 'block';
     }
-    
-    if (this.existingAccounts && this.existingAccounts.length > 0 && existingAccountsElement) {
-      existingAccountsElement.style.display = 'block';
-    }
-    if (accountButtonsElement) {
-      accountButtonsElement.style.display = 'block';
-    }
+    document.getElementById('git-account-buttons').style.display = 'block';
   }
 
   async selectAccount(accountIndex, targetType) {
@@ -864,18 +757,9 @@ export class GitPanel {
   }
 
   async saveUserConfiguration() {
-    const nameInput = document.getElementById('git-user-name');
-    const emailInput = document.getElementById('git-user-email');
-    const scopeRadio = document.querySelector('input[name="git-config-scope"]:checked');
-    
-    if (!nameInput || !emailInput || !scopeRadio) {
-      window.showMessage('設定フォームが見つかりません', 'error');
-      return;
-    }
-    
-    const name = nameInput.value.trim();
-    const email = emailInput.value.trim();
-    const isGlobal = scopeRadio.value === 'global';
+    const name = document.getElementById('git-user-name').value.trim();
+    const email = document.getElementById('git-user-email').value.trim();
+    const isGlobal = document.querySelector('input[name="git-config-scope"]:checked').value === 'global';
 
     if (!name || !email) {
       window.showMessage('名前とメールアドレスは必須です', 'warning');
@@ -900,14 +784,7 @@ export class GitPanel {
   }
 
   async handleRemoteSetup() {
-    const remoteUrlInput = document.getElementById('remote-url-input');
-    
-    if (!remoteUrlInput) {
-      window.showMessage('リモートURL入力フィールドが見つかりません', 'error');
-      return;
-    }
-    
-    const trimmedUrl = remoteUrlInput.value.trim();
+    const trimmedUrl = document.getElementById('remote-url-input').value.trim();
     
     if (!trimmedUrl) {
       window.showMessage('URLが入力されていません', 'warning');
@@ -1081,13 +958,12 @@ export class GitPanel {
       const result = await window.electronAPI.git.stageFile(filePath, this.currentRepository);
       if (result.success) {
         await this.refreshStatus();
-        window.showMessage(result.message, 'success');
       } else {
-        window.showMessage(`インデックスへの追加に失敗: ${result.error || 'Unknown error'}`, 'error');
+        window.showMessage(`ステージングに失敗: ${result.error || 'Unknown error'}`, 'error');
       }
     } catch (error) {
       console.error('Stage file error:', error);
-      window.showMessage('インデックス追加エラー', 'error');
+      window.showMessage('ステージングエラー', 'error');
     }
   }
 
@@ -1096,13 +972,12 @@ export class GitPanel {
       const result = await window.electronAPI.git.unstageFile(filePath, this.currentRepository);
       if (result.success) {
         await this.refreshStatus();
-        window.showMessage(result.message, 'success');
       } else {
-        window.showMessage(`インデックスからの除外に失敗: ${result.error || 'Unknown error'}`, 'error');
+        window.showMessage(`アンステージングに失敗: ${result.error || 'Unknown error'}`, 'error');
       }
     } catch (error) {
       console.error('Unstage file error:', error);
-      window.showMessage('インデックス除外エラー', 'error');
+      window.showMessage('アンステージングエラー', 'error');
     }
   }
 

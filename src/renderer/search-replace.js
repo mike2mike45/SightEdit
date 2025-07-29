@@ -1,5 +1,5 @@
 // 検索・置換ダイアログの実装
-import { searchInEditor, highlightSearchResult, replaceText, replaceAll as replaceAllInEditor } from './editor';
+import { searchInEditor, highlightSearchResult, replaceText, replaceAll as replaceAllInEditor } from './editor.js';
 
 export function createSearchReplaceDialog() {
   // ダイアログのHTML

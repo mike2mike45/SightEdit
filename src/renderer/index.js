@@ -1,13 +1,13 @@
 import './styles.css';
 import './git-styles.css';
-import { createEditor, setupToolbar, getMarkdownContent, setMarkdownContent, generateTableOfContents } from './editor';
-import { setupFileOperations } from './file-operations';
-import { setupContextMenu, setupSourceEditorContextMenu } from './context-menu';
-import { createHelpDialog, addHelpStyles } from './help-dialog';
-import { createSearchReplaceDialog, addSearchReplaceStyles } from './search-replace';
-import { GitPanel } from './git-panel';
-import './git-ui-manager';
-import './git-dialogs';
+import { createEditor, setupToolbar, getMarkdownContent, setMarkdownContent, generateTableOfContents } from './editor.js';
+import { setupFileOperations } from './file-operations.js';
+import { setupContextMenu, setupSourceEditorContextMenu } from './context-menu.js';
+import { createHelpDialog, addHelpStyles } from './help-dialog.js';
+import { createSearchReplaceDialog, addSearchReplaceStyles } from './search-replace.js';
+import { GitPanel } from './git-panel.js';
+import './git-ui-manager.js';
+import './git-dialogs.js';
 
 let editor = null;
 let currentFile = {
@@ -505,7 +505,7 @@ function setupGitMenuHandlers() {
     await gitPanel.handleMenuAction('open-repository');
   });
 
-  // Git 全ての変更をステージング（確認ダイアログ付き）
+  // Git 全ての変更をインデックスに追加（確認ダイアログ付き）
   window.electronAPI.onMenuAction('menu-git-stage-all', async () => {
     if (!gitPanel) {
       window.showMessage('Git機能が初期化されていません', 'error');

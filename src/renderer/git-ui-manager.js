@@ -25,16 +25,16 @@ export class GitUIManager {
               <p><a href="#" class="external-link" data-url="https://git-scm.com/downloads">Gitをダウンロード</a></p>
             </div>
 
-            <!-- リポジトリ未初期化状態 -->
+            <!-- リポジトリ未設定状態 -->
             <div id="git-no-repo" class="git-section" style="display: none;">
-              <h4>📁 リポジトリの初期化</h4>
+              <h4>📁 Gitリポジトリの設定</h4>
               <p>現在のファイルはGitリポジトリ管理下にありません。</p>
               <div class="git-actions">
                 <button id="git-init-here" class="git-btn git-btn-primary">
-                  この場所にリポジトリを作成
+                  この場所に新規リポジトリを作成
                 </button>
                 <button id="git-select-folder" class="git-btn">
-                  別のフォルダーを選択
+                  既存のリポジトリを開く
                 </button>
               </div>
             </div>
@@ -47,16 +47,8 @@ export class GitUIManager {
               </div>
               <div class="git-repo-details">
                 <div class="git-detail-item">
-                  <span class="git-label">ブランチ:</span>
-                  <span id="git-branch-name">main</span>
-                </div>
-                <div class="git-detail-item">
                   <span class="git-label">リモート:</span>
                   <span id="git-remote-url">未設定</span>
-                </div>
-                <div class="git-detail-item">
-                  <span class="git-label">ユーザー:</span>
-                  <span id="git-current-user" class="git-user-info">読み込み中...</span>
                 </div>
               </div>
             </div>
@@ -81,7 +73,7 @@ export class GitUIManager {
                   <!-- ファイル一覧がここに表示される -->
                 </div>
                 <div class="git-actions">
-                  <button id="git-stage-all" class="git-btn">全てステージング</button>
+                  <button id="git-stage-all" class="git-btn">全てインデックスに追加</button>
                   <button id="git-refresh-status" class="git-btn-small">🔄</button>
                 </div>
               </div>
@@ -100,6 +92,7 @@ export class GitUIManager {
                 </div>
               </div>
             </div>
+
 
           </div>
 

@@ -272,7 +272,7 @@ export class GitDialogs {
               <div class="git-form-group">
                 <label>対象ファイル:</label>
                 <div id="git-commit-files" class="git-commit-files-list">
-                  <!-- ステージされたファイル一覧 -->
+                  <!-- インデックスに追加されたファイル一覧 -->
                 </div>
               </div>
               <div class="git-form-group">
@@ -325,14 +325,14 @@ export class GitDialogs {
       dialog = this.createCommitDialog();
     }
 
-    // ステージされたファイル情報を取得
+    // インデックスに追加されたファイル情報を取得
     try {
       const result = await window.electronAPI.git.getRepositoryStatus(repoPath);
       if (result.success && result.status.changes) {
         const stagedFiles = result.status.changes.filter(change => change.staged);
         
         if (stagedFiles.length === 0) {
-          window.showMessage('ステージングされたファイルがありません。先に変更をステージングしてください。', 'warning');
+          window.showMessage('インデックスに追加されたファイルがありません。先に変更をインデックスに追加してください。', 'warning');
           return;
         }
 
@@ -363,7 +363,7 @@ export class GitDialogs {
       }
     } catch (error) {
       console.error('Failed to load staged files:', error);
-      window.showMessage('ステージングファイルの読み込みに失敗しました', 'error');
+      window.showMessage('インデックスに追加されたファイルの読み込みに失敗しました', 'error');
     }
   }
 

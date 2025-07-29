@@ -1,15 +1,24 @@
-const { app, BrowserWindow, Menu, dialog, ipcMain, shell } = require('electron');
-const path = require('path');
-const fs = require('fs');
-const ConfigManager = require('./config-manager');
-const GitManager = require('./git-manager');
+import { app, BrowserWindow, Menu, dialog, ipcMain, shell } from 'electron';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import fs from 'fs';
+import ConfigManager from './config-manager.js';
+import GitManager from './git-manager.js';
+import UpdateManager from './update-manager.js';
+
+// ESMでの__dirname代替
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // package.jsonから情報を取得
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
 const packageInfo = require('../../package.json');
 
 let mainWindow;
 let configManager;
 let gitManager;
+let updateManager;
 let openFilePath = null; // 起動時に開くファイルパス
 
 // アプリケーションの準備ができてから実行
@@ -31,10 +40,20 @@ app.whenReady().then(async () => {
   // Git機能を初期化
   gitManager = new GitManager();
   
+  // 更新機能を初期化
+  updateManager = new UpdateManager();
+  
   createMainWindow();
   createApplicationMenu();
   setupIPCHandlers();
   setupGitIPCHandlers();
+  setupUpdateIPCHandlers();
+  
+  // 更新機能にメインウィンドウを設定
+  updateManager.setMainWindow(mainWindow);
+  
+  // 自動更新チェックを開始（起動時）
+  updateManager.checkForUpdatesAutomatically();
   
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -75,7 +94,7 @@ function createMainWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, 'preload.cjs'),
       webSecurity: true
     },
     show: false
@@ -90,6 +109,11 @@ function createMainWindow() {
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
     mainWindow.webContents.send('set-initial-theme', configManager.get('theme'));
+    
+    // 更新機能にメインウィンドウを設定
+    if (updateManager) {
+      updateManager.setMainWindow(mainWindow);
+    }
     
     // 起動時にファイルを開く
     if (openFilePath) {
@@ -161,422 +185,314 @@ function setupIPCHandlers() {
   
   // ファイル操作
   ipcMain.handle('file:new', async () => {
-    return { success: true };
+    return { 
+      success: true, 
+      content: '', 
+      filePath: null 
+    };
   });
 
   ipcMain.handle('file:open', async () => {
-    try {
-      const result = await dialog.showOpenDialog(mainWindow, {
-        title: 'ファイルを開く',
-        filters: [
-          { name: 'Markdown', extensions: ['md'] },
-          { name: 'テキスト', extensions: ['txt'] },
-          { name: 'すべてのファイル', extensions: ['*'] }
-        ],
-        properties: ['openFile']
-      });
+    const result = await dialog.showOpenDialog({
+      filters: [
+        { name: 'Markdown', extensions: ['md', 'markdown'] },
+        { name: 'Text', extensions: ['txt'] },
+        { name: 'All Files', extensions: ['*'] }
+      ],
+      properties: ['openFile']
+    });
 
-      if (result.canceled || !result.filePaths.length) {
-        return { success: false, canceled: true };
-      }
-
+    if (!result.canceled && result.filePaths.length > 0) {
       const filePath = result.filePaths[0];
-      const content = await fs.promises.readFile(filePath, 'utf8');
-      
-      return {
-        success: true,
-        filePath,
-        content,
-        fileName: path.basename(filePath)
-      };
-    } catch (error) {
-      return { success: false, error: error.message };
+      try {
+        const content = await fs.promises.readFile(filePath, 'utf8');
+        return { 
+          success: true, 
+          content, 
+          filePath,
+          fileName: path.basename(filePath)
+        };
+      } catch (error) {
+        console.error('Failed to read file:', error);
+        return { 
+          success: false, 
+          error: error.message 
+        };
+      }
     }
+
+    return { 
+      success: false, 
+      canceled: true 
+    };
   });
 
   ipcMain.handle('file:save', async (event, data) => {
+    const { filePath, content } = data;
+    
+    if (!filePath) {
+      // 新規ファイルの場合は「名前を付けて保存」
+      return ipcMain.handle('file:saveAs', event, data);
+    }
+    
     try {
-      const { filePath, content } = data;
-      
-      if (!filePath) {
-        throw new Error('File path is required');
-      }
-
-      // 内容が空でないことを確認
-      if (content === undefined || content === null) {
-        throw new Error('File content is required');
-      }
-
       await fs.promises.writeFile(filePath, content, 'utf8');
-      
-      return {
-        success: true,
+      return { 
+        success: true, 
         filePath,
         fileName: path.basename(filePath)
       };
     } catch (error) {
-      console.error('Save error:', error);
-      return { success: false, error: error.message };
+      console.error('Failed to save file:', error);
+      return { 
+        success: false, 
+        error: error.message 
+      };
     }
   });
 
   ipcMain.handle('file:saveAs', async (event, data) => {
-    try {
-      const { content, suggestedName } = data;
-      
-      // 内容が空でないことを確認
-      if (content === undefined || content === null) {
-        throw new Error('File content is required');
-      }
-      
-      const result = await dialog.showSaveDialog(mainWindow, {
-        title: '名前を付けて保存',
-        defaultPath: suggestedName || 'untitled.md',
-        filters: [
-          { name: 'Markdown', extensions: ['md'] },
-          { name: 'テキスト', extensions: ['txt'] },
-          { name: 'すべてのファイル', extensions: ['*'] }
-        ]
-      });
+    const { content } = data;
+    
+    const result = await dialog.showSaveDialog({
+      filters: [
+        { name: 'Markdown', extensions: ['md'] },
+        { name: 'Text', extensions: ['txt'] }
+      ],
+      defaultPath: 'Untitled.md'
+    });
 
-      if (result.canceled || !result.filePath) {
-        return { success: false, canceled: true };
+    if (!result.canceled && result.filePath) {
+      try {
+        await fs.promises.writeFile(result.filePath, content, 'utf8');
+        return { 
+          success: true, 
+          filePath: result.filePath,
+          fileName: path.basename(result.filePath)
+        };
+      } catch (error) {
+        console.error('Failed to save file:', error);
+        return { 
+          success: false, 
+          error: error.message 
+        };
       }
-
-      await fs.promises.writeFile(result.filePath, content, 'utf8');
-      
-      return {
-        success: true,
-        filePath: result.filePath,
-        fileName: path.basename(result.filePath)
-      };
-    } catch (error) {
-      console.error('SaveAs error:', error);
-      return { success: false, error: error.message };
     }
+
+    return { 
+      success: false, 
+      canceled: true 
+    };
   });
 
   // PDF出力
   ipcMain.handle('export:pdf', async (event, options) => {
-    try {
-      const result = await dialog.showSaveDialog(mainWindow, {
-        title: 'PDFとして出力',
-        defaultPath: (options.title || 'untitled') + '.pdf',
-        filters: [
-          { name: 'PDF', extensions: ['pdf'] }
-        ]
-      });
+    if (!mainWindow) return { success: false, error: 'Window not found' };
 
-      if (result.canceled || !result.filePath) {
-        return { success: false, canceled: true };
+    const result = await dialog.showSaveDialog({
+      filters: [
+        { name: 'PDF', extensions: ['pdf'] }
+      ],
+      defaultPath: 'document.pdf'
+    });
+
+    if (!result.canceled && result.filePath) {
+      try {
+        const pdfData = await mainWindow.webContents.printToPDF({
+          marginsType: 0,
+          pageSize: 'A4',
+          printBackground: true,
+          landscape: false
+        });
+        
+        await fs.promises.writeFile(result.filePath, pdfData);
+        return { success: true };
+      } catch (error) {
+        console.error('Failed to export PDF:', error);
+        return { success: false, error: error.message };
       }
-
-      // PDF出力前に印刷プレビューを準備
-      await mainWindow.webContents.executeJavaScript(`
-        // ソースモードの場合はWYSIWYGモードに切り替え
-        const sourceEditor = document.getElementById('source-editor');
-        const wysiwygEditor = document.getElementById('wysiwyg-editor');
-        if (sourceEditor && sourceEditor.style.display !== 'none') {
-          document.getElementById('wysiwyg-btn').click();
-        }
-      `);
-
-      // 少し待機してレンダリングを完了させる
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      const pdfData = await mainWindow.webContents.printToPDF({
-        printBackground: true,
-        landscape: false,
-        margin: {
-          marginType: 'custom',
-          top: 1,
-          bottom: 1,
-          left: 1,
-          right: 1
-        },
-        pageSize: 'A4',
-        displayHeaderFooter: false,
-        preferCSSPageSize: false,
-        scale: 0.8
-      });
-
-      await fs.promises.writeFile(result.filePath, pdfData);
-
-      return {
-        success: true,
-        filePath: result.filePath
-      };
-    } catch (error) {
-      return { success: false, error: error.message };
     }
+
+    return { success: false, canceled: true };
   });
 
   // テーマ変更
   ipcMain.handle('theme:change', async (event, theme) => {
-    try {
-      await configManager.updateTheme(theme);
-      createApplicationMenu();
-      return { success: true };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
+    await configManager.updateTheme(theme);
+    return { success: true };
   });
 
-  // 外部リンク
+  // 外部リンクを開く
   ipcMain.on('open-external-link', (event, url) => {
     shell.openExternal(url);
   });
 }
 
+// ファイルをウィンドウで開く
+async function openFileInWindow(filePath) {
+  try {
+    const content = await fs.promises.readFile(filePath, 'utf8');
+    mainWindow.webContents.send('open-file-from-args', {
+      content,
+      filePath,
+      fileName: path.basename(filePath)
+    });
+  } catch (error) {
+    console.error('Failed to open file:', error);
+  }
+}
+
+// Git関連のIPCハンドラー設定
 function setupGitIPCHandlers() {
   // Git利用可能性チェック
   ipcMain.handle('git:checkAvailability', async () => {
-    try {
-      const isAvailable = await gitManager.checkGitAvailability();
-      return { success: true, isAvailable };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
+    return gitManager.checkGitAvailability();
   });
 
-  // リポジトリ初期化（確認ダイアログ付き）
+  // リポジトリ初期化
   ipcMain.handle('git:initRepository', async (event, dirPath) => {
-    try {
-      // 確認ダイアログを表示
-      const result = await dialog.showMessageBox(mainWindow, {
-        type: 'question',
-        buttons: ['初期化する', 'キャンセル'],
-        defaultId: 0,
-        cancelId: 1,
-        title: 'Gitリポジトリの初期化',
-        message: `Gitリポジトリを初期化しますか？`,
-        detail: `以下の場所にGitリポジトリを初期化します:\n\n${dirPath}\n\n※この操作により、.gitフォルダと初期ファイルが作成されます。`
-      });
-
-      if (result.response !== 0) {
-        return { success: false, canceled: true };
-      }
-
-      return await gitManager.initializeRepository(dirPath);
-    } catch (error) {
-      return { success: false, error: error.message };
+    const result = await gitManager.initializeRepository(dirPath);
+    if (result.success) {
+      return { success: true, message: result.message };
+    } else {
+      return { success: false, error: result.error };
     }
   });
 
-  // リポジトリ状態取得（修正版）
+  // リポジトリ状態取得
   ipcMain.handle('git:getStatus', async (event, repoPath) => {
-    try {
-      const result = await gitManager.getRepositoryStatus(repoPath);
-      
-      // getRepositoryStatusは既にsuccessフィールドを含むオブジェクトを返すように修正されているため、
-      // そのまま返す
-      return result;
-    } catch (error) {
-      return { success: false, error: error.message };
+    const result = await gitManager.getRepositoryStatus(repoPath);
+    if (result.success) {
+      return { success: true, status: result.status };
+    } else {
+      return { success: false, error: result.error };
     }
   });
 
-  // リポジトリルート検索
-  ipcMain.handle('git:findRepositoryRoot', async (event, filePath) => {
-    try {
-      const repoRoot = await gitManager.findRepositoryRoot(filePath);
-      return { success: true, repoRoot };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  });
-
-  // 特定コミットからファイル内容を取得
-  ipcMain.handle('git:getFileFromCommit', async (event, commitHash, filePath, repoPath) => {
-    try {
-      return await gitManager.getFileFromCommit(commitHash, filePath, repoPath);
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  });
-
-  // 特定コミットのファイル一覧を取得
-  ipcMain.handle('git:getCommitFiles', async (event, commitHash, repoPath) => {
-    try {
-      return await gitManager.getCommitFiles(commitHash, repoPath);
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  });
-
-  // ファイルステージング
-  ipcMain.handle('git:stageFile', async (event, filePath, repoPath) => {
-    try {
-      return await gitManager.stageFile(filePath, repoPath);
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  });
-
-  // ファイルアンステージング
-  ipcMain.handle('git:unstageFile', async (event, filePath, repoPath) => {
-    try {
-      return await gitManager.unstageFile(filePath, repoPath);
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  });
-
-  // 全変更ステージング
-  ipcMain.handle('git:stageAllChanges', async (event, repoPath) => {
-    try {
-      return await gitManager.stageAllChanges(repoPath);
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
+  // ファイルをインデックスに追加
+  ipcMain.handle('git:stageFiles', async (event, files, repoPath) => {
+    const result = await gitManager.stageFiles(files, repoPath);
+    return result;
   });
 
   // コミット作成
   ipcMain.handle('git:createCommit', async (event, message, repoPath) => {
-    try {
-      return await gitManager.createCommit(message, repoPath);
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
+    const result = await gitManager.createCommit(message, repoPath);
+    return result;
   });
 
-  // ユーザー設定チェック
-  ipcMain.handle('git:checkUserConfig', async (event, repoPath) => {
-    try {
-      const config = await gitManager.checkUserConfiguration(repoPath);
-      return { success: true, config };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
+  // Gitユーザー設定取得
+  ipcMain.handle('git:getUserConfig', async (event, repoPath) => {
+    const result = await gitManager.getUserConfig(repoPath);
+    return result;
   });
 
-  // ユーザー設定
-  ipcMain.handle('git:setUserConfig', async (event, name, email, isGlobal, repoPath) => {
-    try {
-      return await gitManager.setUserConfiguration(name, email, isGlobal, repoPath);
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  });
-
-  // 全てのGitアカウントを取得
-  ipcMain.handle('git:getAllAccounts', async () => {
-    try {
-      const accounts = await gitManager.getAllGitAccounts();
-      return { success: true, accounts };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  });
-
-  // Gitアカウントを削除
-  ipcMain.handle('git:removeAccount', async (event, type, repoPath) => {
-    try {
-      return await gitManager.removeGitAccount(type, repoPath);
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  });
-
-  // 既存アカウントを選択
-  ipcMain.handle('git:selectAccount', async (event, account, targetType, targetRepoPath) => {
-    try {
-      return await gitManager.selectExistingAccount(account, targetType, targetRepoPath);
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
+  // Gitユーザー設定保存
+  ipcMain.handle('git:setUserConfig', async (event, config, repoPath) => {
+    const result = await gitManager.setUserConfig(config, repoPath);
+    return result;
   });
 
   // リモートリポジトリ追加
   ipcMain.handle('git:addRemote', async (event, remoteUrl, remoteName, repoPath) => {
-    try {
-      return await gitManager.addRemoteRepository(remoteUrl, remoteName, repoPath);
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
+    const result = await gitManager.addRemoteRepository(remoteUrl, remoteName, repoPath);
+    return result;
   });
 
   // プッシュ
   ipcMain.handle('git:push', async (event, remoteName, branchName, repoPath) => {
-    try {
-      return await gitManager.pushToRemote(remoteName, branchName, repoPath);
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
+    const result = await gitManager.pushToRemote(remoteName, branchName, repoPath);
+    return result;
   });
 
   // プル
   ipcMain.handle('git:pull', async (event, remoteName, branchName, repoPath) => {
-    try {
-      return await gitManager.pullFromRemote(remoteName, branchName, repoPath);
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
+    const result = await gitManager.pullFromRemote(remoteName, branchName, repoPath);
+    return result;
   });
 
   // ファイル差分取得
   ipcMain.handle('git:getFileDiff', async (event, filePath, repoPath) => {
-    try {
-      const diff = await gitManager.getFileDiff(filePath, repoPath);
-      return { success: true, diff };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
+    const result = await gitManager.getFileDiff(filePath, repoPath);
+    return result;
   });
 
   // ブランチ一覧取得
   ipcMain.handle('git:getBranches', async (event, repoPath) => {
-    try {
-      const branches = await gitManager.getBranches(repoPath);
-      return { success: true, branches };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
+    const result = await gitManager.getBranches(repoPath);
+    return result;
   });
 
   // ブランチ作成
   ipcMain.handle('git:createBranch', async (event, branchName, repoPath) => {
-    try {
-      return await gitManager.createBranch(branchName, repoPath);
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
+    const result = await gitManager.createBranch(branchName, repoPath);
+    return result;
   });
 
   // ブランチ切り替え
   ipcMain.handle('git:switchBranch', async (event, branchName, repoPath) => {
-    try {
-      return await gitManager.switchBranch(branchName, repoPath);
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
+    const result = await gitManager.switchBranch(branchName, repoPath);
+    return result;
   });
 
   // ブランチ削除
   ipcMain.handle('git:deleteBranch', async (event, branchName, repoPath) => {
-    try {
-      return await gitManager.deleteBranch(branchName, repoPath);
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
+    const result = await gitManager.deleteBranch(branchName, repoPath);
+    return result;
   });
 
-  // ディレクトリ選択ダイアログ
-  ipcMain.handle('git:selectDirectory', async () => {
-    try {
-      const result = await dialog.showOpenDialog(mainWindow, {
-        title: 'リポジトリ用フォルダーを選択',
-        properties: ['openDirectory', 'createDirectory']
-      });
+  // コミット履歴取得
+  ipcMain.handle('git:getCommitHistory', async (event, limit, repoPath) => {
+    const result = await gitManager.getCommitHistory(limit, repoPath);
+    return result;
+  });
 
-      if (result.canceled || !result.filePaths.length) {
-        return { success: false, canceled: true };
-      }
+  // インデックスファイル取得
+  ipcMain.handle('git:getStagedFiles', async (event, repoPath) => {
+    const result = await gitManager.getStagedFiles(repoPath);
+    return result;
+  });
 
-      return { success: true, selectedPath: result.filePaths[0] };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
+  // ファイル内容取得
+  ipcMain.handle('git:getFileContent', async (event, filePath, commitHash, repoPath) => {
+    const result = await gitManager.getFileContentFromCommit(filePath, commitHash, repoPath);
+    return result;
+  });
+
+  // Gitユーザーアカウント選択
+  ipcMain.handle('git:selectAccount', async (event, accountInfo, repoPath) => {
+    const result = await gitManager.selectAccount(accountInfo, repoPath);
+    return result;
+  });
+}
+
+// 更新関連のIPCハンドラー設定
+function setupUpdateIPCHandlers() {
+  // 更新チェック
+  ipcMain.handle('update:checkForUpdates', async () => {
+    return updateManager.checkForUpdates();
+  });
+
+  // 更新ダウンロード
+  ipcMain.handle('update:downloadUpdate', async () => {
+    return updateManager.downloadUpdate();
+  });
+
+  // 更新インストール
+  ipcMain.handle('update:installUpdate', async () => {
+    return updateManager.installUpdate();
+  });
+
+  // 更新状態取得
+  ipcMain.handle('update:getStatus', async () => {
+    const status = updateManager.getStatus();
+    return { success: true, status };
+  });
+
+  // 再起動準備完了
+  ipcMain.on('update:readyForRestart', () => {
+    console.log('Ready for restart signal received');
+    // 必要に応じて再起動前の処理を実行
   });
 }
 
@@ -689,6 +605,12 @@ function createApplicationMenu() {
         },
         { type: 'separator' },
         {
+          label: '書式をクリア',
+          accelerator: 'CmdOrCtrl+\\',
+          click: () => mainWindow?.webContents.send('menu-format-clear')
+        },
+        { type: 'separator' },
+        {
           label: '見出し',
           submenu: [
             {
@@ -722,12 +644,6 @@ function createApplicationMenu() {
               click: () => mainWindow?.webContents.send('menu-insert-heading', 6)
             }
           ]
-        },
-        { type: 'separator' },
-        {
-          label: '書式解除',
-          accelerator: 'CmdOrCtrl+\\',
-          click: () => mainWindow?.webContents.send('menu-format-clear')
         }
       ]
     },
@@ -744,6 +660,7 @@ function createApplicationMenu() {
           accelerator: 'CmdOrCtrl+Shift+I',
           click: () => mainWindow?.webContents.send('menu-insert-image')
         },
+        { type: 'separator' },
         {
           label: 'テーブル',
           accelerator: 'CmdOrCtrl+T',
@@ -753,14 +670,13 @@ function createApplicationMenu() {
           label: '水平線',
           click: () => mainWindow?.webContents.send('menu-insert-horizontal-rule')
         },
-        { type: 'separator' },
         {
           label: 'コードブロック',
           click: () => mainWindow?.webContents.send('menu-insert-code-block')
         },
         { type: 'separator' },
         {
-          label: '目次を生成',
+          label: '目次生成',
           accelerator: 'CmdOrCtrl+Shift+T',
           click: () => mainWindow?.webContents.send('menu-insert-toc')
         }
@@ -770,18 +686,17 @@ function createApplicationMenu() {
       label: '表示',
       submenu: [
         {
-          label: 'エディターモード',
+          label: 'モード',
           submenu: [
             {
-              label: 'WYSIWYGモード',
+              label: 'WYSIWYG',
               type: 'radio',
               checked: true,
               click: () => mainWindow?.webContents.send('menu-switch-mode', 'wysiwyg')
             },
             {
-              label: 'ソースモード',
+              label: 'ソース',
               type: 'radio',
-              checked: false,
               click: () => mainWindow?.webContents.send('menu-switch-mode', 'source')
             }
           ]
@@ -832,7 +747,7 @@ function createApplicationMenu() {
         },
         { type: 'separator' },
         {
-          label: '全ての変更をステージング',
+          label: '全ての変更をインデックスに追加',
           accelerator: 'CmdOrCtrl+Shift+A',
           click: () => mainWindow?.webContents.send('menu-git-stage-all')
         },
@@ -854,25 +769,30 @@ function createApplicationMenu() {
         },
         { type: 'separator' },
         {
-          label: 'ブランチを作成',
-          click: () => mainWindow?.webContents.send('menu-git-create-branch')
-        },
-        {
-          label: 'ブランチを切り替え',
-          click: () => mainWindow?.webContents.send('menu-git-switch-branch')
+          label: 'ブランチ',
+          submenu: [
+            {
+              label: '新規ブランチ作成',
+              click: () => mainWindow?.webContents.send('menu-git-create-branch')
+            },
+            {
+              label: 'ブランチを切り替え',
+              click: () => mainWindow?.webContents.send('menu-git-switch-branch')
+            }
+          ]
         },
         { type: 'separator' },
         {
-          label: 'リモートリポジトリを設定',
+          label: 'リモート設定',
           click: () => mainWindow?.webContents.send('menu-git-setup-remote')
         },
         {
-          label: 'Git設定',
+          label: 'ユーザー設定',
           click: () => mainWindow?.webContents.send('menu-git-config')
         },
         { type: 'separator' },
         {
-          label: 'コミット履歴を表示',
+          label: 'コミット履歴',
           click: () => mainWindow?.webContents.send('menu-git-show-history')
         }
       ]
@@ -885,10 +805,14 @@ function createApplicationMenu() {
           accelerator: 'F1',
           click: () => mainWindow?.webContents.send('menu-show-help')
         },
+        {
+          label: 'バージョン情報',
+          click: () => mainWindow?.webContents.send('menu-show-about')
+        },
         { type: 'separator' },
         {
-          label: 'SightEditについて',
-          click: () => mainWindow?.webContents.send('menu-show-about')
+          label: '更新をチェック',
+          click: () => mainWindow?.webContents.send('menu-check-updates')
         }
       ]
     }
@@ -896,21 +820,4 @@ function createApplicationMenu() {
 
   const menu = Menu.buildFromTemplate(template);
   Menu.setApplicationMenu(menu);
-}
-
-// ファイルを開く関数
-async function openFileInWindow(filePath) {
-  if (!mainWindow || !filePath) return;
-  
-  try {
-    const content = await fs.promises.readFile(filePath, 'utf8');
-    mainWindow.webContents.send('open-file-from-args', {
-      filePath,
-      content,
-      fileName: path.basename(filePath)
-    });
-  } catch (error) {
-    console.error('Failed to open file:', error);
-    dialog.showErrorBox('ファイルを開けません', `ファイルを開く際にエラーが発生しました:\n${error.message}`);
-  }
 }

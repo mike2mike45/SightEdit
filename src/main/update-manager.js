@@ -1,6 +1,13 @@
-const { autoUpdater } = require('electron-updater');
-const { dialog, BrowserWindow } = require('electron');
-const path = require('path');
+import electronUpdater from 'electron-updater';
+import { dialog, shell } from 'electron';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const { autoUpdater } = electronUpdater;
+
+// ESMでの__dirname代替
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 class UpdateManager {
   constructor() {
@@ -8,95 +15,80 @@ class UpdateManager {
     this.updateAvailable = false;
     this.updateDownloaded = false;
     this.isChecking = false;
-    
     this.setupAutoUpdater();
-    this.setupEventListeners();
   }
 
+  // メインウィンドウを設定
   setMainWindow(window) {
     this.mainWindow = window;
   }
 
+  // 自動更新の設定
   setupAutoUpdater() {
-    // 開発モードかどうかチェック
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Development mode - updater disabled');
+    // 開発モードでは無効化
+    if (process.env.NODE_ENV === 'development' || !process.env.npm_package_version) {
+      console.log('Auto-updater is disabled in development mode');
       return;
     }
 
-    // 自動更新の設定
-    autoUpdater.autoDownload = false; // 手動でダウンロード開始
-    autoUpdater.autoInstallOnAppQuit = true; // 終了時に自動インストール
-    autoUpdater.checkForUpdatesAndNotify = false; // 自動通知を無効
-    
-    // ログを有効化（開発時のデバッグ用）
-    autoUpdater.logger = {
-      info: (message) => console.log('UpdateManager:', message),
-      warn: (message) => console.warn('UpdateManager:', message),
-      error: (message) => console.error('UpdateManager:', message)
-    };
-  }
+    // 更新サーバーの設定
+    autoUpdater.autoDownload = false;
+    autoUpdater.autoInstallOnAppQuit = true;
 
-  setupEventListeners() {
-    // 更新チェック開始
+    // イベントリスナーの設定
     autoUpdater.on('checking-for-update', () => {
       console.log('Checking for update...');
       this.isChecking = true;
-      this.sendStatusToRenderer('checking');
+      this.sendStatusToWindow('checking');
     });
 
-    // 更新が利用可能
     autoUpdater.on('update-available', (info) => {
-      console.log('Update available:', info.version);
+      console.log('Update available:', info);
       this.updateAvailable = true;
       this.isChecking = false;
-      this.sendStatusToRenderer('available', info);
+      this.sendStatusToWindow('available', info);
       this.showUpdateAvailableDialog(info);
     });
 
-    // 更新が利用不可
     autoUpdater.on('update-not-available', (info) => {
-      console.log('Update not available');
+      console.log('Update not available:', info);
+      this.updateAvailable = false;
       this.isChecking = false;
-      this.sendStatusToRenderer('not-available', info);
+      this.sendStatusToWindow('not-available', info);
     });
 
-    // 更新エラー
-    autoUpdater.on('error', (err) => {
-      console.error('Update error:', err);
+    autoUpdater.on('error', (error) => {
+      console.error('Update error:', error);
       this.isChecking = false;
-      this.sendStatusToRenderer('error', { message: err.message });
+      this.sendStatusToWindow('error', error);
     });
 
-    // ダウンロード進行状況
     autoUpdater.on('download-progress', (progressObj) => {
-      const logMessage = `Download speed: ${progressObj.bytesPerSecond} - Downloaded ${progressObj.percent}% (${progressObj.transferred}/${progressObj.total})`;
+      const logMessage = `Download speed: ${progressObj.bytesPerSecond} - Downloaded ${progressObj.percent}%`;
       console.log(logMessage);
-      this.sendStatusToRenderer('downloading', progressObj);
+      this.sendStatusToWindow('downloading', progressObj);
     });
 
-    // ダウンロード完了
     autoUpdater.on('update-downloaded', (info) => {
-      console.log('Update downloaded:', info.version);
+      console.log('Update downloaded:', info);
       this.updateDownloaded = true;
-      this.sendStatusToRenderer('downloaded', info);
+      this.sendStatusToWindow('downloaded', info);
       this.showUpdateDownloadedDialog(info);
     });
   }
 
-  // レンダラープロセスに状態を送信
-  sendStatusToRenderer(status, data = null) {
+  // ウィンドウに状態を送信
+  sendStatusToWindow(status, data = null) {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       this.mainWindow.webContents.send('update-status', { status, data });
     }
   }
 
-  // 更新チェックを実行
-  async checkForUpdates(manual = false) {
+  // 更新をチェック（手動）
+  async checkForUpdates() {
     if (process.env.NODE_ENV === 'development') {
-      if (manual) {
-        this.showDevModeDialog();
-      }
+      console.log('Update check skipped in development mode');
+      this.showDevModeDialog();
       return { success: false, reason: 'development_mode' };
     }
 
@@ -105,39 +97,50 @@ class UpdateManager {
     }
 
     try {
-      console.log('Starting update check...');
+      console.log('Manually checking for updates...');
       const result = await autoUpdater.checkForUpdates();
+      
+      // 更新がない場合の処理
+      if (!this.updateAvailable) {
+        this.showNoUpdateDialog();
+      }
+      
       return { success: true, result };
     } catch (error) {
       console.error('Error checking for updates:', error);
-      if (manual) {
-        this.showUpdateErrorDialog(error);
-      }
+      this.showUpdateErrorDialog(error);
       return { success: false, error: error.message };
     }
   }
 
-  // 自動更新チェック（起動時）
+  // 自動で更新をチェック（起動時）
   async checkForUpdatesAutomatically() {
-    // アプリ起動から3秒後に自動チェック
-    setTimeout(() => {
-      this.checkForUpdates(false);
-    }, 3000);
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Auto update check skipped in development mode');
+      return;
+    }
+
+    // 起動から30秒後にチェック
+    setTimeout(async () => {
+      try {
+        console.log('Automatically checking for updates...');
+        await autoUpdater.checkForUpdates();
+      } catch (error) {
+        console.error('Auto update check error:', error);
+      }
+    }, 30000);
   }
 
-  // 手動更新チェック
-  async checkForUpdatesManually() {
-    const result = await this.checkForUpdates(true);
+  // 更新状態を取得
+  getUpdateStatus() {
+    const result = {
+      updateAvailable: this.updateAvailable,
+      updateDownloaded: this.updateDownloaded,
+      isChecking: this.isChecking,
+      version: process.env.npm_package_version || 'unknown'
+    };
     
-    if (result.success && !this.updateAvailable) {
-      // 手動チェックで更新がない場合のみ通知
-      setTimeout(() => {
-        if (!this.updateAvailable) {
-          this.showNoUpdateDialog();
-        }
-      }, 2000);
-    }
-    
+    console.log('Update status:', result);
     return result;
   }
 
@@ -196,7 +199,7 @@ class UpdateManager {
       case 1: // 後で
         break;
       case 2: // 詳細を見る
-        require('electron').shell.openExternal(`https://github.com/mike2mike45/SightEdit/releases/tag/v${info.version}`);
+        shell.openExternal(`https://github.com/mike2mike45/SightEdit/releases/tag/v${info.version}`);
         break;
     }
   }
@@ -278,4 +281,4 @@ class UpdateManager {
   }
 }
 
-module.exports = UpdateManager;
+export default UpdateManager;
