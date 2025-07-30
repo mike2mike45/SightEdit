@@ -1,10 +1,7 @@
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import simpleGit from 'simple-git';
 import path from 'path';
 import fs from 'fs/promises';
 import { fileURLToPath } from 'url';
-
-const execAsync = promisify(exec);
 
 // ESMでの__dirname代替
 const __filename = fileURLToPath(import.meta.url);
@@ -14,6 +11,7 @@ class GitManager {
   constructor() {
     this.isGitAvailable = false;
     this.currentRepository = null;
+    this.git = null; // simple-gitインスタンス
     this.init();
   }
 
@@ -24,8 +22,10 @@ class GitManager {
   // Gitインストール確認
   async checkGitInstallation() {
     try {
-      const { stdout } = await execAsync('git --version');
-      console.log('Git version:', stdout.trim());
+      // グローバルなsimple-gitインスタンスでバージョンチェック
+      const tempGit = simpleGit();
+      const version = await tempGit.raw(['--version']);
+      console.log('Git version:', version.trim());
       this.isGitAvailable = true;
     } catch (error) {
       console.error('Git is not installed or not in PATH:', error.message);
@@ -39,6 +39,23 @@ class GitManager {
       success: true,
       isAvailable: this.isGitAvailable
     };
+  }
+
+  // リポジトリ用のsimple-gitインスタンスを作成
+  getGitInstance(repoPath) {
+    if (!repoPath) {
+      throw new Error('リポジトリパスが指定されていません');
+    }
+    
+    // Windows環境でのパス処理を改善
+    const options = {
+      baseDir: repoPath,
+      binary: 'git',
+      maxConcurrentProcesses: 6,
+      trimmed: false
+    };
+    
+    return simpleGit(options);
   }
 
   // リポジトリルートを検索（ファイルパスから上方向に探索）
@@ -118,21 +135,25 @@ sightedit-config.json
       
       await fs.writeFile(path.join(dirPath, '.gitignore'), gitignoreContent, 'utf8');
       
-      // Gitリポジトリを初期化（mainブランチで開始）
-      await execAsync('git init --initial-branch=main', { cwd: dirPath });
+      // simple-gitでリポジトリを初期化
+      const git = this.getGitInstance(dirPath);
       
-      // Git 2.28未満の場合のフォールバック
+      // Git 2.28以降のinitial-branchオプションをサポート
       try {
-        // mainブランチに切り替え（既に存在する場合はスキップ）
-        await execAsync('git checkout -b main', { cwd: dirPath });
+        await git.init(['--initial-branch=main']);
       } catch (error) {
-        // 既にmainブランチの場合やその他のエラーは無視
-        console.log('Main branch setup:', error.message);
+        // 古いGitバージョンの場合は通常のinitを実行
+        await git.init();
+        try {
+          await git.checkoutLocalBranch('main');
+        } catch (e) {
+          console.log('Main branch setup:', e.message);
+        }
       }
       
-      // 初期コミット
-      await execAsync('git add .gitignore', { cwd: dirPath });
-      await execAsync('git commit -m "初期コミット: .gitignoreを追加"', { cwd: dirPath });
+      // .gitignoreを追加してコミット
+      await git.add('.gitignore');
+      await git.commit('初期コミット: .gitignoreを追加');
       
       this.currentRepository = dirPath;
       return { 
@@ -145,7 +166,43 @@ sightedit-config.json
     }
   }
 
-  // リポジトリの状態を取得（改善版）
+  // ローカルとリモートの差分を取得
+  async getLocalRemoteDiff(repoPath) {
+    if (!repoPath || !this.isGitAvailable) {
+      return { ahead: 0, behind: 0 };
+    }
+
+    try {
+      const git = this.getGitInstance(repoPath);
+      
+      // 現在のブランチを取得
+      const branch = await git.branch();
+      const currentBranch = branch.current;
+      
+      // リモートブランチが存在するか確認
+      try {
+        // fetch実行して最新の情報を取得（--dry-runで実際のダウンロードはしない）
+        await git.fetch(['--dry-run']);
+        
+        // ローカルとリモートの差分を取得
+        const status = await git.status();
+        
+        return {
+          ahead: status.ahead || 0,
+          behind: status.behind || 0,
+          tracking: status.tracking || null
+        };
+      } catch (error) {
+        console.log('No remote tracking branch:', error.message);
+        return { ahead: 0, behind: 0, tracking: null };
+      }
+    } catch (error) {
+      console.error('Get local/remote diff error:', error);
+      return { ahead: 0, behind: 0 };
+    }
+  }
+
+  // リポジトリの状態を取得
   async getRepositoryStatus(repoPath) {
     if (!repoPath || !this.isGitAvailable) {
       return { 
@@ -165,20 +222,13 @@ sightedit-config.json
     }
 
     try {
-      const execOptions = {
-        cwd: repoPath,
-        env: {
-          ...process.env,
-          LC_ALL: 'C.UTF-8',
-          LANG: 'C.UTF-8'
-        }
-      };
-
+      const git = this.getGitInstance(repoPath);
+      
       // 現在のブランチを取得
       let currentBranch = 'unknown';
       try {
-        const { stdout } = await execAsync('git branch --show-current', execOptions);
-        currentBranch = stdout.trim() || 'unknown';
+        const branch = await git.branch();
+        currentBranch = branch.current || 'unknown';
       } catch (error) {
         console.log('Branch detection failed:', error.message);
       }
@@ -187,73 +237,129 @@ sightedit-config.json
       let remoteUrl = null;
       let hasRemote = false;
       try {
-        const { stdout } = await execAsync('git remote get-url origin', execOptions);
-        remoteUrl = stdout.trim();
-        hasRemote = true;
+        const remotes = await git.getRemotes(true);
+        const origin = remotes.find(r => r.name === 'origin');
+        if (origin) {
+          remoteUrl = origin.refs.fetch || origin.refs.push;
+          hasRemote = true;
+        }
       } catch {
-        // リモートが設定されていない場合
         hasRemote = false;
       }
 
-      // 変更ファイルの一覧を取得（より詳細な情報）
-      const { stdout: statusOutput } = await execAsync('git status --porcelain', execOptions);
+      // ローカルとリモートの差分を取得
+      const diffInfo = await this.getLocalRemoteDiff(repoPath);
+
+      // 変更ファイルの一覧を取得
+      const status = await git.status();
       const changes = [];
       
-      if (statusOutput) {
-        const lines = statusOutput.split('\n').filter(line => line);
-        for (const line of lines) {
-          const status = line.substring(0, 2);
-          const filePath = line.substring(3);
-          
-          let changeType = 'modified';
-          let staged = false;
-          
-          // ステータスコードの解析
-          const indexStatus = status[0];
-          const workTreeStatus = status[1];
-          
-          if (indexStatus !== ' ' && indexStatus !== '?') {
-            staged = true;
-          }
-          
-          if (status === '??') {
-            changeType = 'untracked';
-          } else if (indexStatus === 'A' || workTreeStatus === 'A') {
-            changeType = 'added';
-          } else if (indexStatus === 'D' || workTreeStatus === 'D') {
-            changeType = 'deleted';
-          } else if (indexStatus === 'R' || workTreeStatus === 'R') {
-            changeType = 'renamed';
-          } else if (indexStatus === 'C' || workTreeStatus === 'C') {
-            changeType = 'copied';
-          }
-          
+      // ステージされたファイル
+      for (const file of status.staged) {
+        changes.push({
+          filePath: file,
+          changeType: this.getChangeTypeFromStatus(status.files[file]),
+          staged: true,
+          statusCode: status.files[file].index + status.files[file].working_dir
+        });
+      }
+      
+      // ステージされていない変更
+      for (const file of status.modified) {
+        if (!status.staged.includes(file)) {
           changes.push({
-            filePath,
-            changeType,
-            staged,
-            statusCode: status
+            filePath: file,
+            changeType: 'modified',
+            staged: false,
+            statusCode: ' M'
           });
         }
       }
-
-      // 最近のコミット履歴を取得（5件）
-      let commits = [];
-      try {
-        const { stdout: logOutput } = await execAsync(
-          'git log --oneline -5 --pretty=format:"%H|%an|%s|%ad" --date=relative',
-          execOptions
-        );
-        
-        if (logOutput) {
-          commits = logOutput.split('\n').filter(line => line).map(line => {
-            const [hash, author, message, date] = line.split('|');
-            return { hash, author, message, date };
+      
+      // 削除されたファイル
+      for (const file of status.deleted) {
+        if (!status.staged.includes(file)) {
+          changes.push({
+            filePath: file,
+            changeType: 'deleted',
+            staged: false,
+            statusCode: ' D'
           });
         }
+      }
+      
+      // 未追跡ファイル
+      for (const file of status.not_added) {
+        changes.push({
+          filePath: file,
+          changeType: 'untracked',
+          staged: false,
+          statusCode: '??'
+        });
+      }
+
+      // 最近のコミット履歴を取得（プッシュ状態も含める）
+      let commits = [];
+      let unpushedCommits = 0;
+      try {
+        const log = await git.log({ n: 10 });
+        
+        // リモートブランチが存在する場合、プッシュ済みのコミットを確認
+        if (hasRemote && diffInfo.tracking) {
+          try {
+            // リモートブランチのコミットハッシュを取得
+            const remoteLog = await git.log([diffInfo.tracking, '-1']);
+            const lastPushedHash = remoteLog.latest ? remoteLog.latest.hash : null;
+            
+            commits = log.all.map(commit => {
+              const isPushed = lastPushedHash && 
+                             (commit.hash === lastPushedHash || 
+                              log.all.findIndex(c => c.hash === lastPushedHash) > 
+                              log.all.findIndex(c => c.hash === commit.hash));
+              
+              if (!isPushed) unpushedCommits++;
+              
+              return {
+                hash: commit.hash.substring(0, 7),
+                author: commit.author_name,
+                message: commit.message,
+                date: new Date(commit.date).toLocaleString('ja-JP'),
+                isPushed: isPushed
+              };
+            });
+          } catch (error) {
+            // リモート情報の取得に失敗した場合は全てを未プッシュとして扱う
+            unpushedCommits = log.all.length;
+            commits = log.all.map(commit => ({
+              hash: commit.hash.substring(0, 7),
+              author: commit.author_name,
+              message: commit.message,
+              date: new Date(commit.date).toLocaleString('ja-JP'),
+              isPushed: false
+            }));
+          }
+        } else {
+          // リモートがない場合は全て未プッシュ
+          unpushedCommits = log.all.length;
+          commits = log.all.map(commit => ({
+            hash: commit.hash.substring(0, 7),
+            author: commit.author_name,
+            message: commit.message,
+            date: new Date(commit.date).toLocaleString('ja-JP'),
+            isPushed: false
+          }));
+        }
       } catch (error) {
-        // コミットがまだない場合
         console.log('No commits yet:', error.message);
+      }
+
+      // コミット数を取得
+      let totalCommits = 0;
+      try {
+        const log = await git.log();
+        totalCommits = log.total;
+      } catch {
+        totalCommits = 0;
       }
 
       return {
@@ -264,6 +370,9 @@ sightedit-config.json
           hasRemote,
           changes,
           commits,
+          totalCommits,
+          unpushedCommits,
+          localRemoteDiff: diffInfo,
           totalChanges: changes.length,
           stagedChanges: changes.filter(c => c.staged).length,
           unstagedChanges: changes.filter(c => !c.staged && c.changeType !== 'untracked').length,
@@ -279,6 +388,15 @@ sightedit-config.json
     }
   }
 
+  // simple-gitのステータスから変更タイプを判定
+  getChangeTypeFromStatus(fileStatus) {
+    if (fileStatus.index === 'A' || fileStatus.working_dir === 'A') return 'added';
+    if (fileStatus.index === 'D' || fileStatus.working_dir === 'D') return 'deleted';
+    if (fileStatus.index === 'R' || fileStatus.working_dir === 'R') return 'renamed';
+    if (fileStatus.index === 'M' || fileStatus.working_dir === 'M') return 'modified';
+    return 'modified';
+  }
+
   // ファイルをステージングエリアに追加
   async stageFiles(files, repoPath = this.currentRepository) {
     if (!repoPath || !this.isGitAvailable) {
@@ -286,25 +404,16 @@ sightedit-config.json
     }
 
     try {
-      const execOptions = {
-        cwd: repoPath,
-        env: {
-          ...process.env,
-          LC_ALL: 'C.UTF-8',
-          LANG: 'C.UTF-8'
-        }
-      };
-
+      const git = this.getGitInstance(repoPath);
+      
       if (files === '*' || files.length === 0) {
         // 全ファイルを追加
-        await execAsync('git add .', execOptions);
+        await git.add('.');
         return { success: true, message: '全ての変更をインデックスに追加しました' };
       } else {
         // 特定のファイルを追加
         const fileList = Array.isArray(files) ? files : [files];
-        for (const file of fileList) {
-          await execAsync(`git add "${file}"`, execOptions);
-        }
+        await git.add(fileList);
         return { success: true, message: `${fileList.length}個のファイルをインデックスに追加しました` };
       }
     } catch (error) {
@@ -320,19 +429,21 @@ sightedit-config.json
     }
 
     try {
-      const execOptions = {
-        cwd: repoPath,
-        env: {
-          ...process.env,
-          LC_ALL: 'C.UTF-8',
-          LANG: 'C.UTF-8'
-        }
-      };
-
+      const git = this.getGitInstance(repoPath);
+      
       // ユーザー設定の確認
       try {
-        await execAsync('git config user.name', execOptions);
-        await execAsync('git config user.email', execOptions);
+        const config = await git.listConfig();
+        const hasUserName = config.all['user.name'];
+        const hasUserEmail = config.all['user.email'];
+        
+        if (!hasUserName || !hasUserEmail) {
+          return { 
+            success: false, 
+            error: 'Gitユーザー情報が設定されていません',
+            needsUserConfig: true 
+          };
+        }
       } catch {
         return { 
           success: false, 
@@ -341,11 +452,14 @@ sightedit-config.json
         };
       }
 
-      // コミットメッセージのエスケープ
-      const escapedMessage = message.replace(/"/g, '\\"');
+      // コミット実行
+      const commitResult = await git.commit(message);
       
-      await execAsync(`git commit -m "${escapedMessage}"`, execOptions);
-      return { success: true, message: 'コミットを作成しました' };
+      if (commitResult.commit) {
+        return { success: true, message: 'コミットを作成しました' };
+      } else {
+        return { success: false, error: 'コミットする変更がありません' };
+      }
     } catch (error) {
       console.error('Create commit error:', error);
       
@@ -364,46 +478,35 @@ sightedit-config.json
       local: { name: null, email: null }
     };
 
-    const execOptions = {
-      env: {
-        ...process.env,
-        LC_ALL: 'C.UTF-8',
-        LANG: 'C.UTF-8'
-      }
-    };
-
-    // グローバル設定を取得
     try {
-      const { stdout: globalName } = await execAsync('git config --global user.name', execOptions);
-      config.global.name = globalName.trim();
-    } catch (error) {
-      console.log('Global user.name not set');
-    }
-
-    try {
-      const { stdout: globalEmail } = await execAsync('git config --global user.email', execOptions);
-      config.global.email = globalEmail.trim();
-    } catch (error) {
-      console.log('Global user.email not set');
-    }
-
-    // ローカル設定を取得
-    if (repoPath) {
-      const localExecOptions = { ...execOptions, cwd: repoPath };
+      // simple-gitはグローバル設定の取得が複雑なので、一時的なgitインスタンスを使用
+      const tempGit = simpleGit();
       
+      // グローバル設定
       try {
-        const { stdout: localName } = await execAsync('git config --local user.name', localExecOptions);
-        config.local.name = localName.trim();
+        const globalName = await tempGit.raw(['config', '--global', 'user.name']);
+        config.global.name = globalName.trim();
       } catch (error) {
-        console.log('Local user.name not set');
+        console.log('Global user.name not set');
       }
 
       try {
-        const { stdout: localEmail } = await execAsync('git config --local user.email', localExecOptions);
-        config.local.email = localEmail.trim();
+        const globalEmail = await tempGit.raw(['config', '--global', 'user.email']);
+        config.global.email = globalEmail.trim();
       } catch (error) {
-        console.log('Local user.email not set');
+        console.log('Global user.email not set');
       }
+
+      // ローカル設定
+      if (repoPath) {
+        const git = this.getGitInstance(repoPath);
+        const localConfig = await git.listConfig();
+        
+        config.local.name = localConfig.all['user.name'] || null;
+        config.local.email = localConfig.all['user.email'] || null;
+      }
+    } catch (error) {
+      console.log('Error getting user config:', error);
     }
 
     return { success: true, config };
@@ -417,26 +520,21 @@ sightedit-config.json
       return { success: false, error: '名前とメールアドレスは必須です' };
     }
 
-    const execOptions = repoPath && !isGlobal ? { 
-      cwd: repoPath,
-      env: {
-        ...process.env,
-        LC_ALL: 'C.UTF-8',
-        LANG: 'C.UTF-8'
-      }
-    } : {
-      env: {
-        ...process.env,
-        LC_ALL: 'C.UTF-8',
-        LANG: 'C.UTF-8'
-      }
-    };
-    
-    const scope = isGlobal ? '--global' : '--local';
-
     try {
-      await execAsync(`git config ${scope} user.name "${name}"`, execOptions);
-      await execAsync(`git config ${scope} user.email "${email}"`, execOptions);
+      if (isGlobal) {
+        // グローバル設定
+        const tempGit = simpleGit();
+        await tempGit.raw(['config', '--global', 'user.name', name]);
+        await tempGit.raw(['config', '--global', 'user.email', email]);
+      } else {
+        // ローカル設定
+        if (!repoPath) {
+          return { success: false, error: 'リポジトリパスが必要です' };
+        }
+        const git = this.getGitInstance(repoPath);
+        await git.addConfig('user.name', name);
+        await git.addConfig('user.email', email);
+      }
       
       return { 
         success: true, 
@@ -468,24 +566,19 @@ sightedit-config.json
     }
 
     try {
-      const execOptions = {
-        cwd: repoPath,
-        env: {
-          ...process.env,
-          LC_ALL: 'C.UTF-8',
-          LANG: 'C.UTF-8'
-        }
-      };
-
+      const git = this.getGitInstance(repoPath);
+      
       // 既存のリモートをチェック
-      try {
-        await execAsync(`git remote get-url ${remoteName}`, execOptions);
+      const remotes = await git.getRemotes();
+      const existingRemote = remotes.find(r => r.name === remoteName);
+      
+      if (existingRemote) {
         // 既存のリモートがある場合は変更
-        await execAsync(`git remote set-url ${remoteName} "${remoteUrl}"`, execOptions);
+        await git.remote(['set-url', remoteName, remoteUrl]);
         return { success: true, message: `リモート '${remoteName}' のURLを更新しました` };
-      } catch {
+      } else {
         // リモートが存在しない場合は追加
-        await execAsync(`git remote add ${remoteName} "${remoteUrl}"`, execOptions);
+        await git.addRemote(remoteName, remoteUrl);
         return { success: true, message: `リモート '${remoteName}' を追加しました` };
       }
     } catch (error) {
@@ -501,25 +594,39 @@ sightedit-config.json
     }
 
     try {
-      const execOptions = {
-        cwd: repoPath,
-        env: {
-          ...process.env,
-          LC_ALL: 'C.UTF-8',
-          LANG: 'C.UTF-8',
-          GIT_TERMINAL_PROMPT: '0'
-        }
-      };
+      const git = this.getGitInstance(repoPath);
+      
+      // コミット数を確認
+      const log = await git.log();
+      if (log.total === 0) {
+        return { 
+          success: false, 
+          error: 'プッシュするコミットがありません。先にコミットを作成してください。' 
+        };
+      }
 
       // ブランチ名が指定されていない場合は現在のブランチを使用
       if (!branchName) {
-        const { stdout } = await execAsync('git branch --show-current', execOptions);
-        branchName = stdout.trim();
+        const branch = await git.branch();
+        branchName = branch.current;
+      }
+
+      // ローカルとリモートの差分を確認
+      const diffInfo = await this.getLocalRemoteDiff(repoPath);
+      if (diffInfo.ahead === 0) {
+        return { 
+          success: false, 
+          error: 'プッシュする新しいコミットがありません。' 
+        };
       }
 
       // プッシュ実行
-      await execAsync(`git push -u ${remoteName} ${branchName}`, execOptions);
-      return { success: true, message: `'${branchName}' ブランチを '${remoteName}' にプッシュしました` };
+      await git.push(remoteName, branchName, ['--set-upstream']);
+      
+      return { 
+        success: true, 
+        message: `'${branchName}' ブランチを '${remoteName}' にプッシュしました（${diffInfo.ahead}個のコミット）` 
+      };
     } catch (error) {
       console.error('Push error:', error);
       
@@ -543,24 +650,16 @@ sightedit-config.json
     }
 
     try {
-      const execOptions = {
-        cwd: repoPath,
-        env: {
-          ...process.env,
-          LC_ALL: 'C.UTF-8',
-          LANG: 'C.UTF-8',
-          GIT_TERMINAL_PROMPT: '0'
-        }
-      };
-
+      const git = this.getGitInstance(repoPath);
+      
       // ブランチ名が指定されていない場合は現在のブランチを使用
       if (!branchName) {
-        const { stdout } = await execAsync('git branch --show-current', execOptions);
-        branchName = stdout.trim();
+        const branch = await git.branch();
+        branchName = branch.current;
       }
 
       // プル実行
-      await execAsync(`git pull ${remoteName} ${branchName}`, execOptions);
+      await git.pull(remoteName, branchName);
       return { success: true, message: `'${remoteName}' から '${branchName}' ブランチをプルしました` };
     } catch (error) {
       console.error('Pull error:', error);
@@ -583,22 +682,13 @@ sightedit-config.json
     }
 
     try {
-      const execOptions = {
-        cwd: repoPath,
-        env: {
-          ...process.env,
-          LC_ALL: 'C.UTF-8',
-          LANG: 'C.UTF-8'
-        }
-      };
-
-      // ファイルの差分を取得
-      const { stdout } = await execAsync(`git diff "${filePath}"`, execOptions);
+      const git = this.getGitInstance(repoPath);
+      const diff = await git.diff([filePath]);
       
       return { 
         success: true, 
-        diff: stdout,
-        isEmpty: stdout.trim().length === 0
+        diff: diff,
+        isEmpty: diff.trim().length === 0
       };
     } catch (error) {
       console.error('Get file diff error:', error);
@@ -613,45 +703,28 @@ sightedit-config.json
     }
 
     try {
-      const execOptions = {
-        cwd: repoPath,
-        env: {
-          ...process.env,
-          LC_ALL: 'C.UTF-8',
-          LANG: 'C.UTF-8'
+      const git = this.getGitInstance(repoPath);
+      const branchSummary = await git.branch(['-a']);
+      
+      const branches = [];
+      
+      // ローカルブランチ
+      for (const branchName of Object.keys(branchSummary.branches)) {
+        const branch = branchSummary.branches[branchName];
+        if (!branchName.startsWith('remotes/')) {
+          branches.push({
+            name: branchName,
+            fullName: branchName,
+            isRemote: false,
+            isCurrent: branch.current
+          });
         }
-      };
-
-      // 現在のブランチを取得
-      const { stdout: currentBranchOutput } = await execAsync('git branch --show-current', execOptions);
-      const currentBranch = currentBranchOutput.trim();
-
-      // 全ブランチを取得
-      const { stdout: branchesOutput } = await execAsync('git branch -a', execOptions);
-      const branches = branchesOutput
-        .split('\n')
-        .filter(line => line.trim())
-        .map(line => {
-          const branch = line.trim().replace(/^\*\s*/, '');
-          const isRemote = branch.startsWith('remotes/');
-          const isCurrent = line.startsWith('*');
-          
-          return {
-            name: isRemote ? branch.replace(/^remotes\/[^\/]+\//, '') : branch,
-            fullName: branch,
-            isRemote,
-            isCurrent
-          };
-        })
-        // 重複を除去（ローカルとリモートで同じ名前のブランチがある場合）
-        .filter((branch, index, self) => 
-          index === self.findIndex(b => b.name === branch.name && !b.isRemote)
-        );
-
+      }
+      
       return { 
         success: true, 
         branches,
-        currentBranch
+        currentBranch: branchSummary.current
       };
     } catch (error) {
       console.error('Get branches error:', error);
@@ -677,22 +750,15 @@ sightedit-config.json
     }
 
     try {
-      const execOptions = {
-        cwd: repoPath,
-        env: {
-          ...process.env,
-          LC_ALL: 'C.UTF-8',
-          LANG: 'C.UTF-8'
-        }
-      };
-
+      const git = this.getGitInstance(repoPath);
+      
       // ブランチを作成して切り替え
-      await execAsync(`git checkout -b "${branchName}"`, execOptions);
+      await git.checkoutBranch(branchName, 'HEAD');
+      
       return { success: true, message: `ブランチ '${branchName}' を作成して切り替えました` };
     } catch (error) {
       console.error('Create branch error:', error);
       
-      // エラーメッセージをより分かりやすく
       if (error.message.includes('already exists')) {
         return { success: false, error: `ブランチ '${branchName}' は既に存在します` };
       }
@@ -707,38 +773,30 @@ sightedit-config.json
       return { success: false, error: 'リポジトリが見つかりません' };
     }
 
-    // リポジトリの存在確認
     try {
-      await fs.access(path.join(repoPath, '.git'));
-    } catch {
-      return { 
-        success: false, 
-        error: 'Gitリポジトリが初期化されていません。先にリポジトリを初期化してください。' 
-      };
-    }
-
-    try {
-      const execOptions = {
-        cwd: repoPath,
-        env: {
-          ...process.env,
-          LC_ALL: 'C.UTF-8',
-          LANG: 'C.UTF-8'
-        }
-      };
+      const git = this.getGitInstance(repoPath);
+      
+      // ブランチの存在を確認
+      const branchSummary = await git.branch();
+      const branchExists = Object.keys(branchSummary.branches).includes(branchName);
+      
+      if (!branchExists) {
+        return { 
+          success: false, 
+          error: `ブランチ '${branchName}' が見つかりません` 
+        };
+      }
 
       // ブランチを切り替え
-      await execAsync(`git checkout "${branchName}"`, execOptions);
+      await git.checkout(branchName);
       return { success: true, message: `ブランチ '${branchName}' に切り替えました` };
     } catch (error) {
+      console.error('Switch branch error:', error);
+      
       // エラーメッセージをより分かりやすく
       let errorMessage = error.message;
       
-      if (error.message.includes('did not match any file')) {
-        errorMessage = `ブランチ "${branchName}" が見つかりません`;
-      } else if (error.message.includes('not a git repository')) {
-        errorMessage = 'Gitリポジトリが初期化されていません';
-      } else if (error.message.includes('Please commit your changes')) {
+      if (error.message.includes('Please commit your changes')) {
         errorMessage = '未保存の変更があります。先にコミットまたはインデックスに追加してください';
       }
       
@@ -752,29 +810,12 @@ sightedit-config.json
       return { success: false, error: 'リポジトリが見つかりません' };
     }
 
-    // リポジトリの存在確認
     try {
-      await fs.access(path.join(repoPath, '.git'));
-    } catch {
-      return { 
-        success: false, 
-        error: 'Gitリポジトリが初期化されていません。先にリポジトリを初期化してください。' 
-      };
-    }
-
-    try {
-      const execOptions = {
-        cwd: repoPath,
-        env: {
-          ...process.env,
-          LC_ALL: 'C.UTF-8',
-          LANG: 'C.UTF-8'
-        }
-      };
-
+      const git = this.getGitInstance(repoPath);
+      
       // 現在のブランチをチェック
-      const { stdout: currentBranch } = await execAsync('git branch --show-current', execOptions);
-      if (currentBranch.trim() === branchName) {
+      const branchSummary = await git.branch();
+      if (branchSummary.current === branchName) {
         return { success: false, error: '現在使用中のブランチは削除できません。別のブランチに切り替えてから削除してください。' };
       }
 
@@ -784,21 +825,10 @@ sightedit-config.json
       }
 
       // ブランチを削除（強制削除）
-      await execAsync(`git branch -D "${branchName}"`, execOptions);
+      await git.deleteLocalBranch(branchName, true);
       return { success: true, message: `ブランチ "${branchName}" を削除しました` };
     } catch (error) {
-      // エラーメッセージをより分かりやすく
-      let errorMessage = error.message;
-      
-      if (error.message.includes('not found')) {
-        errorMessage = `ブランチ "${branchName}" が見つかりません`;
-      } else if (error.message.includes('not a git repository')) {
-        errorMessage = 'Gitリポジトリが初期化されていません';
-      } else if (error.message.includes('Cannot delete branch')) {
-        errorMessage = 'ブランチを削除できません。未マージの変更がある可能性があります。';
-      }
-      
-      return { success: false, error: errorMessage };
+      return { success: false, error: error.message };
     }
   }
 
@@ -809,77 +839,23 @@ sightedit-config.json
     }
 
     try {
-      const execOptions = {
-        cwd: repoPath,
-        env: {
-          ...process.env,
-          LC_ALL: 'C.UTF-8',
-          LANG: 'C.UTF-8'
-        }
-      };
-
-      // コミット履歴を取得（ファイル一覧も含む）
-      const { stdout } = await execAsync(
-        `git log -${limit} --pretty=format:"%H|%an|%ae|%s|%ad|%P" --date=iso-strict --name-status`,
-        execOptions
-      );
-
-      if (!stdout.trim()) {
-        return { success: true, commits: [] };
-      }
-
-      const commits = [];
-      const entries = stdout.split('\n\n');
+      const git = this.getGitInstance(repoPath);
+      const log = await git.log({ n: limit, '--name-status': null });
       
-      for (const entry of entries) {
-        const lines = entry.split('\n');
-        const [hash, author, email, message, date, parent] = lines[0].split('|');
-        
-        // 変更されたファイルを解析
-        const files = [];
-        for (let i = 1; i < lines.length; i++) {
-          const line = lines[i].trim();
-          if (line) {
-            const match = line.match(/^([MADRCU])\t(.+)$/);
-            if (match) {
-              const [, status, fileName] = match;
-              files.push({
-                status,
-                fileName,
-                changeType: this.getChangeTypeFromStatus(status)
-              });
-            }
-          }
-        }
-
-        commits.push({
-          hash: hash.trim(),
-          author: author.trim(),
-          email: email.trim(),
-          message: message.trim(),
-          date: new Date(date.trim()).toLocaleString('ja-JP'),
-          parent: parent.trim(),
-          files
-        });
-      }
+      const commits = log.all.map(commit => ({
+        hash: commit.hash.substring(0, 7),
+        author: commit.author_name,
+        email: commit.author_email,
+        message: commit.message,
+        date: new Date(commit.date).toLocaleString('ja-JP'),
+        parent: commit.parent || '',
+        files: [] // simple-gitでは別途取得が必要
+      }));
 
       return { success: true, commits };
     } catch (error) {
       console.error('Get commit history error:', error);
       return { success: false, commits: [], error: error.message };
-    }
-  }
-
-  // ステータスコードから変更タイプを取得
-  getChangeTypeFromStatus(status) {
-    switch (status) {
-      case 'M': return 'modified';
-      case 'A': return 'added';
-      case 'D': return 'deleted';
-      case 'R': return 'renamed';
-      case 'C': return 'copied';
-      case 'U': return 'unmerged';
-      default: return 'unknown';
     }
   }
 
@@ -890,37 +866,41 @@ sightedit-config.json
     }
 
     try {
-      const execOptions = {
-        cwd: repoPath,
-        env: {
-          ...process.env,
-          LC_ALL: 'C.UTF-8',
-          LANG: 'C.UTF-8'
-        }
-      };
-
-      // インデックスに追加されたファイルを取得
-      const { stdout } = await execAsync('git diff --cached --name-status', execOptions);
+      const git = this.getGitInstance(repoPath);
+      const status = await git.status();
       
-      if (!stdout.trim()) {
-        return { success: true, files: [] };
-      }
-
-      const files = stdout.trim().split('\n').map(line => {
-        const [status, ...fileNameParts] = line.split('\t');
-        const fileName = fileNameParts.join('\t');
-        
-        return {
-          fileName,
-          status,
-          changeType: this.getChangeTypeFromStatus(status)
-        };
-      });
+      const files = status.staged.map(fileName => ({
+        fileName,
+        status: 'A', // simple-gitでは詳細な状態が取得しにくい
+        changeType: 'added'
+      }));
 
       return { success: true, files };
     } catch (error) {
       console.error('Get staged files error:', error);
       return { success: false, files: [], error: error.message };
+    }
+  }
+
+  // ファイルをインデックスから除外
+  async unstageFile(filePath, repoPath = this.currentRepository) {
+    if (!repoPath || !this.isGitAvailable) {
+      return { success: false, error: 'リポジトリが見つかりません' };
+    }
+
+    try {
+      const git = this.getGitInstance(repoPath);
+      
+      // git restore --staged <file> に相当
+      await git.reset(['HEAD', '--', filePath]);
+      
+      return { 
+        success: true, 
+        message: 'ファイルをインデックスから除外しました' 
+      };
+    } catch (error) {
+      console.error('Unstage file error:', error);
+      return { success: false, error: error.message };
     }
   }
 
@@ -931,25 +911,12 @@ sightedit-config.json
     }
 
     try {
-      const execOptions = {
-        cwd: repoPath,
-        env: {
-          ...process.env,
-          LC_ALL: 'C.UTF-8',
-          LANG: 'C.UTF-8'
-        },
-        maxBuffer: 10 * 1024 * 1024 // 10MB
-      };
-
-      // コミットからファイル内容を取得
-      const { stdout } = await execAsync(
-        `git show "${commitHash}:${filePath}"`,
-        execOptions
-      );
+      const git = this.getGitInstance(repoPath);
+      const content = await git.show([`${commitHash}:${filePath}`]);
 
       return { 
         success: true, 
-        content: stdout,
+        content: content,
         filePath,
         commitHash
       };

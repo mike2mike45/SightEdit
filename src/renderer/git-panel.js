@@ -64,9 +64,9 @@ export class GitPanel {
     // 入力フィールドの右クリックメニュー設定
     this.setupInputContextMenus();
 
-    // リポジトリ初期化（確認ダイアログ付き）
+    // リポジトリ初期化（フォルダ選択ダイアログ付き）
     document.getElementById('git-init-here')?.addEventListener('click', () => {
-      this.initializeRepositoryWithConfirm();
+      this.initializeRepositoryWithDialog();
     });
 
     document.getElementById('git-select-folder')?.addEventListener('click', () => {
@@ -124,20 +124,6 @@ export class GitPanel {
       this.refreshStatus();
     });
 
-    // プッシュ・プル（確認ダイアログ付き）
-    document.getElementById('git-push')?.addEventListener('click', () => {
-      this.pushToRemoteWithConfirm();
-    });
-
-    document.getElementById('git-pull')?.addEventListener('click', () => {
-      this.pullFromRemoteWithConfirm();
-    });
-
-    // ブランチ作成
-    document.getElementById('git-create-branch')?.addEventListener('click', () => {
-      this.createNewBranch();
-    });
-
     // 外部リンククリック
     this.panel.addEventListener('click', (e) => {
       if (e.target.classList.contains('external-link')) {
@@ -166,7 +152,7 @@ export class GitPanel {
         this.show();
         break;
       case 'init-repository':
-        this.initializeRepositoryWithConfirm();
+        this.initializeRepositoryWithDialog();
         break;
       case 'open-repository':
         this.selectRepositoryFolder();
@@ -223,26 +209,32 @@ export class GitPanel {
     }
   }
 
-  // 確認付きリポジトリ初期化
-  async initializeRepositoryWithConfirm() {
-    const targetDirectory = this.currentRepository || this.getDirectoryFromPath(this.getCurrentFilePath());
-    
-    if (!targetDirectory) {
-      window.showMessage('ファイルを保存するか、フォルダを明示的に選択してください', 'warning');
-      return;
-    }
-
+  // フォルダ選択ダイアログ付きリポジトリ初期化
+  async initializeRepositoryWithDialog() {
     try {
-      const result = await window.electronAPI.git.initRepository(targetDirectory);
+      // パスを指定せずに呼び出すと、main.js側でダイアログが表示される
+      const result = await window.electronAPI.git.initRepository();
+      
       if (result.success && !result.canceled) {
-        this.currentRepository = targetDirectory;
+        this.currentRepository = result.repoPath;
         window.showMessage(result.message, 'success');
         await this.updatePanelContent();
+      } else if (result.canceled) {
+        // キャンセルされた場合は何もしない
+        console.log('Repository initialization canceled');
+      } else {
+        window.showMessage(`初期化に失敗: ${result.error || 'Unknown error'}`, 'error');
       }
     } catch (error) {
       console.error('Repository initialization error:', error);
       window.showMessage('初期化エラー', 'error');
     }
+  }
+
+  // 確認付きリポジトリ初期化（廃止予定）
+  async initializeRepositoryWithConfirm() {
+    // 新しいメソッドを呼び出す
+    await this.initializeRepositoryWithDialog();
   }
 
   // ステータスと共にパネルを表示
@@ -269,7 +261,7 @@ export class GitPanel {
       }
 
       // 変更があるかチェック（修正版 - 安全なチェック）
-      const hasChanges = statusResult.status.hasChanges && 
+      const hasChanges = statusResult.status.changes && 
                         Array.isArray(statusResult.status.changes) && 
                         statusResult.status.changes.length > 0;
       
@@ -304,22 +296,69 @@ export class GitPanel {
     }
   }
 
-  // 確認ダイアログ付きプッシュ
+  // 確認ダイアログ付きプッシュ（改善版）
   async pushToRemoteWithConfirm() {
     if (!this.currentRepository) {
       window.showMessage('Gitリポジトリが初期化されていません', 'error');
       return;
     }
 
-    const confirmed = confirm('リモートリポジトリにプッシュしますか？\n\nローカルのコミットがリモートリポジトリに送信されます。');
-    if (!confirmed) return;
-
     try {
+      // まずリポジトリの状態を確認
+      const statusResult = await window.electronAPI.git.getRepositoryStatus(this.currentRepository);
+      if (!statusResult.success || !statusResult.status) {
+        window.showMessage('リポジトリの状態を確認できません', 'error');
+        return;
+      }
+
+      // コミット数を確認
+      const totalCommits = statusResult.status.totalCommits || 0;
+      if (totalCommits === 0) {
+        window.showMessage('プッシュするコミットがありません。先にコミットを作成してください。', 'warning');
+        return;
+      }
+
+      // リモート設定を確認
+      if (!statusResult.status.hasRemote || !statusResult.status.remoteUrl) {
+        window.showMessage('リモートリポジトリが設定されていません。先にリモート設定を行ってください。', 'warning');
+        this.uiManager.showRemoteSetupView();
+        return;
+      }
+
+      // ステージされていない変更がある場合の警告
+      const unstagedChanges = statusResult.status.changes?.filter(c => !c.staged).length || 0;
+      let confirmMessage = `リモートリポジトリにプッシュしますか？\n\n`;
+      confirmMessage += `リモート: ${statusResult.status.remoteUrl}\n`;
+      confirmMessage += `ブランチ: ${statusResult.status.currentBranch}\n`;
+      confirmMessage += `コミット数: ${totalCommits}\n`;
+      
+      if (unstagedChanges > 0) {
+        confirmMessage += `\n⚠️ 注意: ${unstagedChanges}個のステージされていない変更があります。\n`;
+        confirmMessage += `これらの変更はプッシュされません。`;
+      }
+
+      const confirmed = confirm(confirmMessage);
+      if (!confirmed) return;
+
+      // プッシュ実行
+      window.showMessage('プッシュを実行中...', 'info');
+      
       const result = await window.electronAPI.git.pushToRemote('origin', null, this.currentRepository);
       if (result.success) {
         window.showMessage(result.message, 'success');
       } else {
-        window.showMessage(`プッシュに失敗: ${result.error || 'Unknown error'}`, 'error');
+        // エラーメッセージを詳細に表示
+        let errorMessage = result.error || 'Unknown error';
+        
+        if (errorMessage.includes('could not read Username')) {
+          errorMessage = '認証が必要です。GitHubなどの認証情報を設定してください。';
+        } else if (errorMessage.includes('rejected')) {
+          errorMessage = 'プッシュが拒否されました。先にプルしてから再度プッシュしてください。';
+        } else if (errorMessage.includes('does not appear to be a git repository')) {
+          errorMessage = 'リモートリポジトリが見つかりません。リモート設定を確認してください。';
+        }
+        
+        window.showMessage(`プッシュに失敗: ${errorMessage}`, 'error');
       }
     } catch (error) {
       console.error('Push error:', error);
@@ -385,19 +424,29 @@ export class GitPanel {
 
     // 現在のファイルからリポジトリを検索
     if (currentFilePath) {
-      const result = await window.electronAPI.git.findRepositoryRoot(currentFilePath);
-      if (result.success && result.repoRoot) {
-        this.currentRepository = result.repoRoot;
-      } else {
+      try {
+        const result = await window.electronAPI.git.findRepositoryRoot(currentFilePath);
+        if (result.success && result.repoRoot) {
+          this.currentRepository = result.repoRoot;
+        } else {
+          this.currentRepository = this.getDirectoryFromPath(currentFilePath);
+        }
+      } catch (error) {
+        console.log('Find repository root failed:', error);
         this.currentRepository = this.getDirectoryFromPath(currentFilePath);
       }
     } else {
       const detectedPath = this.getCurrentFilePath();
       if (detectedPath) {
-        const result = await window.electronAPI.git.findRepositoryRoot(detectedPath);
-        if (result.success && result.repoRoot) {
-          this.currentRepository = result.repoRoot;
-        } else {
+        try {
+          const result = await window.electronAPI.git.findRepositoryRoot(detectedPath);
+          if (result.success && result.repoRoot) {
+            this.currentRepository = result.repoRoot;
+          } else {
+            this.currentRepository = this.getDirectoryFromPath(detectedPath);
+          }
+        } catch (error) {
+          console.log('Find repository root failed:', error);
           this.currentRepository = this.getDirectoryFromPath(detectedPath);
         }
       }
@@ -456,7 +505,6 @@ export class GitPanel {
         
         await this.updateRepositoryInfo();
         await this.updateChangesList();
-        await this.updateBranchList();
         this.updateCountDisplays();
       } else {
         // result.statusがnullまたはresult.successがfalseの場合
@@ -497,13 +545,15 @@ export class GitPanel {
     }
   }
 
-  async updateRepositoryInfo() {
+async updateRepositoryInfo() {
     if (!this.gitStatus) return;
 
     const repoInfo = document.getElementById('git-repo-info');
     const repoName = document.getElementById('git-repo-name');
     const currentBranch = document.getElementById('git-current-branch');
     const remoteUrl = document.getElementById('git-remote-url');
+    const syncStatus = document.getElementById('git-sync-status');
+    const syncInfo = document.getElementById('git-sync-info');
 
     if (repoName) {
       repoName.textContent = this.currentRepository.split('/').pop() || this.currentRepository.split('\\').pop();
@@ -515,20 +565,33 @@ export class GitPanel {
       remoteUrl.textContent = this.gitStatus.remoteUrl || '未設定';
     }
 
+    // 同期状態を表示
+    if (syncStatus && syncInfo && this.gitStatus.localRemoteDiff) {
+      const diff = this.gitStatus.localRemoteDiff;
+      if (diff.tracking) {
+        syncStatus.style.display = 'block';
+        if (diff.ahead > 0 && diff.behind > 0) {
+          syncInfo.innerHTML = `<span class="git-ahead">↑${diff.ahead}</span> <span class="git-behind">↓${diff.behind}</span>`;
+          syncInfo.title = `${diff.ahead}個のプッシュ待ち、${diff.behind}個のプル待ち`;
+        } else if (diff.ahead > 0) {
+          syncInfo.innerHTML = `<span class="git-ahead">↑${diff.ahead}</span>`;
+          syncInfo.title = `${diff.ahead}個のコミットがプッシュ待ち`;
+        } else if (diff.behind > 0) {
+          syncInfo.innerHTML = `<span class="git-behind">↓${diff.behind}</span>`;
+          syncInfo.title = `${diff.behind}個のコミットがプル待ち`;
+        } else {
+          syncInfo.innerHTML = '<span class="git-synced">✓同期済み</span>';
+          syncInfo.title = 'リモートと同期されています';
+        }
+      } else {
+        syncStatus.style.display = 'none';
+      }
+    }
+
     if (repoInfo) {
       repoInfo.style.display = 'block';
     }
-
-    // リモート操作セクションの表示制御
-    const remoteSection = document.getElementById('git-remote-section');
-    if (remoteSection && this.gitStatus.hasRemote) {
-      remoteSection.style.display = 'block';
-      if (this.collapsedSections.has('remote')) {
-        remoteSection.classList.add('collapsed');
-      }
-    }
   }
-
   async updateChangesList() {
     // gitStatusが存在しない場合の安全な処理
     if (!this.gitStatus) {
@@ -609,11 +672,6 @@ export class GitPanel {
     }
   }
 
-  async updateBranchList() {
-    // ブランチセクションは削除されたため、この関数は空にする
-    return;
-  }
-
   // 数字表示を更新（安全な処理）
   updateCountDisplays() {
     const changesCount = document.getElementById('git-changes-count');
@@ -639,6 +697,12 @@ export class GitPanel {
       this.existingAccounts = existingAccounts;
     } catch (error) {
       console.error('User accounts load error:', error);
+      // エラーが発生してもUIは継続して表示
+      const existingAccountsElement = document.getElementById('git-existing-accounts');
+      if (existingAccountsElement) {
+        existingAccountsElement.style.display = 'none';
+      }
+      this.existingAccounts = [];
     }
   }
 
@@ -858,7 +922,7 @@ export class GitPanel {
         await this.updatePanelContent();
       }
     } catch (error) {
-      console.error('Repository folder selection error:', error);
+      console.error('Select directory failed:', error);
       window.showMessage('フォルダー選択エラー', 'error');
     }
   }

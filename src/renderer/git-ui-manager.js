@@ -50,6 +50,10 @@ export class GitUIManager {
                   <span class="git-label">リモート:</span>
                   <span id="git-remote-url">未設定</span>
                 </div>
+                <div id="git-sync-status" class="git-detail-item" style="display: none;">
+                  <span class="git-label">同期状態:</span>
+                  <span id="git-sync-info" class="git-sync-info"></span>
+                </div>
               </div>
             </div>
 
@@ -78,22 +82,6 @@ export class GitUIManager {
                 </div>
               </div>
             </div>
-
-            <!-- リモート操作（簡略版） -->
-            <div id="git-remote-section" class="git-section-collapsible" style="display: none;">
-              <div class="git-section-header" data-section="remote">
-                <h4>🌐 リモート操作</h4>
-                <span class="git-section-toggle">▼</span>
-              </div>
-              <div class="git-section-body">
-                <div class="git-actions">
-                  <button id="git-push" class="git-btn git-btn-success">📤 プッシュ</button>
-                  <button id="git-pull" class="git-btn">📥 プル</button>
-                </div>
-              </div>
-            </div>
-
-
           </div>
 
           <!-- ユーザー設定画面 -->
@@ -193,17 +181,40 @@ export class GitUIManager {
             </div>
           </div>
 
-          <!-- リモート設定画面 -->
+          <!-- リモート設定画面（改善版） -->
           <div id="git-remote-setup-view" class="git-view git-scrollable-view" style="display: none;">
             <div class="git-section">
               <h4>🌐 リモートリポジトリの設定</h4>
+              
+              <!-- 既存のリモート設定表示 -->
+              <div id="git-existing-remote" class="git-existing-remote" style="display: none;">
+                <div class="git-info-box">
+                  <h5>現在のリモート設定</h5>
+                  <div class="git-remote-info">
+                    <span class="git-label">リモート名:</span>
+                    <span id="git-existing-remote-name">origin</span>
+                  </div>
+                  <div class="git-remote-info">
+                    <span class="git-label">URL:</span>
+                    <span id="git-existing-remote-url" class="git-remote-url-display"></span>
+                  </div>
+                </div>
+              </div>
+              
               <div class="git-form">
                 <div class="git-form-group">
-                  <label for="remote-url-input">リモートリポジトリURL:</label>
+                  <label for="remote-url-input">
+                    <span id="git-remote-setup-label">リモートリポジトリURL:</span>
+                  </label>
                   <input type="text" id="remote-url-input" placeholder="https://github.com/username/repository.git" class="git-input-wide" autocomplete="off">
+                  <div class="git-help-text">
+                    <small>💡 GitHubリポジトリのURLを入力してください（HTTPSまたはSSH形式）</small>
+                  </div>
                 </div>
                 <div class="git-actions">
-                  <button id="remote-setup-ok" class="git-btn git-btn-primary">設定</button>
+                  <button id="remote-setup-ok" class="git-btn git-btn-primary">
+                    <span id="git-remote-setup-btn-text">設定</span>
+                  </button>
                   <button id="remote-setup-cancel" class="git-btn">キャンセル</button>
                 </div>
               </div>
@@ -245,7 +256,7 @@ export class GitUIManager {
     this.gitPanel.currentView = 'getting-started';
   }
 
-  showRemoteSetupView() {
+  async showRemoteSetupView() {
     document.getElementById('git-main-view').style.display = 'none';
     document.getElementById('git-user-config-view').style.display = 'none';
     document.getElementById('git-getting-started-view').style.display = 'none';
@@ -254,11 +265,61 @@ export class GitUIManager {
     document.getElementById('git-panel-title').textContent = 'リモートリポジトリ設定';
     this.gitPanel.currentView = 'remote-setup';
     
+    // 既存のリモート設定を表示
+    await this.loadExistingRemoteConfig();
+    
     // URL入力欄をクリア
     document.getElementById('remote-url-input').value = '';
     setTimeout(() => {
       document.getElementById('remote-url-input').focus();
     }, 100);
+  }
+
+  // 既存のリモート設定を読み込んで表示
+  async loadExistingRemoteConfig() {
+    if (!this.gitPanel.currentRepository) return;
+    
+    try {
+      const result = await window.electronAPI.git.getRepositoryStatus(this.gitPanel.currentRepository);
+      
+      if (result.success && result.status && result.status.hasRemote && result.status.remoteUrl) {
+        // 既存のリモート設定がある場合
+        const existingRemoteDiv = document.getElementById('git-existing-remote');
+        const remoteUrlSpan = document.getElementById('git-existing-remote-url');
+        const setupLabel = document.getElementById('git-remote-setup-label');
+        const setupBtnText = document.getElementById('git-remote-setup-btn-text');
+        
+        if (existingRemoteDiv && remoteUrlSpan) {
+          existingRemoteDiv.style.display = 'block';
+          remoteUrlSpan.textContent = result.status.remoteUrl;
+          
+          // ラベルとボタンテキストを変更
+          if (setupLabel) {
+            setupLabel.textContent = '新しいリモートリポジトリURL:';
+          }
+          if (setupBtnText) {
+            setupBtnText.textContent = 'URLを更新';
+          }
+        }
+      } else {
+        // リモート設定がない場合
+        const existingRemoteDiv = document.getElementById('git-existing-remote');
+        const setupLabel = document.getElementById('git-remote-setup-label');
+        const setupBtnText = document.getElementById('git-remote-setup-btn-text');
+        
+        if (existingRemoteDiv) {
+          existingRemoteDiv.style.display = 'none';
+        }
+        if (setupLabel) {
+          setupLabel.textContent = 'リモートリポジトリURL:';
+        }
+        if (setupBtnText) {
+          setupBtnText.textContent = '設定';
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load remote config:', error);
+    }
   }
 
   hideAllSections() {

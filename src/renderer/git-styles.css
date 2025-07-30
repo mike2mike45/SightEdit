@@ -110,6 +110,51 @@
   gap: 6px;
 }
 
+/* 折りたたみ可能なセクション */
+.git-section-collapsible {
+  margin-bottom: 16px;
+  border: 1px solid #e9ecef;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.git-section-header {
+  padding: 12px 16px;
+  background: #f8f9fa;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  user-select: none;
+}
+
+.git-section-header h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #495057;
+}
+
+.git-section-toggle {
+  font-size: 12px;
+  color: #666;
+  transition: transform 0.2s;
+}
+
+.git-section-collapsible.collapsed .git-section-toggle {
+  transform: rotate(-90deg);
+}
+
+.git-section-body {
+  padding: 12px 16px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.git-section-collapsible.collapsed .git-section-body {
+  display: none;
+}
+
 /* エラー表示 */
 .git-error {
   background: #f8d7da;
@@ -194,6 +239,13 @@
   background: #d1ecf1;
 }
 
+.git-change-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
 .git-change-file {
   flex: 1;
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
@@ -201,6 +253,46 @@
 }
 
 .git-change-actions {
+  display: flex;
+  gap: 4px;
+}
+
+/* ブランチリスト */
+.git-branches-list {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.git-branch-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  margin: 4px 0;
+  background: #f8f9fa;
+  border-radius: 4px;
+  border-left: 3px solid #dee2e6;
+  font-size: 12px;
+}
+
+.git-branch-item.current {
+  background: #d4edda;
+  border-left-color: #28a745;
+}
+
+.git-branch-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.git-branch-name {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-weight: 500;
+}
+
+.git-branch-actions {
   display: flex;
   gap: 4px;
 }
@@ -541,6 +633,14 @@
   color: #fff;
 }
 
+.dark-theme .git-section-collapsible {
+  border-color: #404040;
+}
+
+.dark-theme .git-section-header {
+  background: #1a1a1a;
+}
+
 .dark-theme .git-error {
   background: #722d2d;
   border-color: #5a2a2a;
@@ -601,6 +701,16 @@
   border-left-color: #555;
 }
 
+.dark-theme .git-branch-item {
+  background: #404040;
+  border-left-color: #555;
+}
+
+.dark-theme .git-branch-item.current {
+  background: #2d5a3d;
+  border-left-color: #28a745;
+}
+
 .dark-theme .git-commit-item {
   background: #404040;
   border-left-color: #007bff;
@@ -613,15 +723,6 @@
 
 .dark-theme .git-commit-message {
   color: #fff;
-}
-
-.dark-theme .git-branch-item {
-  background: #404040;
-}
-
-.dark-theme .git-branch-item.current {
-  background: #2d5a3d;
-  border-left-color: #28a745;
 }
 
 .dark-theme .git-no-changes,
@@ -660,4 +761,71 @@
   background: #404040;
   border-color: #555;
   color: #fff;
+}
+
+/* ヘルプテキストのスタイル */
+.git-help-text {
+  margin-top: 4px;
+  font-size: 11px;
+  color: #6c757d;
+}
+
+.git-help-text small {
+  display: block;
+  line-height: 1.4;
+}
+
+/* ダークテーマ対応 */
+.dark-theme .git-help-text {
+  color: #adb5bd;
+}
+
+/* 入力フィールドのプレースホルダースタイル */
+#git-new-branch-dialog-name {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+}
+
+#git-new-branch-dialog-name::placeholder {
+  font-style: italic;
+  opacity: 0.7;
+}
+
+/* 同期状態表示 */
+.git-sync-info {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 12px;
+}
+
+.git-ahead {
+  color: #28a745;
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+.git-behind {
+  color: #dc3545;
+  font-weight: 600;
+  margin-left: 4px;
+}
+
+.git-synced {
+  color: #28a745;
+  font-weight: 500;
+}
+
+.git-detail-item {
+  margin: 4px 0;
+}
+
+/* ダークテーマ対応 */
+.dark-theme .git-ahead {
+  color: #4ade80;
+}
+
+.dark-theme .git-behind {
+  color: #ff6b6b;
+}
+
+.dark-theme .git-synced {
+  color: #4ade80;
 }

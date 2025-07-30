@@ -2,6 +2,7 @@
 export class GitDialogs {
   constructor() {
     this.currentDialog = null;
+    this.currentRepoPath = null; // リポジトリパスを保持
   }
 
   // コミット履歴ダイアログを作成
@@ -51,6 +52,9 @@ export class GitDialogs {
   async showCommitHistoryDialog(repoPath) {
     console.log('showCommitHistoryDialog called with:', repoPath);
     
+    // リポジトリパスを保存
+    this.currentRepoPath = repoPath;
+    
     let dialog = document.getElementById('git-commit-history-dialog');
     if (!dialog) {
       console.log('Creating new commit history dialog');
@@ -85,6 +89,10 @@ export class GitDialogs {
               console.log(`Processing commit ${index}:`, commit);
               const commitItem = document.createElement('div');
               commitItem.className = 'git-commit-item';
+              
+              // リポジトリパスをエスケープして安全に埋め込む
+              const escapedRepoPath = repoPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+              
               commitItem.innerHTML = `
                 <div class="git-commit-header">
                   <span class="git-commit-hash">${commit.hash || 'unknown'}</span>
@@ -93,7 +101,7 @@ export class GitDialogs {
                 <div class="git-commit-message">${commit.message || 'No message'}</div>
                 <div class="git-commit-author">by ${commit.author || 'unknown'}</div>
                 <div class="git-commit-actions">
-                  <button class="git-btn-small" onclick="gitDialogs.openFileFromCommit('${commit.hash}', '${repoPath}')">
+                  <button class="git-btn-small" onclick="gitDialogs.openFileFromCommit('${commit.hash}', '${escapedRepoPath}')">
                     📄 ファイルを開く
                   </button>
                 </div>
@@ -124,9 +132,17 @@ export class GitDialogs {
     this.currentDialog = null;
   }
 
-  // 指定コミットからファイルを開く
+  // 指定コミットからファイルを開く（修正版）
   async openFileFromCommit(commitHash, repoPath) {
     try {
+      console.log('openFileFromCommit called with:', { commitHash, repoPath });
+      
+      // リポジトリパスの確認
+      if (!repoPath) {
+        window.showMessage('リポジトリパスが指定されていません', 'error');
+        return;
+      }
+      
       // コミットに含まれるファイル一覧を取得
       const result = await window.electronAPI.git.getCommitFiles(commitHash, repoPath);
       
@@ -148,13 +164,16 @@ export class GitDialogs {
     }
   }
 
-  // ファイル選択ダイアログを作成・表示
+  // ファイル選択ダイアログを作成・表示（修正版）
   showFileSelectionDialog(commitHash, files, commitInfo, repoPath) {
     // 既存のダイアログがあれば削除
     const existingDialog = document.getElementById('git-file-selection-dialog');
     if (existingDialog) {
       existingDialog.remove();
     }
+
+    // リポジトリパスをエスケープして安全に埋め込む
+    const escapedRepoPath = repoPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
     const dialogHTML = `
       <div id="git-file-selection-dialog" class="git-dialog-overlay" style="display: flex;">
@@ -177,7 +196,7 @@ export class GitDialogs {
                 ${files.map(file => `
                   <div class="git-file-item" data-file-path="${file}">
                     <span class="git-file-name">📄 ${file}</span>
-                    <button class="git-btn-small" onclick="gitDialogs.loadFileFromCommit('${commitHash}', '${file}', '${repoPath}')">
+                    <button class="git-btn-small" onclick="gitDialogs.loadFileFromCommit('${commitHash}', '${file.replace(/'/g, "\\'")}', '${escapedRepoPath}')">
                       開く
                     </button>
                   </div>
@@ -215,9 +234,17 @@ export class GitDialogs {
     });
   }
 
-  // 指定コミットの指定ファイルを編集画面に読み込む
+  // 指定コミットの指定ファイルを編集画面に読み込む（修正版）
   async loadFileFromCommit(commitHash, filePath, repoPath) {
     try {
+      console.log('loadFileFromCommit called with:', { commitHash, filePath, repoPath });
+      
+      // リポジトリパスの確認
+      if (!repoPath) {
+        window.showMessage('リポジトリパスが指定されていません', 'error');
+        return;
+      }
+      
       // ファイル内容を取得
       const result = await window.electronAPI.git.getFileFromCommit(commitHash, filePath, repoPath);
       
@@ -320,6 +347,9 @@ export class GitDialogs {
 
   // コミット作成ダイアログを表示
   async showCommitDialog(repoPath) {
+    // リポジトリパスを保存
+    this.currentRepoPath = repoPath;
+    
     let dialog = document.getElementById('git-commit-dialog');
     if (!dialog) {
       dialog = this.createCommitDialog();
@@ -354,7 +384,6 @@ export class GitDialogs {
         
         dialog.style.display = 'flex';
         this.currentDialog = dialog;
-        this.currentRepoPath = repoPath;
         
         setTimeout(() => {
           messageInput.focus();
@@ -374,7 +403,6 @@ export class GitDialogs {
       dialog.style.display = 'none';
     }
     this.currentDialog = null;
-    this.currentRepoPath = null;
   }
 
   // ダイアログからコミット実行
@@ -444,8 +472,11 @@ export class GitDialogs {
               <div class="git-form-group">
                 <label for="git-new-branch-dialog-name">新しいブランチを作成:</label>
                 <div class="git-form-inline">
-                  <input type="text" id="git-new-branch-dialog-name" placeholder="新しいブランチ名">
+                  <input type="text" id="git-new-branch-dialog-name" placeholder="例: feature/new-function">
                   <button id="git-create-branch-dialog" class="git-btn">作成</button>
+                </div>
+                <div class="git-help-text">
+                  <small>💡 推奨: feature/, bugfix/, hotfix/, release/ などのプレフィックスを使用</small>
                 </div>
               </div>
             </div>
@@ -482,6 +513,9 @@ export class GitDialogs {
 
   // ブランチ管理ダイアログを表示
   async showBranchDialog(repoPath) {
+    // リポジトリパスを保存
+    this.currentRepoPath = repoPath;
+    
     let dialog = document.getElementById('git-branch-dialog');
     if (!dialog) {
       dialog = this.createBranchDialog();
@@ -497,15 +531,19 @@ export class GitDialogs {
         localBranches.forEach(branch => {
           const branchItem = document.createElement('div');
           branchItem.className = `git-branch-item ${branch.isCurrent ? 'current' : ''}`;
+          
+          // リポジトリパスをエスケープして安全に埋め込む
+          const escapedRepoPath = repoPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+          
           branchItem.innerHTML = `
             <span class="git-branch-name">${branch.isCurrent ? '● ' : '○ '}${branch.name}</span>
             <div class="git-branch-actions">
               ${!branch.isCurrent ? 
-                `<button class="git-btn-small" onclick="gitDialogs.switchToBranch('${branch.name}', '${repoPath}')">切り替え</button>` :
+                `<button class="git-btn-small" onclick="gitDialogs.switchToBranch('${branch.name}', '${escapedRepoPath}')">切り替え</button>` :
                 ''
               }
               ${!branch.isCurrent && branch.name !== 'main' && branch.name !== 'master' ? 
-                `<button class="git-btn-small git-btn-danger" onclick="gitDialogs.deleteBranch('${branch.name}', '${repoPath}')">削除</button>` :
+                `<button class="git-btn-small git-btn-danger" onclick="gitDialogs.deleteBranch('${branch.name}', '${escapedRepoPath}')">削除</button>` :
                 ''
               }
             </div>
@@ -515,7 +553,6 @@ export class GitDialogs {
 
         dialog.style.display = 'flex';
         this.currentDialog = dialog;
-        this.currentRepoPath = repoPath;
       }
     } catch (error) {
       console.error('Failed to load branches:', error);
@@ -530,10 +567,9 @@ export class GitDialogs {
       dialog.style.display = 'none';
     }
     this.currentDialog = null;
-    this.currentRepoPath = null;
   }
 
-  // ダイアログからブランチ作成
+  // ダイアログからブランチ作成（改善版）
   async createBranchFromDialog() {
     const branchName = document.getElementById('git-new-branch-dialog-name').value.trim();
     if (!branchName) {
@@ -541,9 +577,41 @@ export class GitDialogs {
       return;
     }
 
+    // より詳細な検証
     if (!/^[a-zA-Z0-9/_-]+$/.test(branchName)) {
       window.showMessage('ブランチ名に使用できない文字が含まれています', 'warning');
       return;
+    }
+
+    // 数字のみのブランチ名を警告
+    if (/^\d+$/.test(branchName)) {
+      window.showMessage('ブランチ名には意味のある名前を使用してください', 'warning');
+      // placeholderのヒントを強調表示
+      const input = document.getElementById('git-new-branch-dialog-name');
+      input.focus();
+      input.select();
+      return;
+    }
+
+    // ブランチ名の推奨パターンを確認
+    const recommendedPrefixes = ['feature/', 'bugfix/', 'hotfix/', 'release/'];
+    const hasPrefix = recommendedPrefixes.some(prefix => branchName.startsWith(prefix));
+    const isStandardBranch = ['develop', 'main', 'master'].includes(branchName);
+    
+    if (!hasPrefix && !isStandardBranch) {
+      const confirmMessage = `ブランチ名 "${branchName}" を作成しますか？\n\n` +
+        `推奨: ${recommendedPrefixes.join(', ')} などのプレフィックスを使用すると管理しやすくなります。\n\n` +
+        `例:\n` +
+        `  • feature/user-authentication\n` +
+        `  • bugfix/fix-login-error\n` +
+        `  • hotfix/critical-security-patch`;
+      
+      if (!confirm(confirmMessage)) {
+        // ユーザーがキャンセルした場合、入力欄にフォーカスを戻す
+        const input = document.getElementById('git-new-branch-dialog-name');
+        input.focus();
+        return;
+      }
     }
 
     try {
@@ -568,9 +636,17 @@ export class GitDialogs {
     }
   }
 
-  // ブランチ切り替え
+  // ブランチ切り替え（修正版：リポジトリパスを正しく渡す）
   async switchToBranch(branchName, repoPath) {
     try {
+      console.log('Switching to branch:', branchName, 'in repo:', repoPath);
+      
+      if (!repoPath) {
+        console.error('Repository path is missing');
+        window.showMessage('リポジトリパスが指定されていません', 'error');
+        return;
+      }
+      
       const result = await window.electronAPI.git.switchBranch(branchName, repoPath);
       if (result.success) {
         window.showMessage(result.message, 'success');
@@ -591,8 +667,14 @@ export class GitDialogs {
     }
   }
 
-  // ブランチ削除（確認ダイアログ付き）
+  // ブランチ削除（修正版：リポジトリパスを正しく渡す）
   async deleteBranch(branchName, repoPath) {
+    if (!repoPath) {
+      console.error('Repository path is missing');
+      window.showMessage('リポジトリパスが指定されていません', 'error');
+      return;
+    }
+    
     // 確認ダイアログを表示
     const confirmMessage = `ブランチ "${branchName}" を削除しますか？
 

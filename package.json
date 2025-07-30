@@ -55,6 +55,7 @@
     "electron-updater": "^6.6.2",
     "lowlight": "^3.1.0",
     "marked": "^11.1.0",
+    "simple-git": "^3.21.0",
     "turndown": "^7.1.2"
   },
   "build": {

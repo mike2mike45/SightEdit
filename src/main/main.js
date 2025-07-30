@@ -349,29 +349,136 @@ function setupGitIPCHandlers() {
     return gitManager.checkGitAvailability();
   });
 
-  // リポジトリ初期化
-  ipcMain.handle('git:initRepository', async (event, dirPath) => {
-    const result = await gitManager.initializeRepository(dirPath);
-    if (result.success) {
-      return { success: true, message: result.message };
-    } else {
-      return { success: false, error: result.error };
+  // リポジトリルートを検索（追加）
+  ipcMain.handle('git:findRepositoryRoot', async (event, targetPath) => {
+    try {
+      const repoRoot = await gitManager.findRepositoryRoot(targetPath);
+      return { 
+        success: true, 
+        repoRoot: repoRoot 
+      };
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error.message 
+      };
     }
   });
 
-  // リポジトリ状態取得
+  // ディレクトリ選択ダイアログ（追加）
+  ipcMain.handle('git:selectDirectory', async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openDirectory'],
+      title: 'Gitリポジトリフォルダを選択'
+    });
+
+    if (!result.canceled && result.filePaths.length > 0) {
+      return { 
+        success: true, 
+        selectedPath: result.filePaths[0],
+        canceled: false
+      };
+    }
+
+    return { 
+      success: false, 
+      canceled: true 
+    };
+  });
+
+  // リポジトリ初期化（修正: パスを受け取るように）
+  ipcMain.handle('git:initRepository', async (event, dirPath) => {
+    // dirPathが指定されていない場合はディレクトリ選択ダイアログを表示
+    if (!dirPath) {
+      const selectResult = await dialog.showOpenDialog({
+        properties: ['openDirectory', 'createDirectory'],
+        title: '新規Gitリポジトリを作成するフォルダを選択',
+        buttonLabel: 'ここに作成'
+      });
+
+      if (selectResult.canceled || selectResult.filePaths.length === 0) {
+        return { 
+          success: false, 
+          canceled: true,
+          message: 'フォルダ選択がキャンセルされました'
+        };
+      }
+
+      dirPath = selectResult.filePaths[0];
+    }
+
+    try {
+      const result = await gitManager.initializeRepository(dirPath);
+      
+      // リポジトリを最近使用したリポジトリに追加
+      await configManager.addRecentRepository(dirPath);
+      
+      return { 
+        success: true, 
+        message: result.message,
+        repoPath: dirPath,
+        canceled: false
+      };
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error.message,
+        canceled: false
+      };
+    }
+  });
+
+  // リポジトリ状態取得（Git設定も含める）
   ipcMain.handle('git:getStatus', async (event, repoPath) => {
     const result = await gitManager.getRepositoryStatus(repoPath);
+    
     if (result.success) {
-      return { success: true, status: result.status };
-    } else {
-      return { success: false, error: result.error };
+      // 設定ファイルからリポジトリ固有の設定を取得
+      const repoConfig = await configManager.getGitRepositoryConfig(repoPath);
+      if (repoConfig) {
+        result.status.savedConfig = repoConfig;
+      }
+      
+      // 最近使用したリポジトリに追加
+      await configManager.addRecentRepository(repoPath);
     }
+    
+    return result;
   });
 
   // ファイルをインデックスに追加
   ipcMain.handle('git:stageFiles', async (event, files, repoPath) => {
     const result = await gitManager.stageFiles(files, repoPath);
+    return result;
+  });
+
+  // 単一ファイルをインデックスに追加
+  ipcMain.handle('git:stageFile', async (event, filePath, repoPath) => {
+    const result = await gitManager.stageFiles([filePath], repoPath);
+    return result;
+  });
+
+  // ファイルをインデックスから除外（simple-git対応版）
+  ipcMain.handle('git:unstageFile', async (event, filePath, repoPath) => {
+    const result = await gitManager.unstageFile(filePath, repoPath);
+    return result;
+  });
+
+  // 全ての変更をインデックスに追加
+  ipcMain.handle('git:stageAllChanges', async (event, repoPath) => {
+    const result = await gitManager.stageFiles('*', repoPath);
+    if (result.success) {
+      // ステージングされたファイル数を含める
+      const statusResult = await gitManager.getRepositoryStatus(repoPath);
+      const stagedCount = statusResult.success ? 
+        statusResult.status.changes.filter(c => c.staged).length : 0;
+      
+      return {
+        success: true,
+        message: result.message,
+        stagedCount: stagedCount
+      };
+    }
     return result;
   });
 
@@ -381,21 +488,192 @@ function setupGitIPCHandlers() {
     return result;
   });
 
-  // Gitユーザー設定取得
+  // Gitユーザー設定取得（設定ファイルからも読み込む）
   ipcMain.handle('git:getUserConfig', async (event, repoPath) => {
     const result = await gitManager.getUserConfig(repoPath);
+    
+    // 設定ファイルから保存されたグローバル設定を読み込む
+    const savedGlobalUser = await configManager.getGitGlobalUser();
+    if (savedGlobalUser.name && savedGlobalUser.email) {
+      if (!result.config.global.name) {
+        result.config.global.name = savedGlobalUser.name;
+      }
+      if (!result.config.global.email) {
+        result.config.global.email = savedGlobalUser.email;
+      }
+    }
+    
     return result;
   });
 
   // Gitユーザー設定保存
   ipcMain.handle('git:setUserConfig', async (event, config, repoPath) => {
     const result = await gitManager.setUserConfig(config, repoPath);
+    
+    // グローバル設定の場合は設定ファイルにも保存
+    if (config.isGlobal && result.success) {
+      await configManager.setGitGlobalUser(config.name, config.email);
+    }
+    
+    // ローカル設定の場合はリポジトリ設定として保存
+    if (!config.isGlobal && repoPath && result.success) {
+      await configManager.setGitRepositoryConfig(repoPath, {
+        localUser: {
+          name: config.name,
+          email: config.email
+        }
+      });
+    }
+    
     return result;
+  });
+
+  // Gitユーザー設定（名前とメールを別々に）
+  ipcMain.handle('git:setUserConfiguration', async (event, name, email, isGlobal, repoPath) => {
+    const config = {
+      name: name,
+      email: email,
+      isGlobal: isGlobal
+    };
+    const result = await gitManager.setUserConfig(config, repoPath);
+    
+    // グローバル設定の場合は設定ファイルにも保存
+    if (isGlobal && result.success) {
+      await configManager.setGitGlobalUser(name, email);
+    }
+    
+    // ローカル設定の場合はリポジトリ設定として保存
+    if (!isGlobal && repoPath && result.success) {
+      await configManager.setGitRepositoryConfig(repoPath, {
+        localUser: {
+          name: name,
+          email: email
+        }
+      });
+    }
+    
+    return result;
+  });
+
+  // 全てのGitアカウントを取得（設定ファイルからも読み込む）
+  ipcMain.handle('git:getAllGitAccounts', async () => {
+    try {
+      const globalConfig = await gitManager.getUserConfig(null);
+      const accounts = [];
+      
+      // 設定ファイルから保存されたグローバル設定を読み込む
+      const savedGlobalUser = await configManager.getGitGlobalUser();
+      
+      // Gitコマンドで取得した設定と保存された設定をマージ
+      const globalName = globalConfig.config.global.name || savedGlobalUser.name;
+      const globalEmail = globalConfig.config.global.email || savedGlobalUser.email;
+      
+      if (globalName && globalEmail) {
+        accounts.push({
+          type: 'global',
+          name: globalName,
+          email: globalEmail,
+          displayName: `${globalName} <${globalEmail}> (グローバル)`
+        });
+      }
+      
+      return { success: true, accounts };
+    } catch (error) {
+      console.error('Get all accounts error:', error);
+      return { success: false, error: error.message, accounts: [] };
+    }
+  });
+
+  // アカウント選択
+  ipcMain.handle('git:selectAccount', async (event, account, targetType, repoPath) => {
+    const config = {
+      name: account.name,
+      email: account.email,
+      isGlobal: targetType === 'global'
+    };
+    
+    const result = await gitManager.setUserConfig(config, repoPath);
+    
+    // 設定ファイルにも保存
+    if (targetType === 'global' && result.success) {
+      await configManager.setGitGlobalUser(account.name, account.email);
+    } else if (targetType === 'local' && repoPath && result.success) {
+      await configManager.setGitRepositoryConfig(repoPath, {
+        localUser: {
+          name: account.name,
+          email: account.email
+        }
+      });
+    }
+    
+    return result;
+  });
+
+  // アカウント削除（simple-git対応版）
+  ipcMain.handle('git:removeAccount', async (event, accountType, repoPath) => {
+    try {
+      if (accountType === 'global') {
+        // グローバル設定の削除は特別な処理が必要
+        const { exec } = await import('child_process');
+        const { promisify } = await import('util');
+        const execAsync = promisify(exec);
+        
+        await execAsync('git config --global --unset user.name');
+        await execAsync('git config --global --unset user.email');
+      } else if (repoPath) {
+        // ローカル設定の削除
+        const git = gitManager.getGitInstance(repoPath);
+        await git.raw(['config', '--unset', 'user.name']);
+        await git.raw(['config', '--unset', 'user.email']);
+      }
+      
+      // 設定ファイルからも削除
+      if (accountType === 'global') {
+        await configManager.setGitGlobalUser(null, null);
+      } else if (repoPath) {
+        await configManager.setGitRepositoryConfig(repoPath, {
+          localUser: null
+        });
+      }
+      
+      return { 
+        success: true, 
+        message: 'アカウント設定を削除しました' 
+      };
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error.message 
+      };
+    }
   });
 
   // リモートリポジトリ追加
   ipcMain.handle('git:addRemote', async (event, remoteUrl, remoteName, repoPath) => {
     const result = await gitManager.addRemoteRepository(remoteUrl, remoteName, repoPath);
+    
+    // 成功時は設定ファイルに保存
+    if (result.success && repoPath) {
+      await configManager.setGitRepositoryConfig(repoPath, {
+        remoteUrl: remoteUrl,
+        remoteName: remoteName
+      });
+    }
+    
+    return result;
+  });
+
+  ipcMain.handle('git:addRemoteRepository', async (event, remoteUrl, remoteName, repoPath) => {
+    const result = await gitManager.addRemoteRepository(remoteUrl, remoteName, repoPath);
+    
+    // 成功時は設定ファイルに保存
+    if (result.success && repoPath) {
+      await configManager.setGitRepositoryConfig(repoPath, {
+        remoteUrl: remoteUrl,
+        remoteName: remoteName
+      });
+    }
+    
     return result;
   });
 
@@ -405,8 +683,18 @@ function setupGitIPCHandlers() {
     return result;
   });
 
+  ipcMain.handle('git:pushToRemote', async (event, remoteName, branchName, repoPath) => {
+    const result = await gitManager.pushToRemote(remoteName, branchName, repoPath);
+    return result;
+  });
+
   // プル
   ipcMain.handle('git:pull', async (event, remoteName, branchName, repoPath) => {
+    const result = await gitManager.pullFromRemote(remoteName, branchName, repoPath);
+    return result;
+  });
+
+  ipcMain.handle('git:pullFromRemote', async (event, remoteName, branchName, repoPath) => {
     const result = await gitManager.pullFromRemote(remoteName, branchName, repoPath);
     return result;
   });
@@ -453,16 +741,107 @@ function setupGitIPCHandlers() {
     return result;
   });
 
-  // ファイル内容取得
-  ipcMain.handle('git:getFileContent', async (event, filePath, commitHash, repoPath) => {
+  // コミットのファイル一覧取得（simple-git対応版）
+  ipcMain.handle('git:getCommitFiles', async (event, commitHash, repoPath) => {
+    try {
+      const git = gitManager.getGitInstance(repoPath);
+      
+      // コミット情報を取得
+      const log = await git.log(['-1', commitHash, '--name-only']);
+      const commit = log.latest;
+      
+      // ファイル一覧を取得
+      const files = await git.raw(['diff-tree', '--no-commit-id', '--name-only', '-r', commitHash]);
+      const fileList = files.trim().split('\n').filter(f => f);
+      
+      return {
+        success: true,
+        files: fileList,
+        commitInfo: {
+          hash: commit.hash.substring(0, 7),
+          author: commit.author_name,
+          message: commit.message,
+          date: new Date(commit.date).toLocaleString('ja-JP')
+        }
+      };
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error.message,
+        files: []
+      };
+    }
+  });
+
+  // コミットからファイル内容を取得
+  ipcMain.handle('git:getFileFromCommit', async (event, commitHash, filePath, repoPath) => {
     const result = await gitManager.getFileContentFromCommit(filePath, commitHash, repoPath);
+    if (result.success) {
+      // コミット情報も追加
+      try {
+        const git = gitManager.getGitInstance(repoPath);
+        const log = await git.log(['-1', commitHash]);
+        const commit = log.latest;
+        
+        return {
+          success: true,
+          content: result.content,
+          fileName: path.basename(filePath),
+          filePath: filePath,
+          commitInfo: {
+            hash: commit.hash.substring(0, 7),
+            author: commit.author_name,
+            message: commit.message,
+            date: new Date(commit.date).toLocaleString('ja-JP')
+          }
+        };
+      } catch (error) {
+        // コミット情報取得に失敗してもファイル内容は返す
+        return {
+          success: true,
+          content: result.content,
+          fileName: path.basename(filePath),
+          filePath: filePath,
+          commitInfo: {
+            hash: commitHash,
+            author: 'unknown',
+            message: 'unknown',
+            date: 'unknown'
+          }
+        };
+      }
+    }
     return result;
   });
 
-  // Gitユーザーアカウント選択
-  ipcMain.handle('git:selectAccount', async (event, accountInfo, repoPath) => {
-    const result = await gitManager.selectAccount(accountInfo, repoPath);
-    return result;
+  // 最近使用したリポジトリを取得
+  ipcMain.handle('git:getRecentRepositories', async () => {
+    try {
+      const recentRepos = await configManager.getRecentRepositories();
+      return { success: true, repositories: recentRepos };
+    } catch (error) {
+      return { success: false, error: error.message, repositories: [] };
+    }
+  });
+
+  // Git設定の取得
+  ipcMain.handle('git:getDefaultSettings', async () => {
+    try {
+      const settings = await configManager.getGitDefaultSettings();
+      return { success: true, settings };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Git設定の保存
+  ipcMain.handle('git:setDefaultSettings', async (event, settings) => {
+    try {
+      await configManager.setGitDefaultSettings(settings);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
   });
 }
 
@@ -485,8 +864,20 @@ function setupUpdateIPCHandlers() {
 
   // 更新状態取得
   ipcMain.handle('update:getStatus', async () => {
-    const status = updateManager.getStatus();
-    return { success: true, status };
+    if (updateManager) {
+      const status = updateManager.getStatus();
+      return { success: true, status };
+    } else {
+      return { 
+        success: false, 
+        status: {
+          updateAvailable: false,
+          updateDownloaded: false,
+          isChecking: false,
+          version: packageInfo.version || 'unknown'
+        }
+      };
+    }
   });
 
   // 再起動準備完了
@@ -526,9 +917,20 @@ function createApplicationMenu() {
         },
         { type: 'separator' },
         {
-          label: 'PDFとして出力',
-          accelerator: 'CmdOrCtrl+P',
-          click: () => mainWindow?.webContents.send('menu-export-pdf')
+          label: 'エクスポート',
+          submenu: [
+            {
+              label: 'PDFとして出力',
+              accelerator: 'CmdOrCtrl+P',
+              click: () => mainWindow?.webContents.send('menu-export-pdf')
+            },
+            { type: 'separator' },
+            {
+              label: '他の形式にエクスポート...',
+              accelerator: 'CmdOrCtrl+E',
+              click: () => mainWindow?.webContents.send('menu-export-formats')
+            }
+          ]
         },
         { type: 'separator' },
         {

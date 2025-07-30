@@ -8,6 +8,8 @@ import { createSearchReplaceDialog, addSearchReplaceStyles } from './search-repl
 import { GitPanel } from './git-panel.js';
 import './git-ui-manager.js';
 import './git-dialogs.js';
+// エクスポート機能を追加
+import { showExportDialog, addExportStyles } from './export-formats.js';
 
 let editor = null;
 let currentFile = {
@@ -26,7 +28,15 @@ let updateStatus = null;
 // 統計更新用のタイマー（デバウンス用）
 let statsUpdateTimer = null;
 
+// グローバルに公開（export-formats.jsから使用）
+window.getMarkdownContent = { getMarkdownContent };
+window.markdownToHtml = null; // 後で設定
+
 document.addEventListener('DOMContentLoaded', async () => {
+  // markdownモジュールをグローバルに公開
+  const markdownModule = await import('./markdown.js');
+  window.markdownToHtml = { markdownToHtml: markdownModule.markdownToHtml };
+  
   // アプリケーション情報を取得してタイトルに設定
   if (window.electronAPI) {
     try {
@@ -45,6 +55,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   addSearchReplaceStyles();
   searchReplaceDialog = createSearchReplaceDialog();
   
+  // エクスポートスタイルを追加
+  addExportStyles();
+  
   // Git機能の初期化
   await initializeGitFeatures();
   
@@ -57,9 +70,44 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupModeSwitch();
   setupKeyboardShortcuts();
   
+  // エクスポートボタンを追加
+  addExportButton();
+  
   // 初期統計の更新
   setTimeout(performStatsUpdate, 100);
 });
+
+// エクスポートボタンをツールバーに追加
+function addExportButton() {
+  const toolbar = document.querySelector('.toolbar');
+  if (!toolbar) return;
+  
+  // 最後のグループを探す
+  const lastGroup = toolbar.querySelector('.toolbar-group:last-child');
+  if (!lastGroup) return;
+  
+  // エクスポートボタンを含む新しいグループを作成
+  const exportGroup = document.createElement('div');
+  exportGroup.className = 'toolbar-group';
+  
+  const exportButton = document.createElement('button');
+  exportButton.id = 'export-btn';
+  exportButton.title = 'エクスポート (Ctrl+E)';
+  exportButton.innerHTML = '📤';
+  exportButton.addEventListener('click', () => {
+    showExportDialog(editor, currentMode);
+  });
+  
+  exportGroup.appendChild(exportButton);
+  
+  // Gitボタンの前に挿入
+  const gitGroup = document.querySelector('#git-btn')?.parentElement;
+  if (gitGroup) {
+    toolbar.insertBefore(exportGroup, gitGroup);
+  } else {
+    toolbar.insertBefore(exportGroup, lastGroup);
+  }
+}
 
 // Git機能の初期化
 async function initializeGitFeatures() {
@@ -728,6 +776,11 @@ function setupMenuListeners() {
     await fileOps.exportPDF();
   });
   
+  // エクスポートメニュー
+  window.electronAPI.onMenuAction('menu-export-formats', () => {
+    showExportDialog(editor, currentMode);
+  });
+  
   // 編集メニュー - 検索・置換
   window.electronAPI.onMenuAction('menu-search-replace', () => {
     console.log('Search replace menu clicked');
@@ -1083,6 +1136,12 @@ function setupKeyboardShortcuts() {
     if ((e.ctrlKey || e.metaKey) && e.key === 'g') {
       e.preventDefault();
       toggleGitPanel();
+    }
+    
+    // Ctrl+E または Cmd+E: エクスポート
+    if ((e.ctrlKey || e.metaKey) && e.key === 'e') {
+      e.preventDefault();
+      showExportDialog(editor, currentMode);
     }
     
     // Ctrl+Shift+T または Cmd+Shift+T: 目次生成
