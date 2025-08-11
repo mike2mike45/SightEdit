@@ -1,3 +1,4 @@
+import { addDialogStyles, createDialog } from './dialog-core.js';
 // カスタムダイアログの実装
 export function createDialog() {
   // ダイアログのHTML
@@ -694,4 +695,5 @@ export function addDialogStyles() {
     }
   `;
   document.head.appendChild(style);
+    }
 }

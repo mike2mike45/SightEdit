@@ -9,16 +9,17 @@
   <!-- ツールバー -->
   <div class="toolbar">
     <div class="toolbar-group">
-      <button id="new-btn" title="新規ファイル (Ctrl+N)">📄</button>
-      <button id="open-btn" title="ファイルを開く (Ctrl+O)">📂</button>
-      <button id="save-btn" title="保存 (Ctrl+S)">💾</button>
+      <button id="new-btn" data-i18n="menu.new" data-i18n-target="title" title="新規ファイル (Ctrl+N)">📄</button>
+      <button id="open-btn" data-i18n="menu.open" data-i18n-target="title" title="ファイルを開く (Ctrl+O)">📂</button>
+      <button id="save-btn" data-i18n="menu.save" data-i18n-target="title" title="保存 (Ctrl+S)">💾</button>
     </div>
     
     <div class="toolbar-group">
-      <button id="bold-btn" title="太字 (Ctrl+B)"><b>B</b></button>
-      <button id="italic-btn" title="斜体 (Ctrl+I)"><i>I</i></button>
-      <button id="strike-btn" title="取り消し線"><s>S</s></button>
-      <button id="clear-format-btn" title="書式解除">🚫</button>
+      <button id="bold-btn" data-i18n="menu.bold" data-i18n-target="title" title="太字 (Ctrl+B)"><b>B</b></button>
+      <button id="italic-btn" data-i18n="menu.italic" data-i18n-target="title" title="斜体 (Ctrl+I)"><i>I</i></button>
+      <button id="strike-btn" data-i18n="menu.strikethrough" data-i18n-target="title" title="取り消し線"><s>S</s></button>
+      <button id="code-inline-btn" data-i18n="menu.inlineCode" data-i18n-target="title" title="インラインコード">&lt;/&gt;</button>
+      <button id="clear-format-btn" data-i18n="menu.clearFormat" data-i18n-target="title" title="書式解除">🚫</button>
     </div>
     
     <div class="toolbar-group">
@@ -43,6 +44,8 @@
       <button id="link-btn" title="リンク (Ctrl+K)">🔗</button>
       <button id="image-btn" title="画像">🖼️</button>
       <button id="code-btn" title="コードブロック">{ }</button>
+      <button id="footnote-btn" title="脚注">[¹]</button>
+      <button id="html-btn" title="HTML埋め込み">&lt;/&gt;</button>
       <button id="toc-btn" title="目次を生成 (Ctrl+Shift+T)">📑</button>
     </div>
     
@@ -79,5 +82,211 @@
 
   <!-- メッセージ表示用 -->
   <div id="message-container"></div>
+
+  <!-- テーブル配置ダイアログ -->
+  <div id="table-align-dialog" class="dialog-overlay" style="display: none;">
+    <div class="dialog-content">
+      <div class="dialog-header">
+        <h3>テーブルの配置</h3>
+        <button class="dialog-close">&times;</button>
+      </div>
+      <div class="dialog-body">
+        <p>選択したセルの配置を変更します：</p>
+        <div class="align-options">
+          <button id="align-left-btn" class="align-btn" title="左寄せ">⬅️ 左寄せ</button>
+          <button id="align-center-btn" class="align-btn" title="中央寄せ">↔️ 中央寄せ</button>
+          <button id="align-right-btn" class="align-btn" title="右寄せ">➡️ 右寄せ</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    /* ダイアログ基本スタイル */
+    .dialog-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .dialog-content {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      max-width: 500px;
+      width: 90%;
+      max-height: 80vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .dialog-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      border-bottom: 1px solid #e9ecef;
+    }
+
+    .dialog-header h3 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .dialog-close {
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: #6c757d;
+      padding: 0;
+      width: 30px;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+    }
+
+    .dialog-close:hover {
+      background: #e9ecef;
+    }
+
+    .dialog-body {
+      padding: 20px;
+      overflow-y: auto;
+    }
+
+    .dialog-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 16px 20px;
+      border-top: 1px solid #e9ecef;
+    }
+
+    .dialog-btn {
+      padding: 6px 16px;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      background: white;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .dialog-btn:hover {
+      background: #e9ecef;
+    }
+
+    .dialog-btn-primary {
+      background: #007bff;
+      color: white;
+      border-color: #007bff;
+    }
+
+    .dialog-btn-primary:hover {
+      background: #0056b3;
+    }
+
+    /* テーブル配置ダイアログ専用スタイル */
+    .align-options {
+      display: flex;
+      gap: 10px;
+      margin-top: 15px;
+    }
+
+    .align-btn {
+      flex: 1;
+      padding: 10px;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      background: white;
+      cursor: pointer;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+    }
+
+    .align-btn:hover {
+      background: #e9ecef;
+      border-color: #007bff;
+    }
+
+    /* フォームグループ */
+    .form-group {
+      margin-bottom: 15px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 500;
+      font-size: 14px;
+    }
+
+    .form-group input[type="number"] {
+      width: 100%;
+      padding: 6px 10px;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+
+    .form-group input[type="checkbox"] {
+      margin-right: 5px;
+    }
+
+    /* ダークテーマ対応 */
+    body.dark-theme .dialog-content {
+      background: #2d2d2d;
+      color: #d4d4d4;
+    }
+
+    body.dark-theme .dialog-header {
+      border-bottom-color: #444;
+    }
+
+    body.dark-theme .dialog-footer {
+      border-top-color: #444;
+    }
+
+    body.dark-theme .dialog-close {
+      color: #969696;
+    }
+
+    body.dark-theme .dialog-close:hover {
+      background: #3c3c3c;
+    }
+
+    body.dark-theme .dialog-btn {
+      background: #3c3c3c;
+      color: #d4d4d4;
+      border-color: #444;
+    }
+
+    body.dark-theme .dialog-btn:hover {
+      background: #444;
+    }
+
+    body.dark-theme .align-btn {
+      background: #3c3c3c;
+      color: #d4d4d4;
+      border-color: #444;
+    }
+
+    body.dark-theme .align-btn:hover {
+      background: #444;
+    }
+  </style>
 </body>
 </html>

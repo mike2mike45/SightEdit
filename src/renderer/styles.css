@@ -1,443 +1,115 @@
-/* 基本設定 */
-:root {
-  --bg-primary: #ffffff;
-  --bg-secondary: #f8f9fa;
-  --text-primary: #212529;
-  --text-secondary: #6c757d;
-  --border-color: #dee2e6;
-  --accent-color: #007bff;
-  --accent-hover: #0056b3;
-  --success-color: #28a745;
-  --error-color: #dc3545;
-  --warning-color: #ffc107;
-  --code-bg: #f6f8fa;
-  --code-border: #e1e4e8;
-}
-
+/* ベーススタイル */
 * {
-  margin: 0;
-  padding: 0;
   box-sizing: border-box;
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  height: 100vh;
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background-color: #f5f5f5;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  height: 100vh;
 }
 
-/* ツールバー */
+/* ツールバー - 折り返し対応改善 */
 .toolbar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;  /* 折り返しを有効化 */
   padding: 8px 16px;
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-color);
-  gap: 8px;
-  flex-wrap: wrap;
+  background-color: #ffffff;
+  border-bottom: 1px solid #e0e0e0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  gap: 16px;
+  row-gap: 8px;  /* 複数行になった時の行間 */
   min-height: 48px;
+  flex-shrink: 0;
 }
 
 .toolbar-group {
   display: flex;
-  align-items: center;
   gap: 4px;
+  padding: 0 8px;
+  border-right: 1px solid #e0e0e0;
+  flex-shrink: 0;  /* グループが縮小しないように */
 }
 
-.toolbar-group::after {
-  content: '';
-  width: 1px;
-  height: 20px;
-  background: var(--border-color);
-  margin: 0 8px;
-}
-
-.toolbar-group:last-child::after {
-  display: none;
+.toolbar-group:last-child {
+  border-right: none;
 }
 
 .toolbar button {
-  background: transparent;
+  background: none;
   border: 1px solid transparent;
   padding: 6px 10px;
-  border-radius: 4px;
   cursor: pointer;
+  border-radius: 4px;
   font-size: 14px;
-  color: var(--text-primary);
-  transition: all 0.1s ease;
+  transition: all 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;  /* ボタンが縮小しないように */
+  min-height: 32px;  /* 高さを統一 */
 }
 
 .toolbar button:hover {
-  background: #e9ecef;
-  border-color: #adb5bd;
+  background-color: #f0f0f0;
+  border-color: #d0d0d0;
 }
 
-.toolbar button:active {
-  background: var(--accent-color);
-  color: white;
-  border-color: var(--accent-color);
+.toolbar button.active {
+  background-color: #e3f2fd;
+  border-color: #2196f3;
+  color: #1976d2;
 }
 
-/* エディターコンテナ */
+/* エディターコンテナ - 枠を削除、シンプルに */
 #editor-container {
   flex: 1;
-  overflow: hidden;
-  position: relative;
-}
-
-/* WYSIWYGエディター（TipTap） */
-.editor {
-  width: 100%;
-  height: 100%;
-  padding: 20px 40px;
-  overflow-y: auto;
-  outline: none;
-}
-
-.editor .ProseMirror {
-  min-height: 100%;
-  outline: none;
-}
-
-.editor .ProseMirror > * + * {
-  margin-top: 0.75em;
-}
-
-/* プレースホルダー */
-.editor .ProseMirror p.is-editor-empty:first-child::before {
-  content: attr(data-placeholder);
-  float: left;
-  color: #adb5bd;
-  pointer-events: none;
-  height: 0;
-}
-
-/* 見出し */
-.editor h1 {
-  font-size: 2em;
-  font-weight: 600;
-  margin: 0.8em 0 0.4em;
-  border-bottom: 2px solid var(--border-color);
-  padding-bottom: 0.3em;
-}
-
-.editor h2 {
-  font-size: 1.5em;
-  font-weight: 600;
-  margin: 0.7em 0 0.3em;
-}
-
-.editor h3 {
-  font-size: 1.17em;
-  font-weight: 600;
-  margin: 0.6em 0 0.3em;
-}
-
-.editor h4 {
-  font-size: 1em;
-  font-weight: 600;
-  margin: 0.5em 0 0.2em;
-}
-
-.editor h5 {
-  font-size: 0.875em;
-  font-weight: 600;
-  margin: 0.5em 0 0.2em;
-}
-
-.editor h6 {
-  font-size: 0.75em;
-  font-weight: 600;
-  margin: 0.5em 0 0.2em;
-  color: var(--text-secondary);
-}
-
-/* 強調・書式 */
-.editor strong {
-  font-weight: 600;
-}
-
-.editor em {
-  font-style: italic;
-}
-
-/* 取り消し線（ネスト対応） */
-.editor s,
-.editor strike,
-.editor del,
-.editor .strike {
-  text-decoration: line-through;
-}
-
-/* ネストした書式の組み合わせ */
-.editor strong s,
-.editor strong strike,
-.editor strong del,
-.editor strong .strike,
-.editor s strong,
-.editor strike strong,
-.editor del strong {
-  font-weight: 600;
-  text-decoration: line-through;
-}
-
-.editor em s,
-.editor em strike,
-.editor em del,
-.editor em .strike,
-.editor s em,
-.editor strike em,
-.editor del em {
-  font-style: italic;
-  text-decoration: line-through;
-}
-
-.editor strong em s,
-.editor strong em strike,
-.editor strong em del,
-.editor strong s em,
-.editor strong strike em,
-.editor strong del em,
-.editor em strong s,
-.editor em strong strike,
-.editor em strong del,
-.editor s strong em,
-.editor s em strong,
-.editor strike strong em,
-.editor strike em strong,
-.editor del strong em,
-.editor del em strong {
-  font-weight: 600;
-  font-style: italic;
-  text-decoration: line-through;
-}
-
-/* リスト */
-.editor ul,
-.editor ol {
-  padding-left: 2em;
-  margin: 0.5em 0;
-}
-
-.editor li {
-  margin: 0.25em 0;
-}
-
-/* リスト内での書式 */
-.editor li strong {
-  font-weight: 600;
-}
-
-.editor li em {
-  font-style: italic;
-}
-
-.editor li s,
-.editor li strike,
-.editor li del {
-  text-decoration: line-through;
-}
-
-/* リスト内のネストした書式 */
-.editor li strong s,
-.editor li strong strike,
-.editor li strong del,
-.editor li s strong,
-.editor li strike strong,
-.editor li del strong {
-  font-weight: 600;
-  text-decoration: line-through;
-}
-
-.editor li em s,
-.editor li em strike,
-.editor li em del,
-.editor li s em,
-.editor li strike em,
-.editor li del em {
-  font-style: italic;
-  text-decoration: line-through;
-}
-
-.editor li strong em s,
-.editor li strong em strike,
-.editor li strong em del,
-.editor li strong s em,
-.editor li em strong s,
-.editor li s strong em,
-.editor li s em strong {
-  font-weight: 600;
-  font-style: italic;
-  text-decoration: line-through;
-}
-
-/* タスクリスト */
-.editor .task-list {
-  list-style: none;
-  padding-left: 0;
-}
-
-.editor .task-list-item {
   display: flex;
-  align-items: start;
-  margin: 0.25em 0;
+  flex-direction: column;
+  background-color: #ffffff;
+  overflow: hidden;
+  min-height: 0;
 }
 
-.editor .task-list-item input[type="checkbox"] {
-  margin-right: 0.5em;
-  margin-top: 0.25em;
-}
-
-/* テーブル */
-.editor table {
-  border-collapse: collapse;
-  width: 100%;
-  max-width: 100%;
-  margin: 1em 0;
-}
-
-.editor th,
-.editor td {
-  border: 1px solid var(--border-color);
-  padding: 8px 12px;
-  text-align: left;
-}
-
-.editor th {
-  background-color: var(--bg-secondary);
-  font-weight: 600;
-}
-
-/* 引用 */
-.editor blockquote {
-  border-left: 4px solid var(--accent-color);
-  margin: 1em 0;
-  padding: 12px 16px;
-  color: var(--text-secondary);
-  font-style: italic;
-  background-color: var(--bg-secondary);
-}
-
-/* コードブロック */
-.editor pre {
-  background-color: var(--code-bg);
-  border: 1px solid var(--code-border);
-  border-radius: 6px;
-  padding: 16px;
-  margin: 1em 0;
-  overflow-x: auto;
-}
-
-.editor pre code {
-  background: transparent;
-  padding: 0;
-  border-radius: 0;
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-  font-size: 14px;
-  line-height: 1.4;
-}
-
-/* インラインコード */
-.editor code {
-  background-color: var(--code-bg);
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-  font-size: 0.9em;
-  color: #d73a49;
-}
-
-/* リンク */
-.editor a {
-  color: var(--accent-color);
-  text-decoration: underline;
-  cursor: pointer;
-}
-
-.editor a:hover {
-  color: var(--accent-hover);
-}
-
-/* 画像 */
-.editor img {
-  max-width: 100%;
-  height: auto;
-  display: block;
-  margin: 1em 0;
-  border-radius: 4px;
-}
-
-/* 水平線 */
-.editor hr {
-  border: none;
-  border-top: 2px solid var(--border-color);
-  margin: 20px 0;
-}
-
-/* ソースエディター */
-.source-editor {
-  width: 100%;
-  height: 100%;
-  padding: 20px 40px;
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-  font-size: 14px;
+/* WYSIWYGエディタ - 左寄せ、余白調整 */
+#wysiwyg-editor {
+  flex: 1;
+  padding: 40px 60px;  /* 左右の余白を適切に */
+  overflow-y: auto;
+  overflow-x: hidden;
+  font-size: 16px;
   line-height: 1.6;
-  color: var(--text-primary);
-  background: var(--bg-primary);
+  color: #333;
+  width: 100%;
+  /* max-widthとmargin: 0 autoを削除して左寄せに */
+}
+
+/* ProseMirrorエディタのスタイル */
+#wysiwyg-editor .ProseMirror {
+  outline: none;
+  min-height: 100%;
+  max-width: 100%;  /* 幅を制限しない */
+}
+
+/* ソースエディタ */
+#source-editor {
+  flex: 1;
+  padding: 40px 60px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  background-color: #ffffff;
+  color: #333;
   border: none;
   outline: none;
   resize: none;
+  width: 100%;
   overflow-y: auto;
-}
-
-/* コンテキストメニュー */
-.context-menu {
-  position: fixed;
-  background: white;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-  z-index: 10000;
-  min-width: 180px;
-  font-size: 14px;
-  opacity: 0;
-  transform: scale(0.95);
-  transition: opacity 0.1s ease, transform 0.1s ease;
-}
-
-.context-menu.visible {
-  opacity: 1;
-  transform: scale(1);
-}
-
-.context-menu-item {
-  padding: 8px 12px;
-  cursor: pointer;
-  color: #333;
-  transition: background-color 0.1s ease;
-}
-
-.context-menu-item:hover {
-  background-color: #f0f0f0;
-}
-
-.context-menu-item.disabled {
-  color: #999;
-  cursor: default;
-}
-
-.context-menu-item.disabled:hover {
-  background-color: transparent;
-}
-
-.context-menu-separator {
-  height: 1px;
-  background-color: #eee;
-  margin: 4px 0;
+  tab-size: 2;
 }
 
 /* ステータスバー */
@@ -445,88 +117,69 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 4px 16px;
-  background: var(--bg-secondary);
-  border-top: 1px solid var(--border-color);
+  padding: 8px 16px;
+  background-color: #f8f8f8;
+  border-top: 1px solid #e0e0e0;
   font-size: 12px;
-  color: var(--text-secondary);
-  min-height: 28px;
+  color: #666;
+  flex-shrink: 0;
 }
 
-.status-left,
-.status-right {
+.status-left {
   display: flex;
   align-items: center;
   gap: 16px;
 }
 
-#file-status.saved {
-  color: var(--success-color);
-}
-
-#file-status.unsaved {
-  color: var(--warning-color);
-}
-
-/* モードスイッチ */
-.mode-switch {
+.status-right {
   display: flex;
-  background: #e9ecef;
-  border-radius: 4px;
-  padding: 2px;
+  gap: 16px;
 }
 
-.mode-switch button {
-  background: transparent;
-  border: none;
-  padding: 4px 8px;
-  border-radius: 2px;
-  cursor: pointer;
-  font-size: 11px;
-  color: var(--text-primary);
-  transition: all 0.1s ease;
+#file-status {
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-weight: 500;
 }
 
-.mode-switch button.active {
-  background: white;
-  color: var(--accent-color);
-  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+#file-status.saved {
+  background-color: #e8f5e9;
+  color: #2e7d32;
 }
 
-/* メッセージ */
+#file-status.modified {
+  background-color: #fff3e0;
+  color: #f57c00;
+}
+
+/* メッセージ表示 */
 #message-container {
   position: fixed;
   top: 20px;
   right: 20px;
-  z-index: 10001;
+  z-index: 10000;
 }
 
 .message {
-  padding: 12px 16px;
-  border-radius: 4px;
+  background-color: #323232;
   color: white;
-  font-size: 14px;
+  padding: 12px 20px;
+  border-radius: 4px;
   margin-bottom: 10px;
-  max-width: 300px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
   animation: slideIn 0.3s ease;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.16);
 }
 
 .message.success {
-  background: var(--success-color);
+  background-color: #4caf50;
 }
 
 .message.error {
-  background: var(--error-color);
+  background-color: #f44336;
 }
 
 .message.warning {
-  background: var(--warning-color);
-  color: #856404;
-}
-
-.message.info {
-  background: var(--accent-color);
+  background-color: #ff9800;
 }
 
 @keyframes slideIn {
@@ -540,125 +193,522 @@ body {
   }
 }
 
-/* ダークテーマ */
-.dark-theme {
-  --bg-primary: #1a1a1a;
-  --bg-secondary: #2d2d2d;
-  --text-primary: #ffffff;
-  --text-secondary: #cccccc;
-  --border-color: #404040;
-  --code-bg: #2d2d2d;
-  --code-border: #404040;
+/* モードスイッチ */
+.mode-switch {
+  display: flex;
+  background-color: #f0f0f0;
+  border-radius: 4px;
+  padding: 2px;
 }
 
-.dark-theme .editor code {
-  color: #ff79c6;
-  background-color: #44475a;
+.mode-switch button {
+  padding: 4px 12px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: all 0.2s;
+  font-size: 13px;
 }
 
-.dark-theme .context-menu {
-  background: #2d2d2d;
-  border-color: #404040;
+.mode-switch button.active {
+  background-color: white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.dark-theme .context-menu-item {
-  color: #ffffff;
+/* コンテキストメニュー - z-indexを調整 */
+.context-menu {
+  position: fixed;  /* absoluteからfixedに変更 */
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  padding: 4px 0;
+  min-width: 200px;
+  z-index: 20000;  /* より高いz-indexに */
+  opacity: 0;
+  transform: scale(0.95);
+  transition: all 0.1s ease;
 }
 
-.dark-theme .context-menu-item:hover {
-  background-color: #404040;
+.context-menu.visible {
+  opacity: 1;
+  transform: scale(1);
 }
 
-/* スクロールバー */
+.context-menu-item {
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #333;
+}
+
+.context-menu-item:hover:not(.disabled) {
+  background-color: #f5f5f5;
+}
+
+.context-menu-item.disabled {
+  color: #999;
+  cursor: default;
+}
+
+.context-menu-separator {
+  height: 1px;
+  background-color: #e0e0e0;
+  margin: 4px 0;
+}
+
+/* コンテンツの書式スタイル */
+#wysiwyg-editor h1 {
+  font-size: 2em;
+  margin: 0.67em 0;
+  font-weight: bold;
+}
+
+#wysiwyg-editor h2 {
+  font-size: 1.5em;
+  margin: 0.83em 0;
+  font-weight: bold;
+}
+
+#wysiwyg-editor h3 {
+  font-size: 1.17em;
+  margin: 1em 0;
+  font-weight: bold;
+}
+
+#wysiwyg-editor h4 {
+  font-size: 1em;
+  margin: 1.33em 0;
+  font-weight: bold;
+}
+
+#wysiwyg-editor h5 {
+  font-size: 0.83em;
+  margin: 1.67em 0;
+  font-weight: bold;
+}
+
+#wysiwyg-editor h6 {
+  font-size: 0.67em;
+  margin: 2.33em 0;
+  font-weight: bold;
+}
+
+#wysiwyg-editor blockquote {
+  margin: 1em 0;
+  padding-left: 1em;
+  border-left: 3px solid #ddd;
+  color: #666;
+}
+
+#wysiwyg-editor pre {
+  background-color: #f4f4f4;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 12px;
+  overflow-x: auto;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 14px;
+}
+
+#wysiwyg-editor code {
+  background-color: #f4f4f4;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 0.9em;
+}
+
+#wysiwyg-editor pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+}
+
+#wysiwyg-editor img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 1em 0;
+}
+
+#wysiwyg-editor a {
+  color: #2196f3;
+  text-decoration: none;
+}
+
+#wysiwyg-editor a:hover {
+  text-decoration: underline;
+}
+
+#wysiwyg-editor hr {
+  border: none;
+  border-top: 2px solid #e0e0e0;
+  margin: 2em 0;
+}
+
+/* リスト */
+#wysiwyg-editor ul,
+#wysiwyg-editor ol {
+  margin: 1em 0;
+  padding-left: 2em;
+}
+
+#wysiwyg-editor li {
+  margin: 0.5em 0;
+}
+
+/* タスクリスト - より確実にスタイルが適用されるよう強化 */
+/* ===== タスクリスト修正版（TipTap 3.0対応）===== */
+
+/* タスクリスト全体 */
+#wysiwyg-editor ul[data-type="taskList"],
+#wysiwyg-editor ul.task-list,
+.ProseMirror ul[data-type="taskList"] {
+  list-style: none !important;
+  padding-left: 0 !important;
+  margin: 1em 0 !important;
+}
+
+/* タスクリストアイテム - Flexレイアウトで水平配置 */
+#wysiwyg-editor ul[data-type="taskList"] li[data-type="taskItem"],
+#wysiwyg-editor ul.task-list li.task-list-item,
+#wysiwyg-editor li[data-type="taskItem"],
+.ProseMirror li[data-type="taskItem"] {
+  display: flex !important;  /* block から flex に変更 */
+  align-items: center !important;
+  gap: 8px !important;  /* チェックボックスとテキストの間隔 */
+  padding-left: 0 !important;
+  margin: 4px 0 !important;
+  list-style: none !important;
+}
+
+/* label要素（チェックボックスのみ含む） */
+#wysiwyg-editor ul[data-type="taskList"] li[data-type="taskItem"] label,
+#wysiwyg-editor ul.task-list li.task-list-item label,
+#wysiwyg-editor li[data-type="taskItem"] label,
+.ProseMirror li[data-type="taskItem"] label {
+  display: flex !important;
+  align-items: center !important;  /* flex-start から center に変更 */
+  cursor: pointer !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  flex-shrink: 0 !important;  /* 追加：縮まないように */
+  width: auto !important;  /* width: 100% を削除 */
+  gap: 0 !important;  /* gap: 8px を削除（li要素でgapを制御） */
+  justify-content: flex-start !important;  /* 削除可能だが念のため保持 */
+}
+
+/* チェックボックス */
+#wysiwyg-editor ul[data-type="taskList"] li[data-type="taskItem"] input[type="checkbox"],
+#wysiwyg-editor ul.task-list li.task-list-item input[type="checkbox"],
+#wysiwyg-editor li[data-type="taskItem"] input[type="checkbox"],
+.ProseMirror li[data-type="taskItem"] input[type="checkbox"] {
+  margin: 0 !important;
+  flex-shrink: 0 !important;
+  cursor: pointer !important;
+  position: relative !important;
+  align-self: flex-start !important;  /* 保持 */
+}
+
+/* label内のspan要素を非表示（TipTap 3.0の空要素） */
+#wysiwyg-editor ul[data-type="taskList"] li[data-type="taskItem"] label span,
+#wysiwyg-editor ul.task-list li.task-list-item label span,
+#wysiwyg-editor li[data-type="taskItem"] label span,
+.ProseMirror li[data-type="taskItem"] label span {
+  display: none !important;  /* 追加：空のspan要素を非表示 */
+}
+
+/* テキストコンテンツを含むdiv要素（labelの兄弟要素） */
+#wysiwyg-editor ul[data-type="taskList"] li[data-type="taskItem"] > div,
+#wysiwyg-editor ul.task-list li.task-list-item > div,
+#wysiwyg-editor li[data-type="taskItem"] > div,
+.ProseMirror li[data-type="taskItem"] > div {
+  flex: 1 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  text-align: left !important;
+  align-self: flex-start !important;
+}
+
+/* 既存のspan,div規則を保持（後方互換性） */
+#wysiwyg-editor ul[data-type="taskList"] li[data-type="taskItem"] span,
+#wysiwyg-editor ul.task-list li.task-list-item span,
+#wysiwyg-editor li[data-type="taskItem"] span {
+  flex: 1 !important;
+  text-align: left !important;
+  align-self: flex-start !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* div内のp要素をインライン化 */
+#wysiwyg-editor li[data-type="taskItem"] > div > p,
+#wysiwyg-editor li.task-list-item > div > p,
+.ProseMirror li[data-type="taskItem"] > div > p {
+  margin: 0 !important;
+  padding: 0 !important;
+  display: inline !important;
+}
+
+/* タスクリスト内のp要素を完全にインライン化（既存ルール） */
+#wysiwyg-editor li[data-type="taskItem"] p,
+#wysiwyg-editor li.task-list-item p {
+  display: inline !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* チェック済みアイテムのスタイル */
+#wysiwyg-editor ul[data-type="taskList"] li[data-checked="true"] > div,
+#wysiwyg-editor ul[data-type="taskList"] li[data-checked="true"] span,
+#wysiwyg-editor ul.task-list li[data-checked="true"] > div,
+#wysiwyg-editor ul.task-list li[data-checked="true"] span,
+#wysiwyg-editor li[data-checked="true"] > div,
+#wysiwyg-editor li[data-checked="true"] span,
+.ProseMirror li[data-checked="true"] > div,
+.ProseMirror li[data-checked="true"] span {
+  text-decoration: line-through !important;
+  opacity: 0.6 !important;
+}
+
+/* ダークテーマでのチェックボックス */
+body.dark-theme #wysiwyg-editor li[data-type="taskItem"] input[type="checkbox"],
+body.dark-theme .ProseMirror li[data-type="taskItem"] input[type="checkbox"] {
+  filter: invert(1);
+}
+
+/* タスクリスト内のp要素を完全にインライン化 */
+#wysiwyg-editor li[data-type="taskItem"] p,
+#wysiwyg-editor li.task-list-item p {
+  display: inline !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* チェック済みアイテムのスタイル */
+#wysiwyg-editor ul[data-type="taskList"] li[data-checked="true"] span,
+#wysiwyg-editor ul[data-type="taskList"] li[data-checked="true"] div,
+#wysiwyg-editor li[data-checked="true"] span,
+#wysiwyg-editor li[data-checked="true"] p {
+  text-decoration: line-through !important;
+  color: #666 !important;
+  display: inline !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* テーブルスタイル */
+#wysiwyg-editor table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+}
+
+#wysiwyg-editor th,
+#wysiwyg-editor td {
+  border: 1px solid #ddd;
+  padding: 8px 12px;
+  text-align: left;
+}
+
+#wysiwyg-editor th {
+  background-color: #f8f8f8;
+  font-weight: bold;
+}
+
+#wysiwyg-editor tr:nth-child(even) {
+  background-color: #fafafa;
+}
+
+/* 脚注スタイル */
+.footnote {
+  color: #1976d2;
+  cursor: pointer;
+  font-size: 0.8em;
+  vertical-align: super;
+}
+
+.footnote:hover {
+  text-decoration: underline;
+}
+
+/* プレースホルダー */
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #adb5bd;
+  pointer-events: none;
+  height: 0;
+}
+
+/* ダイアログオーバーレイ */
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 15000;
+}
+
+.dialog-content {
+  background: white;
+  border-radius: 8px;
+  padding: 0;
+  min-width: 400px;
+  max-width: 600px;
+  max-height: 80vh;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.dialog-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid #e0e0e0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.dialog-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.dialog-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #666;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dialog-close:hover {
+  color: #333;
+}
+
+.dialog-body {
+  padding: 20px;
+  overflow-y: auto;
+  max-height: calc(80vh - 120px);
+}
+
+.align-options {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.align-btn {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid #ddd;
+  background: white;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.align-btn:hover {
+  background-color: #f5f5f5;
+  border-color: #2196f3;
+}
+
+/* スクロールバーのスタイル */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: #f1f1f1;
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: #ccc;
-  border-radius: 4px;
+  background: #888;
+  border-radius: 5px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background-color: #999;
+  background: #555;
 }
 
-.dark-theme ::-webkit-scrollbar-thumb {
-  background-color: #555;
+/* 取り消し線のスタイル */
+#wysiwyg-editor s,
+#wysiwyg-editor del,
+#wysiwyg-editor strike {
+  text-decoration: line-through;
+  text-decoration-color: currentColor;
+  text-decoration-thickness: 2px;
 }
 
-.dark-theme ::-webkit-scrollbar-thumb:hover {
-  background-color: #777;
+/* TipTapのデフォルトスタイルを上書き */
+.ProseMirror s,
+.ProseMirror del,
+.ProseMirror strike {
+  text-decoration: line-through !important;
 }
 
-/* 印刷用スタイル */
-@media print {
-  /* ツールバーとステータスバーを非表示 */
-  .toolbar,
-  .status-bar,
-  #message-container,
-  .context-menu {
-    display: none !important;
-  }
-  
-  /* エディターコンテナのスタイル調整 */
-  #editor-container {
-    overflow: visible !important;
-    height: auto !important;
-  }
-  
-  /* エディターのスタイル調整 */
-  .editor {
-    padding: 0 !important;
-    overflow: visible !important;
-    height: auto !important;
-  }
-  
-  .editor .ProseMirror {
-    min-height: auto !important;
-  }
-  
-  /* ページ設定 */
-  body {
-    margin: 0;
-    padding: 20px;
-    height: auto;
-    overflow: visible;
-  }
-  
-  /* テーブルの改ページ制御 */
-  table {
-    page-break-inside: avoid;
-  }
-  
-  /* 見出しの改ページ制御 */
-  h1, h2, h3, h4, h5, h6 {
-    page-break-after: avoid;
-  }
-  
-  /* 段落の改ページ制御 */
-  p {
-    orphans: 3;
-    widows: 3;
-  }
-  
-  /* リンクの色を黒に */
-  a {
-    color: #000 !important;
-  }
-  
-  /* 背景色を白に統一 */
-  * {
-    background-color: white !important;
-  }
-  
-  /* コードブロックの背景は薄い灰色に */
-  pre, code {
-    background-color: #f6f8fa !important;
-  }
+/* ソースエディタの取り消し線表示 */
+#source-editor .strike {
+  text-decoration: line-through;
+}
+
+/* ========================================
+   取り消し線のスタイル強化
+   ======================================== */
+
+/* 取り消し線のスタイル強化 */
+.ProseMirror s,
+.ProseMirror del,
+.ProseMirror strike,
+[data-strike],
+mark[data-type="strike"],
+.strike-through {
+  text-decoration: line-through !important;
+  text-decoration-color: currentColor !important;
+  text-decoration-thickness: 2px !important;
+  text-decoration-style: solid !important;
+}
+
+/* エディター内の取り消し線 */
+#wysiwyg-editor [style*="text-decoration: line-through"],
+#wysiwyg-editor [style*="text-decoration:line-through"] {
+  text-decoration: line-through !important;
+  text-decoration-color: currentColor !important;
+  text-decoration-thickness: 2px !important;
+}
+
+/* ソースプレビューの取り消し線 */
+#source-preview s,
+#source-preview del,
+#source-preview strike {
+  text-decoration: line-through !important;
+  text-decoration-color: currentColor !important;
+  text-decoration-thickness: 2px !important;
+}
+
+/* 取り消し線ボタンのアクティブ状態 */
+#strike-btn.active {
+  background-color: #e3f2fd !important;
+  border-color: #2196f3 !important;
+}
+
+/* ツールバーボタンの取り消し線表示 */
+#strike-btn s {
+  text-decoration: line-through !important;
+  text-decoration-thickness: 2px !important;
 }

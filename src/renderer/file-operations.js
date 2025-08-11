@@ -3,6 +3,7 @@ import { getMarkdownContent, setMarkdownContent } from './editor.js';
 let currentEditor = null;
 let currentFile = null;
 let isModified = false;
+let originalMarkdownContent = null; // 元のMarkdownコンテンツを保存
 
 export function setupFileOperations(editor, file, modified) {
   currentEditor = editor;
@@ -18,7 +19,8 @@ export function setupFileOperations(editor, file, modified) {
     updateState: (file, modified) => {
       currentFile = file;
       isModified = modified;
-    }
+    },
+    getOriginalMarkdownContent: () => originalMarkdownContent
   };
 }
 
@@ -34,8 +36,22 @@ async function newFile() {
     }
   }
   
+  // 元のMarkdownコンテンツをクリア
+  originalMarkdownContent = null;
+  
+  // WYSIWYGエディターをクリア
   currentEditor.commands.clearContent();
   currentEditor.commands.focus();
+  
+  // ソースエディターもクリア（ソースモードの場合）
+  const sourceEditor = document.getElementById('source-editor');
+  if (sourceEditor) {
+    sourceEditor.value = '';
+    
+    // ソースエディターの変更イベントを発火
+    const event = new Event('input', { bubbles: true });
+    sourceEditor.dispatchEvent(event);
+  }
   
   const newFileState = {
     path: null,
@@ -75,7 +91,21 @@ async function openFile() {
     const result = await window.electronAPI.openFile();
     
     if (result.success && !result.canceled) {
+      // 元のMarkdownコンテンツを保存
+      originalMarkdownContent = result.content;
+      
+      // WYSIWYGエディターに設定
       setMarkdownContent(currentEditor, result.content);
+      
+      // ソースエディターにも設定
+      const sourceEditor = document.getElementById('source-editor');
+      if (sourceEditor) {
+        sourceEditor.value = originalMarkdownContent;
+        
+        // ソースエディターの変更イベントを発火
+        const event = new Event('input', { bubbles: true });
+        sourceEditor.dispatchEvent(event);
+      }
       
       const fileState = {
         path: result.filePath,
@@ -90,7 +120,8 @@ async function openFile() {
       
       return {
         success: true,
-        file: fileState
+        file: fileState,
+        originalContent: originalMarkdownContent
       };
     }
     
@@ -128,53 +159,34 @@ async function saveFile() {
     console.log('Markdown content to save:', markdown);
     console.log('Content length:', markdown ? markdown.length : 0);
     
-    // 内容が空の場合の警告
-    if (!markdown || markdown.trim() === '') {
-      const confirmEmpty = window.confirm('ドキュメントが空です。空のファイルとして保存しますか？');
-      if (!confirmEmpty) {
-        return { success: false, canceled: true };
-      }
+    if (!markdown) {
+      window.showMessage('保存する内容がありません', 'warning');
+      return { success: false };
     }
     
-    let result;
-    if (currentFile.path) {
-      // 既存ファイルの上書き保存
-      result = await window.electronAPI.saveFile({
-        filePath: currentFile.path,
-        content: markdown || ''  // 空の場合は空文字列を送る
-      });
-    } else {
-      // 新規ファイルの場合は名前を付けて保存
-      result = await window.electronAPI.saveAsFile({
-        content: markdown || '',  // 空の場合は空文字列を送る
-        suggestedName: currentFile.name
-      });
+    if (!currentFile.path) {
+      // 新規ファイルの場合は「名前を付けて保存」
+      return await saveAsFile();
     }
     
-    console.log('Save result:', result);
+    const result = await window.electronAPI.saveFile({
+      filePath: currentFile.path,
+      content: markdown
+    });
     
-    if (result.success && !result.canceled) {
-      const fileState = {
-        path: result.filePath,
-        name: result.fileName,
-        saved: true
-      };
-      
-      // currentFileを更新
-      currentFile = fileState;
-      
+    if (result.success) {
       window.showMessage('ファイルを保存しました', 'success');
-      
       return {
         success: true,
-        file: fileState
+        file: currentFile
       };
+    } else {
+      window.showMessage('ファイルの保存に失敗しました', 'error');
+      return { success: false };
     }
-    
-    return { success: false, canceled: result.canceled };
   } catch (error) {
     console.error('Save error:', error);
-    window.showMessage('ファイルを保存できませんでした: ' + error.message, 'error');
+    window.showMessage('保存エラー: ' + error.message, 'error');
     return { success: false, error: error.message };
   }
 }
@@ -195,81 +207,65 @@ async function saveAsFile() {
     if (isSourceMode) {
       // ソースモードの場合は直接テキストを取得
       markdown = sourceEditor.value;
-      console.log('Getting content from source editor for saveAs');
     } else {
       // WYSIWYGモードの場合は変換
       markdown = getMarkdownContent(currentEditor);
-      console.log('Getting content from WYSIWYG editor for saveAs');
     }
     
-    console.log('SaveAs - Markdown content:', markdown);
-    console.log('SaveAs - Content length:', markdown ? markdown.length : 0);
+    if (!markdown) {
+      window.showMessage('保存する内容がありません', 'warning');
+      return { success: false };
+    }
     
     const result = await window.electronAPI.saveAsFile({
-      content: markdown || '',
-      suggestedName: currentFile.name
+      content: markdown
     });
     
     if (result.success && !result.canceled) {
-      const fileState = {
+      const newFileState = {
         path: result.filePath,
         name: result.fileName,
         saved: true
       };
       
       // currentFileを更新
-      currentFile = fileState;
+      currentFile = newFileState;
       
-      window.showMessage('ファイルを保存しました', 'success');
+      window.showMessage('ファイルを保存しました: ' + result.fileName, 'success');
       
       return {
         success: true,
-        file: fileState
+        file: newFileState
       };
     }
     
     return { success: false, canceled: result.canceled };
   } catch (error) {
-    console.error('SaveAs error:', error);
-    window.showMessage('ファイルを保存できませんでした: ' + error.message, 'error');
+    window.showMessage('ファイルの保存に失敗しました: ' + error.message, 'error');
     return { success: false, error: error.message };
   }
 }
 
 async function exportPDF() {
   if (!window.electronAPI) {
-    window.showMessage('この機能はElectronアプリでのみ利用できます', 'error');
-    return { success: false };
+    // ブラウザ環境では印刷ダイアログを表示
+    window.print();
+    return { success: true };
   }
   
   try {
-    // 現在のモードを保存
-    const wasInSourceMode = document.getElementById('source-editor').style.display !== 'none';
-    
-    // ソースモードの場合は一時的にWYSIWYGモードに切り替え
-    if (wasInSourceMode) {
-      document.getElementById('wysiwyg-btn').click();
-      // レンダリング待機
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-    
-    const result = await window.electronAPI.exportPDF({
-      title: currentFile.name || 'Untitled'
-    });
-    
-    // 元のモードに戻す
-    if (wasInSourceMode) {
-      document.getElementById('source-btn').click();
-    }
+    // Electronアプリでは専用のPDFエクスポート機能を使用
+    const result = await window.electronAPI.exportPDF();
     
     if (result.success) {
-      window.showMessage('PDFとして出力しました', 'success');
-      return { success: true };
+      window.showMessage('PDFをエクスポートしました', 'success');
+    } else if (!result.canceled) {
+      window.showMessage('PDFのエクスポートに失敗しました', 'error');
     }
     
-    return { success: false };
+    return result;
   } catch (error) {
-    window.showMessage('PDF出力に失敗しました: ' + error.message, 'error');
-    return { success: false };
+    window.showMessage('PDFエクスポートエラー: ' + error.message, 'error');
+    return { success: false, error: error.message };
   }
 }

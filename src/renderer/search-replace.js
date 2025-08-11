@@ -3,6 +3,7 @@ import { searchInEditor, highlightSearchResult, replaceText, replaceAll as repla
 
 export function createSearchReplaceDialog() {
   // ダイアログのHTML
+  function safeAsync(fn){ return (...args)=>Promise.resolve().then(()=>fn(...args)).catch(err=>{ console.error(err); if(window.showMessage){ window.showMessage('検索ダイアログのエラー: ' + (err?.message || err), 'error'); } }); }
   const dialogHTML = `
     <div id="search-replace-dialog" class="search-dialog" style="display: none;">
       <div class="search-header">
@@ -739,3 +740,9 @@ export function addSearchReplaceStyles() {
   `;
   document.head.appendChild(style);
 }
+export function setupSearchReplace() {
+  addSearchReplaceStyles();
+  return createSearchReplaceDialog();
+}
+// 予期しないPromise拒否の捕捉
+window.addEventListener('unhandledrejection', (e) => { try { e.preventDefault(); if (window.showMessage) window.showMessage('予期しないエラー: ' + (e.reason?.message || e.reason), 'error'); } catch {} });

@@ -1,10 +1,23 @@
-import { app, BrowserWindow, Menu, dialog, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, Menu, dialog, ipcMain, shell, clipboard, nativeImage } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import os from 'os';
+
+// UTF-8エンコーディングの設定（Windows対応）
+if (process.platform === 'win32') {
+  process.env.LANG = 'ja_JP.UTF-8';
+  process.env.LC_ALL = 'ja_JP.UTF-8';
+  // Windows コンソール出力でUTF-8を強制
+  if (process.stdout && process.stdout._handle && process.stdout._handle.setBlocking) {
+    process.stdout._handle.setBlocking(true);
+  }
+}
 import ConfigManager from './config-manager.js';
 import GitManager from './git-manager.js';
 import UpdateManager from './update-manager.js';
+import I18nManager from './i18n-manager.js';
+import { createMenuTemplate } from './menu-template.js';
 
 // ESMでの__dirname代替
 const __filename = fileURLToPath(import.meta.url);
@@ -19,16 +32,60 @@ let mainWindow;
 let configManager;
 let gitManager;
 let updateManager;
+let i18nManager;
 let openFilePath = null; // 起動時に開くファイルパス
+
+
+// ===== Security helpers (main process) =====
+function hasNullByte(str) {
+  return typeof str === 'string' && str.indexOf('\x00') !== -1;
+}
+
+function isSupportedExt(filePath, allowed = ['.md','.markdown','.txt']) {
+  try {
+    const ext = path.extname(filePath || '').toLowerCase();
+    return allowed.includes(ext);
+  } catch { return false; }
+}
+
+function validatePathMain(filePath, { requireAbsolute = true, allowedExts = null } = {}) {
+  if (!filePath || typeof filePath !== 'string') {
+    return { ok: false, reason: 'empty' };
+  }
+  if (hasNullByte(filePath)) {
+    return { ok: false, reason: 'null-byte' };
+  }
+  let isAbs = path.isAbsolute(filePath);
+  if (requireAbsolute && !isAbs) {
+    return { ok: false, reason: 'not-absolute' };
+  }
+  // path traversal is effectively resolved by path.resolve (no base restriction here)
+  const normalized = isAbs ? path.normalize(filePath) : path.normalize(path.resolve(filePath));
+  if (allowedExts && !isSupportedExt(normalized, allowedExts)) {
+    return { ok: false, reason: 'bad-ext' };
+  }
+  return { ok: true, normalized };
+}
+
+function isAllowedUrl(raw) {
+  try {
+    const u = new URL(raw);
+    const ok = ['http:', 'https:', 'mailto:'].includes(u.protocol);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+// ===========================================
+
 
 // アプリケーションの準備ができてから実行
 app.whenReady().then(async () => {
   // Windows: ファイルの関連付けから起動された場合のチェック
   if (process.platform === 'win32' && process.argv.length >= 2) {
     const filePath = process.argv[1];
-    // 拡張子で判定（fs.existsSyncを使わない）
-    if (filePath && !filePath.startsWith('--') && 
-        (filePath.endsWith('.md') || filePath.endsWith('.markdown') || filePath.endsWith('.txt'))) {
+    // 拡張子で判定 + 絶対パスのみ受け付け
+    if (filePath && !filePath.startsWith('--') && isSupportedExt(filePath) && path.isAbsolute(filePath)) {
       openFilePath = filePath;
       console.log('File to open:', openFilePath);
     }
@@ -36,6 +93,14 @@ app.whenReady().then(async () => {
   
   configManager = new ConfigManager();
   await configManager.load();
+  
+  // 多言語機能を初期化
+  i18nManager = new I18nManager();
+  await i18nManager.init();
+  
+  // 設定から言語を読み込み
+  const savedLanguage = configManager.get('language') || 'ja';
+  i18nManager.setLanguage(savedLanguage);
   
   // Git機能を初期化
   gitManager = new GitManager();
@@ -48,6 +113,7 @@ app.whenReady().then(async () => {
   setupIPCHandlers();
   setupGitIPCHandlers();
   setupUpdateIPCHandlers();
+  setupI18nIPCHandlers();
   
   // 更新機能にメインウィンドウを設定
   updateManager.setMainWindow(mainWindow);
@@ -65,11 +131,14 @@ app.whenReady().then(async () => {
 // macOS/Linux: open-fileイベント
 app.on('open-file', (event, filePath) => {
   event.preventDefault();
-  openFilePath = filePath;
-  
-  if (mainWindow && mainWindow.webContents) {
-    // 既にウィンドウが開いている場合
-    openFileInWindow(filePath);
+  // 許可拡張子 & 絶対パスのみ
+  if (isSupportedExt(filePath) && path.isAbsolute(filePath)) {
+    openFilePath = filePath;
+    if (mainWindow && mainWindow.webContents) {
+      openFileInWindow(filePath);
+    }
+  } else {
+    console.warn('Blocked opening file from open-file event:', filePath);
   }
 });
 
@@ -105,6 +174,35 @@ function createMainWindow() {
   }
 
   mainWindow.loadFile(path.join(__dirname, '../../dist/index.html'));
+
+  // 右クリックメニューを有効化
+  mainWindow.webContents.on('context-menu', (event, params) => {
+    const { Menu } = require('electron');
+    const menu = Menu.buildFromTemplate([
+      {
+        label: '切り取り',
+        role: 'cut',
+        enabled: params.editFlags.canCut
+      },
+      {
+        label: 'コピー',
+        role: 'copy',
+        enabled: params.editFlags.canCopy
+      },
+      {
+        label: '貼り付け',
+        role: 'paste',
+        enabled: params.editFlags.canPaste
+      },
+      { type: 'separator' },
+      {
+        label: 'すべて選択',
+        role: 'selectAll',
+        enabled: params.editFlags.canSelectAll
+      }
+    ]);
+    menu.popup();
+  });
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
@@ -183,6 +281,27 @@ function setupIPCHandlers() {
     };
   });
   
+  // クリップボード操作
+  ipcMain.handle('clipboard:writeText', async (event, text) => {
+    try {
+      clipboard.writeText(text);
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to write to clipboard:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('clipboard:readText', async () => {
+    try {
+      const text = clipboard.readText();
+      return { success: true, text };
+    } catch (error) {
+      console.error('Failed to read from clipboard:', error);
+      return { success: false, error: error.message };
+    }
+  });
+  
   // ファイル操作
   ipcMain.handle('file:new', async () => {
     return { 
@@ -204,8 +323,13 @@ function setupIPCHandlers() {
 
     if (!result.canceled && result.filePaths.length > 0) {
       const filePath = result.filePaths[0];
+      const vp = validatePathMain(filePath, { requireAbsolute: true, allowedExts: ['.md','.markdown','.txt'] });
+      if (!vp.ok) {
+        console.warn('Blocked opening invalid path:', vp.reason, filePath);
+        return { success: false, error: 'invalid-path' };
+      }
       try {
-        const content = await fs.promises.readFile(filePath, 'utf8');
+        const content = await fs.promises.readFile(vp.normalized, 'utf8');
         return { 
           success: true, 
           content, 
@@ -229,14 +353,49 @@ function setupIPCHandlers() {
 
   ipcMain.handle('file:save', async (event, data) => {
     const { filePath, content } = data;
-    
     if (!filePath) {
       // 新規ファイルの場合は「名前を付けて保存」
-      return ipcMain.handle('file:saveAs', event, data);
+      const saveDialog = await dialog.showSaveDialog({
+        filters: [
+          { name: 'Markdown', extensions: ['md'] },
+          { name: 'Text', extensions: ['txt'] }
+        ],
+        defaultPath: 'Untitled.md'
+      });
+
+      if (!saveDialog.canceled && saveDialog.filePath) {
+        const vp = validatePathMain(saveDialog.filePath, { requireAbsolute: true, allowedExts: ['.md','.txt'] });
+        if (!vp.ok) {
+          console.warn('Blocked saveAs to invalid path:', vp.reason, saveDialog.filePath);
+          return { success: false, error: 'invalid-path' };
+        }
+        try {
+          await fs.promises.writeFile(vp.normalized, content, 'utf8');
+          return { 
+            success: true, 
+            filePath: saveDialog.filePath,
+            fileName: path.basename(saveDialog.filePath)
+          };
+        } catch (error) {
+          console.error('Failed to save file:', error);
+          return { 
+            success: false, 
+            error: error.message 
+          };
+        }
+      }
+      return { 
+        success: false, 
+        canceled: true 
+      };
     }
-    
+    const vp = validatePathMain(filePath, { requireAbsolute: true, allowedExts: ['.md','.markdown','.txt'] });
+    if (!vp.ok) {
+      console.warn('Blocked save to invalid path:', vp.reason, filePath);
+      return { success: false, error: 'invalid-path' };
+    }
     try {
-      await fs.promises.writeFile(filePath, content, 'utf8');
+      await fs.promises.writeFile(vp.normalized, content, 'utf8');
       return { 
         success: true, 
         filePath,
@@ -263,8 +422,13 @@ function setupIPCHandlers() {
     });
 
     if (!result.canceled && result.filePath) {
+      const vp = validatePathMain(result.filePath, { requireAbsolute: true, allowedExts: ['.md','.txt'] });
+      if (!vp.ok) {
+        console.warn('Blocked saveAs to invalid path:', vp.reason, result.filePath);
+        return { success: false, error: 'invalid-path' };
+      }
       try {
-        await fs.promises.writeFile(result.filePath, content, 'utf8');
+        await fs.promises.writeFile(vp.normalized, content, 'utf8');
         return { 
           success: true, 
           filePath: result.filePath,
@@ -297,6 +461,11 @@ function setupIPCHandlers() {
     });
 
     if (!result.canceled && result.filePath) {
+      const vp = validatePathMain(result.filePath, { requireAbsolute: true, allowedExts: ['.pdf'] });
+      if (!vp.ok) {
+        console.warn('Blocked PDF export to invalid path:', vp.reason, result.filePath);
+        return { success: false, error: 'invalid-path' };
+      }
       try {
         const pdfData = await mainWindow.webContents.printToPDF({
           marginsType: 0,
@@ -305,7 +474,7 @@ function setupIPCHandlers() {
           landscape: false
         });
         
-        await fs.promises.writeFile(result.filePath, pdfData);
+        await fs.promises.writeFile(vp.normalized, pdfData);
         return { success: true };
       } catch (error) {
         console.error('Failed to export PDF:', error);
@@ -324,14 +493,20 @@ function setupIPCHandlers() {
 
   // 外部リンクを開く
   ipcMain.on('open-external-link', (event, url) => {
-    shell.openExternal(url);
+    if (isAllowedUrl(url)) {
+      shell.openExternal(url);
+    } else {
+      console.warn('Blocked external URL:', url);
+    }
   });
 }
 
 // ファイルをウィンドウで開く
 async function openFileInWindow(filePath) {
+  const vp = validatePathMain(filePath, { requireAbsolute: true, allowedExts: ['.md','.markdown','.txt'] });
+  if (!vp.ok) { console.warn('Blocked openFileInWindow invalid path:', vp.reason, filePath); return; }
   try {
-    const content = await fs.promises.readFile(filePath, 'utf8');
+    const content = await fs.promises.readFile(vp.normalized, 'utf8');
     mainWindow.webContents.send('open-file-from-args', {
       content,
       filePath,
@@ -889,337 +1064,156 @@ function setupUpdateIPCHandlers() {
 
 function createApplicationMenu() {
   const currentTheme = configManager ? configManager.get('theme') : 'light';
+  const currentLanguage = i18nManager ? i18nManager.getCurrentLanguage() : 'ja';
+  const t = (key) => i18nManager ? i18nManager.t(key) : key;
   
-  const template = [
-    {
-      label: 'ファイル',
-      submenu: [
-        {
-          label: '新規ファイル',
-          accelerator: 'CmdOrCtrl+N',
-          click: () => mainWindow?.webContents.send('menu-new-file')
-        },
-        {
-          label: 'ファイルを開く',
-          accelerator: 'CmdOrCtrl+O',
-          click: () => mainWindow?.webContents.send('menu-open-file')
-        },
-        { type: 'separator' },
-        {
-          label: '保存',
-          accelerator: 'CmdOrCtrl+S',
-          click: () => mainWindow?.webContents.send('menu-save-file')
-        },
-        {
-          label: '名前を付けて保存',
-          accelerator: 'CmdOrCtrl+Shift+S',
-          click: () => mainWindow?.webContents.send('menu-save-as-file')
-        },
-        { type: 'separator' },
-        {
-          label: 'エクスポート',
-          submenu: [
-            {
-              label: 'PDFとして出力',
-              accelerator: 'CmdOrCtrl+P',
-              click: () => mainWindow?.webContents.send('menu-export-pdf')
-            },
-            { type: 'separator' },
-            {
-              label: '他の形式にエクスポート...',
-              accelerator: 'CmdOrCtrl+E',
-              click: () => mainWindow?.webContents.send('menu-export-formats')
-            }
-          ]
-        },
-        { type: 'separator' },
-        {
-          label: '終了',
-          accelerator: 'CmdOrCtrl+Q',
-          click: () => {
-            // ウィンドウを閉じる前の確認を発火
-            if (mainWindow && !mainWindow.isDestroyed()) {
-              mainWindow.webContents.send('before-close');
-            }
-          }
-        }
-      ]
-    },
-    {
-      label: '編集',
-      submenu: [
-        {
-          label: '元に戻す',
-          accelerator: 'CmdOrCtrl+Z',
-          role: 'undo'
-        },
-        {
-          label: 'やり直し',
-          accelerator: 'CmdOrCtrl+Y',
-          role: 'redo'
-        },
-        { type: 'separator' },
-        {
-          label: '切り取り',
-          accelerator: 'CmdOrCtrl+X',
-          role: 'cut'
-        },
-        {
-          label: 'コピー',
-          accelerator: 'CmdOrCtrl+C',
-          role: 'copy'
-        },
-        {
-          label: '貼り付け',
-          accelerator: 'CmdOrCtrl+V',
-          role: 'paste'
-        },
-        {
-          label: 'すべて選択',
-          accelerator: 'CmdOrCtrl+A',
-          role: 'selectall'
-        },
-        { type: 'separator' },
-        {
-          label: '検索と置換',
-          accelerator: 'CmdOrCtrl+F',
-          click: () => mainWindow?.webContents.send('menu-search-replace')
-        }
-      ]
-    },
-    {
-      label: '書式',
-      submenu: [
-        {
-          label: '太字',
-          accelerator: 'CmdOrCtrl+B',
-          click: () => mainWindow?.webContents.send('menu-format-bold')
-        },
-        {
-          label: '斜体',
-          accelerator: 'CmdOrCtrl+I',
-          click: () => mainWindow?.webContents.send('menu-format-italic')
-        },
-        {
-          label: '取り消し線',
-          accelerator: 'CmdOrCtrl+Shift+X',
-          click: () => mainWindow?.webContents.send('menu-format-strikethrough')
-        },
-        { type: 'separator' },
-        {
-          label: '書式をクリア',
-          accelerator: 'CmdOrCtrl+\\',
-          click: () => mainWindow?.webContents.send('menu-format-clear')
-        },
-        { type: 'separator' },
-        {
-          label: '見出し',
-          submenu: [
-            {
-              label: '見出し1',
-              accelerator: 'CmdOrCtrl+1',
-              click: () => mainWindow?.webContents.send('menu-insert-heading', 1)
-            },
-            {
-              label: '見出し2',
-              accelerator: 'CmdOrCtrl+2',
-              click: () => mainWindow?.webContents.send('menu-insert-heading', 2)
-            },
-            {
-              label: '見出し3',
-              accelerator: 'CmdOrCtrl+3',
-              click: () => mainWindow?.webContents.send('menu-insert-heading', 3)
-            },
-            {
-              label: '見出し4',
-              accelerator: 'CmdOrCtrl+4',
-              click: () => mainWindow?.webContents.send('menu-insert-heading', 4)
-            },
-            {
-              label: '見出し5',
-              accelerator: 'CmdOrCtrl+5',
-              click: () => mainWindow?.webContents.send('menu-insert-heading', 5)
-            },
-            {
-              label: '見出し6',
-              accelerator: 'CmdOrCtrl+6',
-              click: () => mainWindow?.webContents.send('menu-insert-heading', 6)
-            }
-          ]
-        }
-      ]
-    },
-    {
-      label: '挿入',
-      submenu: [
-        {
-          label: 'リンク',
-          accelerator: 'CmdOrCtrl+K',
-          click: () => mainWindow?.webContents.send('menu-insert-link')
-        },
-        {
-          label: '画像',
-          accelerator: 'CmdOrCtrl+Shift+I',
-          click: () => mainWindow?.webContents.send('menu-insert-image')
-        },
-        { type: 'separator' },
-        {
-          label: 'テーブル',
-          accelerator: 'CmdOrCtrl+T',
-          click: () => mainWindow?.webContents.send('menu-insert-table')
-        },
-        {
-          label: '水平線',
-          click: () => mainWindow?.webContents.send('menu-insert-horizontal-rule')
-        },
-        {
-          label: 'コードブロック',
-          click: () => mainWindow?.webContents.send('menu-insert-code-block')
-        },
-        { type: 'separator' },
-        {
-          label: '目次生成',
-          accelerator: 'CmdOrCtrl+Shift+T',
-          click: () => mainWindow?.webContents.send('menu-insert-toc')
-        }
-      ]
-    },
-    {
-      label: '表示',
-      submenu: [
-        {
-          label: 'モード',
-          submenu: [
-            {
-              label: 'WYSIWYG',
-              type: 'radio',
-              checked: true,
-              click: () => mainWindow?.webContents.send('menu-switch-mode', 'wysiwyg')
-            },
-            {
-              label: 'ソース',
-              type: 'radio',
-              click: () => mainWindow?.webContents.send('menu-switch-mode', 'source')
-            }
-          ]
-        },
-        { type: 'separator' },
-        {
-          label: 'テーマ',
-          submenu: [
-            {
-              label: 'ライト',
-              type: 'radio',
-              checked: currentTheme === 'light',
-              click: () => mainWindow?.webContents.send('menu-set-theme', 'light')
-            },
-            {
-              label: 'ダーク',
-              type: 'radio',
-              checked: currentTheme === 'dark',
-              click: () => mainWindow?.webContents.send('menu-set-theme', 'dark')
-            }
-          ]
-        },
-        { type: 'separator' },
-        {
-          label: '開発者ツール',
-          accelerator: 'F12',
-          click: () => mainWindow?.webContents.toggleDevTools()
-        }
-      ]
-    },
-    // 整理されたGitメニュー
-    {
-      label: 'Git',
-      submenu: [
-        {
-          label: 'Git パネルを表示',
-          accelerator: 'CmdOrCtrl+G',
-          click: () => mainWindow?.webContents.send('menu-show-git')
-        },
-        { type: 'separator' },
-        {
-          label: 'リポジトリを初期化',
-          click: () => mainWindow?.webContents.send('menu-git-init')
-        },
-        {
-          label: 'リポジトリを開く',
-          click: () => mainWindow?.webContents.send('menu-git-open-repo')
-        },
-        { type: 'separator' },
-        {
-          label: '全ての変更をインデックスに追加',
-          accelerator: 'CmdOrCtrl+Shift+A',
-          click: () => mainWindow?.webContents.send('menu-git-stage-all')
-        },
-        {
-          label: 'コミット',
-          accelerator: 'CmdOrCtrl+Shift+C',
-          click: () => mainWindow?.webContents.send('menu-git-commit')
-        },
-        { type: 'separator' },
-        {
-          label: 'プッシュ',
-          accelerator: 'CmdOrCtrl+Shift+P',
-          click: () => mainWindow?.webContents.send('menu-git-push')
-        },
-        {
-          label: 'プル',
-          accelerator: 'CmdOrCtrl+Shift+L',
-          click: () => mainWindow?.webContents.send('menu-git-pull')
-        },
-        { type: 'separator' },
-        {
-          label: 'ブランチ',
-          submenu: [
-            {
-              label: '新規ブランチ作成',
-              click: () => mainWindow?.webContents.send('menu-git-create-branch')
-            },
-            {
-              label: 'ブランチを切り替え',
-              click: () => mainWindow?.webContents.send('menu-git-switch-branch')
-            }
-          ]
-        },
-        { type: 'separator' },
-        {
-          label: 'リモート設定',
-          click: () => mainWindow?.webContents.send('menu-git-setup-remote')
-        },
-        {
-          label: 'ユーザー設定',
-          click: () => mainWindow?.webContents.send('menu-git-config')
-        },
-        { type: 'separator' },
-        {
-          label: 'コミット履歴',
-          click: () => mainWindow?.webContents.send('menu-git-show-history')
-        }
-      ]
-    },
-    {
-      label: 'ヘルプ',
-      submenu: [
-        {
-          label: 'ヘルプを表示',
-          accelerator: 'F1',
-          click: () => mainWindow?.webContents.send('menu-show-help')
-        },
-        {
-          label: 'バージョン情報',
-          click: () => mainWindow?.webContents.send('menu-show-about')
-        },
-        { type: 'separator' },
-        {
-          label: '更新をチェック',
-          click: () => mainWindow?.webContents.send('menu-check-updates')
-        }
-      ]
+  // 直接言語変更関数を定義
+  const changeLanguageDirectly = async (language) => {
+    console.log('Direct menu language change to:', language);
+    const success = i18nManager.setLanguage(language);
+    if (success) {
+      try {
+        await configManager.updateLanguage(language);
+        console.log('Language saved to config:', language);
+        
+        // メニューを再構築（即座に反映）
+        createApplicationMenu();
+        console.log('Menu recreated with new language');
+        
+        // レンダラープロセスに通知
+        mainWindow?.webContents.send('language-changed', language);
+        console.log('Language change notification sent to renderer');
+        
+        // 成功メッセージを表示
+        const message = language === 'ja' 
+          ? '言語を日本語に変更しました'
+          : 'Language changed to English';
+        
+        // 少し遅延してメッセージを表示（メニューが更新されてから）
+        setTimeout(() => {
+          mainWindow?.webContents.send('show-message', message, 'success');
+        }, 100);
+        
+      } catch (error) {
+        console.error('Failed to save language:', error);
+      }
+    } else {
+      console.error('Failed to set language:', language);
     }
-  ];
+  };
+  
+  const template = createMenuTemplate(t, currentTheme, mainWindow, changeLanguageDirectly);
+  
+  // 言語メニューの選択状態を動的に設定
+  const viewMenu = template.find(menu => menu.label === t('menu.view'));
+  if (viewMenu) {
+    const languageMenu = viewMenu.submenu.find(item => item.label === t('menu.language'));
+    if (languageMenu) {
+      languageMenu.submenu.forEach(langItem => {
+        if (langItem.label === t('menu.japanese')) {
+          langItem.checked = currentLanguage === 'ja';
+        } else if (langItem.label === t('menu.english')) {
+          langItem.checked = currentLanguage === 'en';
+        }
+      });
+    }
+  }
 
-  const menu = Menu.buildFromTemplate(template);
-  Menu.setApplicationMenu(menu);
+  
+  // AI メニューを追加（Gemini用）
+  {
+    try {
+      template.push({
+        label:'AI',
+        submenu:[
+          { label: 'テキストを要約 (Gemini)', click: () => {
+              if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('menu-ai-summarize');
+              }
+            }
+          },
+          { type:'separator' },
+          { label: 'Gemini API 設定…', click: () => { 
+              if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('menu-ai-setup');
+              }
+            } 
+          }
+        ]
+      });
+      const menu = Menu.buildFromTemplate(template);
+      Menu.setApplicationMenu(menu);
+    } catch (e) {
+      console.error('Failed to create AI menu:', e);
+    }
+  }
 }
+
+// I18n関連のIPCハンドラー設定
+function setupI18nIPCHandlers() {
+  // 現在の言語を取得
+  ipcMain.handle('i18n:getCurrentLanguage', () => {
+    return i18nManager.getCurrentLanguage();
+  });
+
+  // 利用可能な言語一覧を取得
+  ipcMain.handle('i18n:getAvailableLanguages', () => {
+    return i18nManager.getAvailableLanguages();
+  });
+
+  // 翻訳テキストを取得
+  ipcMain.handle('i18n:translate', (event, key, interpolations) => {
+    return i18nManager.t(key, interpolations);
+  });
+
+  // 言語を変更
+  ipcMain.handle('i18n:setLanguage', async (event, language) => {
+    const success = i18nManager.setLanguage(language);
+    if (success) {
+      // 設定に保存
+      await configManager.updateLanguage(language);
+      // メニューを再構築
+      createApplicationMenu();
+      // レンダラープロセスに通知
+      mainWindow?.webContents.send('language-changed', language);
+      return { success: true };
+    }
+    return { success: false };
+  });
+
+  // メニューからの言語変更
+  ipcMain.on('menu-change-language', async (event, language) => {
+    const success = i18nManager.setLanguage(language);
+    if (success) {
+      await configManager.updateLanguage(language);
+      createApplicationMenu();
+      mainWindow?.webContents.send('language-changed', language);
+    }
+  });
+}
+
+
+
+
+// ================= Gemini AI Configuration =================
+// Gemini API設定の管理
+ipcMain.handle('config:get', async (event, key) => {
+  try {
+    return configManager.get(key) || {};
+  } catch (e) {
+    console.error('Failed to get config:', e);
+    return {};
+  }
+});
+
+ipcMain.handle('config:set', async (event, key, value) => {
+  try {
+    configManager.set(key, value);
+    await configManager.save();
+    return { success: true };
+  } catch (e) {
+    console.error('Failed to set config:', e);
+    return { success: false, error: e.message };
+  }
+});
+

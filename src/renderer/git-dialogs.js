@@ -44,20 +44,16 @@ export class GitDialogs {
       }
     });
 
-    console.log('Commit history dialog created');
     return dialog;
   }
 
   // コミット履歴ダイアログを表示
   async showCommitHistoryDialog(repoPath) {
-    console.log('showCommitHistoryDialog called with:', repoPath);
-    
     // リポジトリパスを保存
     this.currentRepoPath = repoPath;
     
     let dialog = document.getElementById('git-commit-history-dialog');
     if (!dialog) {
-      console.log('Creating new commit history dialog');
       dialog = this.createCommitHistoryDialog();
     }
 
@@ -69,24 +65,18 @@ export class GitDialogs {
     
     // 履歴を取得して表示
     try {
-      console.log('Fetching repository status...');
       historyList.innerHTML = '<div class="git-loading">履歴を読み込んでいます...</div>';
       
       const result = await window.electronAPI.git.getRepositoryStatus(repoPath);
-      console.log('Repository status result:', result);
       
       if (result.success && result.status) {
-        console.log('Repository status:', result.status);
-        
         if (result.status.commits && Array.isArray(result.status.commits)) {
-          console.log('Found commits:', result.status.commits.length);
           historyList.innerHTML = '';
 
           if (result.status.commits.length === 0) {
             historyList.innerHTML = '<p class="git-no-history">コミット履歴はありません</p>';
           } else {
             result.status.commits.forEach((commit, index) => {
-              console.log(`Processing commit ${index}:`, commit);
               const commitItem = document.createElement('div');
               commitItem.className = 'git-commit-item';
               
@@ -110,15 +100,12 @@ export class GitDialogs {
             });
           }
         } else {
-          console.log('No commits array found in status');
           historyList.innerHTML = '<p class="git-no-history">コミット履歴を取得できませんでした</p>';
         }
       } else {
-        console.error('Failed to get repository status:', result);
         historyList.innerHTML = '<p class="git-error">リポジトリの状態を取得できませんでした</p>';
       }
     } catch (error) {
-      console.error('Error in showCommitHistoryDialog:', error);
       historyList.innerHTML = '<p class="git-error">履歴の読み込みに失敗しました</p>';
     }
   }
@@ -132,11 +119,9 @@ export class GitDialogs {
     this.currentDialog = null;
   }
 
-  // 指定コミットからファイルを開く（修正版）
+  // 指定コミットからファイルを開く
   async openFileFromCommit(commitHash, repoPath) {
     try {
-      console.log('openFileFromCommit called with:', { commitHash, repoPath });
-      
       // リポジトリパスの確認
       if (!repoPath) {
         window.showMessage('リポジトリパスが指定されていません', 'error');
@@ -159,12 +144,11 @@ export class GitDialogs {
       // ファイル選択ダイアログを表示
       this.showFileSelectionDialog(commitHash, result.files, result.commitInfo, repoPath);
     } catch (error) {
-      console.error('Error opening file from commit:', error);
       window.showMessage('ファイルの取得中にエラーが発生しました', 'error');
     }
   }
 
-  // ファイル選択ダイアログを作成・表示（修正版）
+  // ファイル選択ダイアログを作成・表示
   showFileSelectionDialog(commitHash, files, commitInfo, repoPath) {
     // 既存のダイアログがあれば削除
     const existingDialog = document.getElementById('git-file-selection-dialog');
@@ -234,11 +218,9 @@ export class GitDialogs {
     });
   }
 
-  // 指定コミットの指定ファイルを編集画面に読み込む（修正版）
+  // 指定コミットの指定ファイルを編集画面に読み込む
   async loadFileFromCommit(commitHash, filePath, repoPath) {
     try {
-      console.log('loadFileFromCommit called with:', { commitHash, filePath, repoPath });
-      
       // リポジトリパスの確認
       if (!repoPath) {
         window.showMessage('リポジトリパスが指定されていません', 'error');
@@ -280,7 +262,6 @@ export class GitDialogs {
         window.showMessage('ファイル読み込み機能が利用できません', 'error');
       }
     } catch (error) {
-      console.error('Error loading file from commit:', error);
       window.showMessage('ファイルの読み込み中にエラーが発生しました', 'error');
     }
   }
@@ -391,7 +372,6 @@ export class GitDialogs {
         }, 200);
       }
     } catch (error) {
-      console.error('Failed to load staged files:', error);
       window.showMessage('インデックスに追加されたファイルの読み込みに失敗しました', 'error');
     }
   }
@@ -424,7 +404,7 @@ export class GitDialogs {
           await new Promise(resolve => setTimeout(resolve, 500));
         }
       } catch (error) {
-        console.error('Save before commit failed:', error);
+        // エラーハンドリング
       }
     }
 
@@ -471,12 +451,9 @@ export class GitDialogs {
               </div>
               <div class="git-form-group">
                 <label for="git-new-branch-dialog-name">新しいブランチを作成:</label>
-                <div class="git-form-inline">
-                  <input type="text" id="git-new-branch-dialog-name" placeholder="例: feature/new-function">
-                  <button id="git-create-branch-dialog" class="git-btn">作成</button>
-                </div>
-                <div class="git-help-text">
-                  <small>💡 推奨: feature/, bugfix/, hotfix/, release/ などのプレフィックスを使用</small>
+                <div style="display: flex; gap: 10px;">
+                  <input type="text" id="git-new-branch-dialog-name" placeholder="feature/new-feature" style="flex: 1; background: white !important; color: #495057 !important; border: 1px solid #ced4da; padding: 8px; border-radius: 4px;">
+                  <button id="git-create-branch-dialog-btn" class="git-btn-primary">作成</button>
                 </div>
               </div>
             </div>
@@ -495,7 +472,7 @@ export class GitDialogs {
     const dialog = document.getElementById('git-branch-dialog');
     const closeBtn = dialog.querySelector('.git-dialog-close');
     const okBtn = dialog.querySelector('.git-dialog-ok');
-    const createBtn = dialog.querySelector('#git-create-branch-dialog');
+    const createBtn = document.getElementById('git-create-branch-dialog-btn');
 
     closeBtn.addEventListener('click', () => this.hideBranchDialog());
     okBtn.addEventListener('click', () => this.hideBranchDialog());
@@ -521,14 +498,14 @@ export class GitDialogs {
       dialog = this.createBranchDialog();
     }
 
+    // 現在のブランチ一覧を取得
     try {
       const result = await window.electronAPI.git.getBranches(repoPath);
       if (result.success && result.branches) {
         const branchList = document.getElementById('git-branch-dialog-list');
         branchList.innerHTML = '';
-        
-        const localBranches = result.branches.filter(branch => !branch.isRemote);
-        localBranches.forEach(branch => {
+
+        result.branches.forEach(branch => {
           const branchItem = document.createElement('div');
           branchItem.className = `git-branch-item ${branch.isCurrent ? 'current' : ''}`;
           
@@ -555,7 +532,6 @@ export class GitDialogs {
         this.currentDialog = dialog;
       }
     } catch (error) {
-      console.error('Failed to load branches:', error);
       window.showMessage('ブランチ一覧の取得に失敗しました', 'error');
     }
   }
@@ -569,7 +545,7 @@ export class GitDialogs {
     this.currentDialog = null;
   }
 
-  // ダイアログからブランチ作成（改善版）
+  // ダイアログからブランチ作成
   async createBranchFromDialog() {
     const branchName = document.getElementById('git-new-branch-dialog-name').value.trim();
     if (!branchName) {
@@ -586,7 +562,6 @@ export class GitDialogs {
     // 数字のみのブランチ名を警告
     if (/^\d+$/.test(branchName)) {
       window.showMessage('ブランチ名には意味のある名前を使用してください', 'warning');
-      // placeholderのヒントを強調表示
       const input = document.getElementById('git-new-branch-dialog-name');
       input.focus();
       input.select();
@@ -607,7 +582,6 @@ export class GitDialogs {
         `  • hotfix/critical-security-patch`;
       
       if (!confirm(confirmMessage)) {
-        // ユーザーがキャンセルした場合、入力欄にフォーカスを戻す
         const input = document.getElementById('git-new-branch-dialog-name');
         input.focus();
         return;
@@ -631,18 +605,14 @@ export class GitDialogs {
         window.showMessage(`ブランチ作成に失敗: ${result.error}`, 'error');
       }
     } catch (error) {
-      console.error('Branch creation error:', error);
       window.showMessage('ブランチ作成エラー', 'error');
     }
   }
 
-  // ブランチ切り替え（修正版：リポジトリパスを正しく渡す）
+  // ブランチ切り替え
   async switchToBranch(branchName, repoPath) {
     try {
-      console.log('Switching to branch:', branchName, 'in repo:', repoPath);
-      
       if (!repoPath) {
-        console.error('Repository path is missing');
         window.showMessage('リポジトリパスが指定されていません', 'error');
         return;
       }
@@ -662,15 +632,13 @@ export class GitDialogs {
         window.showMessage(`ブランチ切り替えに失敗: ${result.error}`, 'error');
       }
     } catch (error) {
-      console.error('Branch switch error:', error);
       window.showMessage('ブランチ切り替えエラー', 'error');
     }
   }
 
-  // ブランチ削除（修正版：リポジトリパスを正しく渡す）
+  // ブランチ削除
   async deleteBranch(branchName, repoPath) {
     if (!repoPath) {
-      console.error('Repository path is missing');
       window.showMessage('リポジトリパスが指定されていません', 'error');
       return;
     }
@@ -703,7 +671,6 @@ export class GitDialogs {
         window.showMessage(`ブランチ削除に失敗: ${result.error}`, 'error');
       }
     } catch (error) {
-      console.error('Branch deletion error:', error);
       window.showMessage('ブランチ削除エラー', 'error');
     }
   }

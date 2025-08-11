@@ -1,8 +1,9 @@
-import { Editor } from '@tiptap/core';
+// TipTapエディタのインポート
+import { Editor, mergeAttributes } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
 import Image from '@tiptap/extension-image';
-import Table from '@tiptap/extension-table';
+import { Table } from '@tiptap/extension-table';
 import TableRow from '@tiptap/extension-table-row';
 import TableCell from '@tiptap/extension-table-cell';
 import TableHeader from '@tiptap/extension-table-header';
@@ -10,42 +11,190 @@ import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import Placeholder from '@tiptap/extension-placeholder';
-import { createLowlight, common } from 'lowlight';
-import { markdownToHtml, htmlToMarkdown } from './markdown.js';
-import { createDialog, addDialogStyles } from './dialog-helper.js';
+import TextAlign from '@tiptap/extension-text-align';
+import { createLowlight } from 'lowlight';
+
+// カスタム拡張機能
+import { Footnote } from './footnote-extension.js';
+import { HtmlContent } from './html-content-extension.js';
+import { SearchHighlight } from './search-highlight-extension.js';
+
+// Markdownの変換
+import { htmlToMarkdown, markdownToHtml } from './markdown.js';
+
+// ユーティリティ
+import { dialog } from './dialog.js';
+import { generateTableOfContents } from './toc-generator.js';
+
+// 再エクスポート（index.jsから使用するため）
+export { generateTableOfContents };
 
 // lowlightインスタンスを作成
-const lowlight = createLowlight(common);
+const lowlight = createLowlight();
 
-// ダイアログの初期化
-let dialog = null;
-let tocDialog = null;
-if (typeof document !== 'undefined') {
-  addDialogStyles();
-  dialog = createDialog();
-  tocDialog = createTOCDialog();
-}
+// グローバル変数
+let editor = null;
 
-export function createEditor(element) {
-  const editor = new Editor({
-    element: element,
+// カスタムタスクリスト拡張機能
+const CustomTaskList = TaskList.extend({
+  renderHTML({ HTMLAttributes }) {
+    const newAttributes = mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
+      style: 'list-style: none; padding-left: 0;',
+    });
+    return ['ul', newAttributes, 0];
+  },
+});
+
+// TaskItemも最適化 - TipTap 3.0のデフォルト構造に対応
+const CustomTaskItem = TaskItem.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      checked: {
+        default: false,
+        keepOnSplit: false,
+        parseHTML: element => {
+          const dataChecked = element.getAttribute('data-checked');
+          return dataChecked === '' || dataChecked === 'true';
+        },
+        renderHTML: attributes => ({
+          'data-checked': attributes.checked,
+        }),
+      },
+    };
+  },
+
+  renderHTML({ node, HTMLAttributes }) {
+    // TipTap 3.0のデフォルト構造をそのまま使用
+    // li > label > (input + span) + div の構造
+    return [
+      'li',
+      mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
+        'data-type': this.name,
+        'data-checked': node.attrs.checked,
+      }),
+      [
+        'label',
+        [
+          'input',
+          {
+            type: 'checkbox',
+            checked: node.attrs.checked ? 'checked' : null,
+          },
+        ],
+        ['span'],
+      ],
+      ['div', 0],
+    ];
+  },
+
+  addKeyboardShortcuts() {
+    const shortcuts = {
+      Enter: () => this.editor.commands.splitListItem(this.name),
+      'Shift-Tab': () => this.editor.commands.liftListItem(this.name),
+    };
+
+    if (!this.options.nested) {
+      return shortcuts;
+    }
+
+    return {
+      ...shortcuts,
+      Tab: () => this.editor.commands.sinkListItem(this.name),
+    };
+  },
+
+  addInputRules() {
+    const inputRegex = /^\s*(\[([( |x])?\])\s$/;
+
+    return [
+      {
+        find: inputRegex,
+        handler: ({ state, range, match }) => {
+          const [fullMatch, , checked] = match;
+          const { from, to } = range;
+          const isChecked = checked && (checked.toLowerCase() === 'x' || checked === ' ');
+
+          if (fullMatch) {
+            const tr = state.tr.delete(from, to);
+            
+            tr.setBlockType(
+              from,
+              from,
+              this.type,
+              { checked: isChecked }
+            );
+
+            return tr;
+          }
+
+          return null;
+        },
+      },
+    ];
+  },
+
+  addPasteRules() {
+    const pasteRegex = /^\s*(\[([( |x])?\])\s(.*)$/gm;
+
+    return [
+      {
+        find: pasteRegex,
+        handler: ({ state, range, match }) => {
+          const [, , checked, text] = match;
+          const isChecked = checked && (checked.toLowerCase() === 'x' || checked === ' ');
+
+          const tr = state.tr.replaceWith(
+            range.from,
+            range.to,
+            this.type.create(
+              { checked: isChecked },
+              text.trim() ? state.schema.text(text.trim()) : null
+            )
+          );
+
+          return tr;
+        },
+      },
+    ];
+  },
+});
+
+// エディタの作成
+export function createEditor() {
+  const hostEl = document.getElementById('wysiwyg-editor');
+  if (!hostEl) {
+    console.warn('wysiwyg-editor element not found');
+    editor = null;
+    return editor;
+  }
+  editor = new Editor({
+    element: hostEl,
     extensions: [
       StarterKit.configure({
-        codeBlock: false, // CodeBlockLowlightで置き換え
-        heading: {
-          levels: [1, 2, 3, 4, 5, 6]
-        },
-        paragraph: {
-          HTMLAttributes: {
-            class: 'editor-paragraph'
-          }
-        },
-        // Strike拡張の設定を明示的に有効化
+        // 取り消し線を明示的に有効化
         strike: {
           HTMLAttributes: {
-            class: 'strike'
+            class: 'strike-through'
           }
-        }
+        },
+        heading: {
+          levels: [1, 2, 3, 4, 5, 6],
+        },
+        bulletList: {
+          keepMarks: true,
+          keepAttributes: false,
+        },
+        orderedList: {
+          keepMarks: true,
+          keepAttributes: false,
+        },
+        // デフォルトのタスクリストを無効化
+        taskList: false,
+        taskItem: false,
+        // 重複を避けるため、個別にインポートする拡張機能を無効化
+        link: false,
+        codeBlock: false,
       }),
       Link.configure({
         openOnClick: false,
@@ -55,29 +204,35 @@ export function createEditor(element) {
         }
       }),
       Image.configure({
+        inline: true,
+        allowBase64: true,
         HTMLAttributes: {
-          class: 'editor-image'
+          loading: 'lazy'
         }
       }),
       Table.configure({
         resizable: true,
         HTMLAttributes: {
-          class: 'editor-table'
+          class: 'table-wrapper'
         }
       }),
       TableRow,
-      TableHeader,
       TableCell,
-      TaskList.configure({
+      TableHeader,
+      CustomTaskList.configure({
         HTMLAttributes: {
           class: 'task-list'
         }
       }),
-      TaskItem.configure({
+      CustomTaskItem.configure({
         nested: true,
         HTMLAttributes: {
           class: 'task-list-item'
         }
+      }),
+      TextAlign.configure({
+        types: ['heading', 'paragraph', 'tableCell', 'tableHeader'],
+        alignments: ['left', 'center', 'right', 'justify']
       }),
       CodeBlockLowlight.configure({
         lowlight,
@@ -87,7 +242,10 @@ export function createEditor(element) {
       }),
       Placeholder.configure({
         placeholder: 'ここに文字を入力してください...'
-      })
+      }),
+      Footnote,
+      HtmlContent,
+      SearchHighlight
     ],
     content: '<h1>SightEditへようこそ！</h1><p>TipTapベースの新しいエディタです。</p>',
     autofocus: true,
@@ -95,22 +253,89 @@ export function createEditor(element) {
     parseOptions: {
       preserveWhitespace: 'full'
     },
-    // ネストしたマークの処理を有効化
-    enableInputRules: true,
-    enablePasteRules: true,
-    onUpdate: ({ editor }) => {
-      // 更新はイベントリスナーで処理
-    }
-  });
-
-  // リンククリックの処理
-  editor.view.dom.addEventListener('click', (e) => {
-    if (e.target.tagName === 'A' && e.target.href) {
-      e.preventDefault();
-      if (window.electronAPI) {
-        window.electronAPI.openExternalLink(e.target.href);
-      } else {
-        window.open(e.target.href, '_blank');
+    editorProps: {
+      attributes: {
+        class: 'prose prose-sm sm:prose lg:prose-lg xl:prose-2xl mx-auto focus:outline-none',
+      },
+      // HTMLコンテンツの貼り付け処理
+      handlePaste: (view, event, slice) => {
+        const { clipboardData } = event;
+        
+        if (clipboardData) {
+          const html = clipboardData.getData('text/html');
+          const text = clipboardData.getData('text/plain');
+          
+          if (html) {
+            // HTMLをクリーンアップ（タグ間の改行を削除）
+            const cleanedHtml = html
+              .replace(/>\s*\n\s*</g, '><')    // タグ間の改行と空白を削除
+              .replace(/\n\s*\n/g, '\n')       // 連続する改行を1つに
+              .trim();                         // 前後の空白を削除
+            
+            // HTMLをMarkdownに変換してから挿入
+            const markdown = htmlToMarkdown(cleanedHtml);
+            const processedHtml = markdownToHtml(markdown);
+            
+            // インラインかブロックかを判定
+            const hasBlockElements = /<(p|div|h[1-6]|ul|ol|li|blockquote|table|pre)[\s>]/i.test(processedHtml);
+            
+            editor.chain()
+              .focus()
+              .insertContent(processedHtml, {
+                parseOptions: {
+                  preserveWhitespace: hasBlockElements ? false : 'full'
+                }
+              })
+              .run();
+            
+            return true;
+          } else if (text) {
+            // プレーンテキストの場合
+            const hasLineBreaks = text.includes('\n');
+            
+            if (!hasLineBreaks) {
+              // 単一行の場合はそのままテキストとして挿入
+              const { state } = view;
+              const { tr } = state;
+              const { from, to } = state.selection;
+              
+              tr.deleteRange(from, to);
+              tr.insertText(text, from);
+              
+              view.dispatch(tr);
+              return true;
+            }
+            // 複数行の場合はデフォルト処理に任せる
+          }
+        }
+        
+        return false;
+      },
+      // ドロップ処理
+      handleDrop: (view, event, slice, moved) => {
+        if (!moved && event.dataTransfer && event.dataTransfer.files.length > 0) {
+          const files = Array.from(event.dataTransfer.files);
+          const imageFiles = files.filter(file => file.type.startsWith('image/'));
+          
+          if (imageFiles.length > 0) {
+            event.preventDefault();
+            
+            imageFiles.forEach(file => {
+              const reader = new FileReader();
+              reader.onload = (e) => {
+                editor.chain()
+                  .focus()
+                  .setImage({ src: e.target.result })
+                  .run();
+              };
+              reader.readAsDataURL(file);
+            });
+            
+            return true;
+          }
+        }
+        
+        return false;
       }
     }
   });
@@ -118,556 +343,555 @@ export function createEditor(element) {
   return editor;
 }
 
+// ツールバーのセットアップ
 export function setupToolbar(editor) {
-  const commands = {
-    // テキスト書式
-    bold: () => editor.chain().focus().toggleBold().run(),
-    italic: () => editor.chain().focus().toggleItalic().run(),
-    strike: () => editor.chain().focus().toggleStrike().run(),
-    clearFormat: () => editor.chain().focus().clearNodes().unsetAllMarks().run(),
-    
-    // 見出し
-    h1: () => editor.chain().focus().toggleHeading({ level: 1 }).run(),
-    h2: () => editor.chain().focus().toggleHeading({ level: 2 }).run(),
-    h3: () => editor.chain().focus().toggleHeading({ level: 3 }).run(),
-    h4: () => editor.chain().focus().toggleHeading({ level: 4 }).run(),
-    h5: () => editor.chain().focus().toggleHeading({ level: 5 }).run(),
-    h6: () => editor.chain().focus().toggleHeading({ level: 6 }).run(),
-    
-    // リスト
-    bulletList: () => editor.chain().focus().toggleBulletList().run(),
-    orderedList: () => editor.chain().focus().toggleOrderedList().run(),
-    taskList: () => editor.chain().focus().toggleTaskList().run(),
-    
-    // その他
-    blockquote: () => editor.chain().focus().toggleBlockquote().run(),
-    horizontalRule: () => editor.chain().focus().setHorizontalRule().run(),
-    codeBlock: () => editor.chain().focus().toggleCodeBlock().run(),
-    
-    // アンドゥ・リドゥ
-    undo: () => editor.chain().focus().undo().run(),
-    redo: () => editor.chain().focus().redo().run(),
-    
-    // テーブル
-    insertTable: () => editor.chain().focus().insertTable({ rows: 3, cols: 3 }).run(),
-    
-    // リンク
-    addLink: async () => {
+  if (!editor || !editor.chain) { console.warn('Editor instance is not ready'); return; }
+  // ツールバーボタンのイベントリスナーを設定
+  const buttons = {
+    'bold-btn': () => editor.chain().focus().toggleBold().run(),
+    'italic-btn': () => editor.chain().focus().toggleItalic().run(),
+    'strike-btn': () => editor.chain().focus().toggleStrike().run(),
+    'code-inline-btn': () => editor.chain().focus().toggleCode().run(),
+    'h1-btn': () => editor.chain().focus().toggleHeading({ level: 1 }).run(),
+    'h2-btn': () => editor.chain().focus().toggleHeading({ level: 2 }).run(),
+    'h3-btn': () => editor.chain().focus().toggleHeading({ level: 3 }).run(),
+    'h4-btn': () => editor.chain().focus().toggleHeading({ level: 4 }).run(),
+    'h5-btn': () => editor.chain().focus().toggleHeading({ level: 5 }).run(),
+    'h6-btn': () => editor.chain().focus().toggleHeading({ level: 6 }).run(),
+    'ul-btn': () => editor.chain().focus().toggleBulletList().run(),
+    'ol-btn': () => editor.chain().focus().toggleOrderedList().run(),
+    'task-btn': () => editor.chain().focus().toggleTaskList().run(),
+    'quote-btn': () => editor.chain().focus().toggleBlockquote().run(),
+    'hr-btn': () => editor.chain().focus().setHorizontalRule().run(),
+    'code-btn': () => editor.chain().focus().toggleCodeBlock().run(),
+    'footnote-btn': () => insertFootnote(editor),
+    'html-btn': () => insertHtml(editor),
+    'toc-btn': () => generateTableOfContents(editor),
+    'clear-format-btn': () => editor.chain().focus().clearNodes().unsetAllMarks().run()
+  };
+  
+  // ボタンにイベントリスナーを追加
+  Object.entries(buttons).forEach(([id, handler]) => {
+    const button = document.getElementById(id);
+    if (button) {
+      button.addEventListener('click', handler);
+    }
+  });
+  
+  // テーブルボタンの処理
+  const tableBtn = document.getElementById('table-btn');
+  if (tableBtn) {
+    tableBtn.addEventListener('click', async () => {
+      const result = await dialog.showTableDialog();
+      if (result) {
+        editor.chain().focus().insertTable({ 
+          rows: result.rows, 
+          cols: result.cols,
+          withHeaderRow: result.withHeader 
+        }).run();
+      }
+    });
+  }
+  
+  // リンクボタンの処理
+  const linkBtn = document.getElementById('link-btn');
+  if (linkBtn) {
+    linkBtn.addEventListener('click', async () => {
       const url = await dialog.show('リンクを挿入', 'URLを入力してください:');
       if (url) {
         editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
       }
-    },
-    
-    // 画像
-    addImage: async () => {
+    });
+  }
+  
+  // 画像ボタンの処理
+  const imageBtn = document.getElementById('image-btn');
+  if (imageBtn) {
+    imageBtn.addEventListener('click', async () => {
       const url = await dialog.show('画像を挿入', '画像のURLを入力してください:', '', { isImageDialog: true });
       if (url) {
         editor.chain().focus().setImage({ src: url }).run();
       }
-    },
+    });
+  }
+  
+  // エディタの状態に応じてボタンの有効/無効を更新
+  editor.on('update', updateToolbarState);
+  editor.on('selectionUpdate', updateToolbarState);
+  
+  function updateToolbarState() {
+    const activeButtons = {
+      'bold-btn': editor.isActive('bold'),
+      'italic-btn': editor.isActive('italic'),
+      'strike-btn': editor.isActive('strike'),
+      'code-inline-btn': editor.isActive('code'),
+      'h1-btn': editor.isActive('heading', { level: 1 }),
+      'h2-btn': editor.isActive('heading', { level: 2 }),
+      'h3-btn': editor.isActive('heading', { level: 3 }),
+      'h4-btn': editor.isActive('heading', { level: 4 }),
+      'h5-btn': editor.isActive('heading', { level: 5 }),
+      'h6-btn': editor.isActive('heading', { level: 6 }),
+      'ul-btn': editor.isActive('bulletList'),
+      'ol-btn': editor.isActive('orderedList'),
+      'task-btn': editor.isActive('taskList'),
+      'quote-btn': editor.isActive('blockquote'),
+      'code-btn': editor.isActive('codeBlock')
+    };
     
-    // 目次生成
-    generateTOC: () => generateTableOfContents(editor)
+    Object.entries(activeButtons).forEach(([id, isActive]) => {
+      const button = document.getElementById(id);
+      if (button) {
+        button.classList.toggle('active', isActive);
+      }
+    });
+  }
+}
+
+// Markdownコンテンツを取得
+export function getMarkdownContent(instance) {
+  const ed = instance || (typeof editor !== 'undefined' && editor) || (typeof window !== 'undefined' && window.editor);
+  if (!ed) {
+    const prose = document.querySelector('#wysiwyg-editor .ProseMirror');
+    const src = document.getElementById('source-editor');
+    const html = prose?.innerHTML ?? src?.value ?? '';
+    return (typeof htmlToMarkdown === 'function') ? htmlToMarkdown(html) : html;
+  }
+  if (typeof ed.getHTML === 'function') {
+    const html = ed.getHTML();
+    return (typeof htmlToMarkdown === 'function') ? htmlToMarkdown(html) : html;
+  }
+  if (typeof ed.getText === 'function') {
+    return ed.getText();
+  }
+  try {
+    const prose = document.querySelector('#wysiwyg-editor .ProseMirror');
+    const src = document.getElementById('source-editor');
+    const html = prose?.innerHTML ?? src?.value ?? '';
+    return (typeof htmlToMarkdown === 'function') ? htmlToMarkdown(html) : html;
+  } catch { return ''; }
+}
+// Markdownコンテンツを設定
+export function setMarkdownContent(instance, markdown) {
+  const ed = instance || (typeof editor !== 'undefined' && editor) || (typeof window !== 'undefined' && window.editor);
+  const html = (typeof markdownToHtml === 'function') ? markdownToHtml(markdown ?? '') : (markdown ?? '');
+  if (ed && ed.commands && typeof ed.commands.setContent === 'function') {
+    ed.commands.setContent(html);
+    return;
+  }
+  if (ed && typeof ed.setContent === 'function') {
+    ed.setContent(html);
+    return;
+  }
+  // Fallback to DOM
+  try {
+    const prose = document.querySelector('#wysiwyg-editor .ProseMirror');
+    if (prose) prose.innerHTML = html;
+    const src = document.getElementById('source-editor');
+    if (src) src.value = markdown ?? '';
+  } catch {}
+}
+// 脚注の挿入
+async function insertFootnote(editor) {
+  const number = await dialog.show('脚注を挿入', '脚注番号を入力してください:');
+  if (number) {
+    editor.chain().focus().setFootnote(number).run();
+  }
+}
+
+// HTML埋め込み
+async function insertHtml(editor) {
+  const htmlDialog = await createHtmlDialog();
+  const html = await htmlDialog.show();
+  if (html) {
+    const sanitized = sanitizeHtml(html);
+    editor.chain().focus().insertContent(sanitized).run();
+  }
+}
+
+// HTMLダイアログの作成
+async function createHtmlDialog() {
+  return {
+    show: async () => {
+      return await dialog.show('HTML埋め込み', 'HTMLコードを入力してください:', '', { multiline: true });
+    }
   };
-
-  return commands;
 }
 
-// 目次生成ダイアログを作成
-function createTOCDialog() {
-  const dialogHTML = `
-    <div id="toc-dialog" class="dialog-overlay" style="display: none;">
-      <div class="dialog-content">
-        <div class="dialog-header">
-          <h3>📑 目次を生成</h3>
-          <button class="dialog-close">&times;</button>
-        </div>
-        <div class="dialog-body">
-          <div class="toc-dialog-content">
-            <p>生成する目次の形式を選択してください：</p>
-            <div class="toc-options">
-              <label class="toc-radio-option">
-                <input type="radio" name="toc-type" value="linked" checked>
-                <div class="toc-option-content">
-                  <strong>リンク付き目次</strong>
-                  <div class="toc-option-description">
-                    見出しへのジャンプリンク付き<br>
-                    <small>GitHub、GitLab、SightEdit等で動作</small>
-                  </div>
-                  <div class="toc-example">
-                    例: <code>- [見出し1](#見出し1)</code>
-                  </div>
-                </div>
-              </label>
-              <label class="toc-radio-option">
-                <input type="radio" name="toc-type" value="simple">
-                <div class="toc-option-content">
-                  <strong>シンプル目次</strong>
-                  <div class="toc-option-description">
-                    テキストのみ、リンクなし<br>
-                    <small>すべてのMarkdown環境で動作</small>
-                  </div>
-                  <div class="toc-example">
-                    例: <code>- 見出し1</code>
-                  </div>
-                </div>
-              </label>
-            </div>
-          </div>
-        </div>
-        <div class="dialog-footer">
-          <button class="dialog-cancel">キャンセル</button>
-          <button class="dialog-ok">目次を生成</button>
-        </div>
-      </div>
-    </div>
-  `;
-
-  const dialogDiv = document.createElement('div');
-  dialogDiv.innerHTML = dialogHTML;
-  document.body.appendChild(dialogDiv.firstElementChild);
-
-  const dialog = document.getElementById('toc-dialog');
-  const closeBtn = dialog.querySelector('.dialog-close');
-  const cancelBtn = dialog.querySelector('.dialog-cancel');
-  const okBtn = dialog.querySelector('.dialog-ok');
-
-  let resolvePromise = null;
-
-  // ダイアログを表示
-  function show() {
-    dialog.style.display = 'flex';
-    
-    // デフォルト選択を復元
-    const linkedRadio = dialog.querySelector('input[value="linked"]');
-    if (linkedRadio) {
-      linkedRadio.checked = true;
-    }
-
-    return new Promise((resolve) => {
-      resolvePromise = resolve;
-    });
-  }
-
-  // ダイアログを閉じる
-  function close(result = null) {
-    dialog.style.display = 'none';
-    if (resolvePromise) {
-      resolvePromise(result);
-      resolvePromise = null;
-    }
-  }
-
-  // イベントリスナー
-  closeBtn.addEventListener('click', () => close(null));
-  cancelBtn.addEventListener('click', () => close(null));
-  okBtn.addEventListener('click', () => {
-    const selectedType = dialog.querySelector('input[name="toc-type"]:checked')?.value;
-    close(selectedType);
-  });
-
-  // 背景クリックで閉じる
-  dialog.addEventListener('click', (e) => {
-    if (e.target === dialog) {
-      close(null);
-    }
-  });
-
-  return { show };
-}
-
-// Markdown変換
-export function getMarkdownContent(editor) {
-  if (!editor) {
-    console.error('Editor is null');
-    return '';
-  }
+// 検索機能のエクスポート
+export function searchInEditor(editor, searchTerm, options = {}) {
+  if (!editor || !searchTerm) return [];
   
-  const html = editor.getHTML();
-  console.log('HTML content:', html);
+  const results = [];
+  const { caseSensitive = false, wholeWord = false, useRegex = false } = options;
   
-  const markdown = htmlToMarkdown(html);
-  console.log('Converted markdown:', markdown);
-  
-  return markdown;
-}
-
-export function setMarkdownContent(editor, markdown) {
-  const html = markdownToHtml(markdown);
-  editor.commands.setContent(html, false); // 履歴を作らないように変更
-}
-
-// テキスト取得（統計用）
-export function getText(editor) {
-  return editor.getText();
-}
-
-// 目次生成機能
-export async function generateTableOfContents(editor) {
-  if (!editor) {
-    console.error('Editor is null');
-    return;
-  }
-
-  try {
-    // 目次形式を選択するダイアログを表示
-    const tocType = await tocDialog.show();
-    
-    if (!tocType) {
-      // キャンセルされた場合
-      return;
-    }
-
-    // 現在のモードを確認
-    const sourceEditor = document.getElementById('source-editor');
-    const isSourceMode = sourceEditor && sourceEditor.style.display !== 'none';
-
-    if (isSourceMode) {
-      // ソースモードでの目次生成
-      generateTOCInSourceMode(sourceEditor, tocType);
-    } else {
-      // WYSIWYGモードでの目次生成
-      generateTOCInWYSIWYGMode(editor, tocType);
-    }
-
-    const typeLabel = tocType === 'linked' ? 'リンク付き目次' : 'シンプル目次';
-    window.showMessage(`${typeLabel}を生成しました`, 'success');
-  } catch (error) {
-    console.error('TOC generation error:', error);
-    window.showMessage('目次の生成に失敗しました', 'error');
-  }
-}
-
-// WYSIWYGモードでの目次生成
-function generateTOCInWYSIWYGMode(editor, tocType) {
-  const doc = editor.state.doc;
-  const headings = [];
-
-  // 見出しを抽出
-  doc.descendants((node, pos) => {
-    if (node.type.name === 'heading') {
-      const level = node.attrs.level;
-      const text = node.textContent;
-      const id = generateHeadingId(text);
-      
-      headings.push({
-        level,
-        text,
-        id,
-        pos
-      });
-    }
-  });
-
-  if (headings.length === 0) {
-    window.showMessage('見出しが見つかりません', 'warning');
-    return;
-  }
-
-  // 目次のMarkdownを生成
-  const tocMarkdown = generateTOCMarkdown(headings, tocType);
-  
-  // 既存の目次を削除
-  removeExistingTOC(editor);
-  
-  // HTMLに変換して挿入
-  const tocHTML = markdownToHtml(tocMarkdown);
-  
-  // 文書の先頭に挿入
-  editor.chain()
-    .focus()
-    .setTextSelection(0)
-    .insertContent(tocHTML)
-    .insertContent('<p></p>') // 目次の後に改行を追加
-    .run();
-}
-
-// ソースモードでの目次生成
-function generateTOCInSourceMode(sourceEditor, tocType) {
-  const content = sourceEditor.value;
-  const lines = content.split('\n');
-  const headings = [];
-
-  // 見出しを抽出
-  lines.forEach((line, index) => {
-    const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
-    if (headingMatch) {
-      const level = headingMatch[1].length;
-      const text = headingMatch[2].trim();
-      const id = generateHeadingId(text);
-      
-      headings.push({
-        level,
-        text,
-        id,
-        lineIndex: index
-      });
-    }
-  });
-
-  if (headings.length === 0) {
-    window.showMessage('見出しが見つかりません', 'warning');
-    return;
-  }
-
-  // 目次のMarkdownを生成
-  const tocMarkdown = generateTOCMarkdown(headings, tocType);
-  
-  // 既存の目次を削除
-  const cleanedContent = removeExistingTOCFromMarkdown(content);
-  
-  // 文書の先頭に目次を挿入
-  const newContent = tocMarkdown + '\n\n' + cleanedContent;
-  
-  sourceEditor.value = newContent;
-  
-  // inputイベントを発火
-  const event = new Event('input', { bubbles: true });
-  sourceEditor.dispatchEvent(event);
-}
-
-// 目次のMarkdownを生成（タイプ別）
-function generateTOCMarkdown(headings, tocType) {
-  let toc = '## 目次\n\n';
-  
-  headings.forEach(heading => {
-    const indent = '  '.repeat(Math.max(0, heading.level - 1)); // レベル1から開始
-    
-    let item;
-    if (tocType === 'linked') {
-      // リンク付き目次
-      const link = `[${heading.text}](#${heading.id})`;
-      item = `${indent}- ${link}\n`;
-    } else {
-      // シンプル目次
-      item = `${indent}- ${heading.text}\n`;
-    }
-    
-    toc += item;
-  });
-  
-  return toc;
-}
-
-// 見出しからIDを生成
-function generateHeadingId(text) {
-  return text
-    .toLowerCase()
-    .replace(/[^\w\s\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/g, '') // 英数字、ひらがな、カタカナ、漢字のみ
-    .replace(/\s+/g, '-') // スペースをハイフンに
-    .replace(/^-+|-+$/g, '') // 先頭末尾のハイフンを削除
-    .slice(0, 50); // 長さ制限
-}
-
-// 既存の目次を削除（WYSIWYGモード）
-function removeExistingTOC(editor) {
-  const doc = editor.state.doc;
-  let tocStartPos = null;
-  let tocEndPos = null;
-
-  // 目次セクションを検索
-  doc.descendants((node, pos) => {
-    if (node.type.name === 'heading' && 
-        node.attrs.level === 2 && 
-        node.textContent.includes('目次')) {
-      tocStartPos = pos;
-      return false; // 最初の目次見出しで停止
-    }
-  });
-
-  if (tocStartPos !== null) {
-    // 目次の終わりを見つける（次の見出しまたは文書の終わり）
-    doc.descendants((node, pos) => {
-      if (pos > tocStartPos && 
-          node.type.name === 'heading' && 
-          !node.textContent.includes('目次')) {
-        tocEndPos = pos;
-        return false; // 次の見出しで停止
-      }
-    });
-
-    if (tocEndPos === null) {
-      // 次の見出しが見つからない場合、次の段落まで
-      doc.descendants((node, pos) => {
-        if (pos > tocStartPos + 100) { // 目次から十分離れた位置
-          tocEndPos = pos;
-          return false;
-        }
-      });
-    }
-
-    if (tocEndPos === null) {
-      tocEndPos = doc.content.size - 2; // 文書の終わり
-    }
-
-    // 既存の目次を削除
-    editor.chain()
-      .focus()
-      .setTextSelection(tocStartPos, tocEndPos)
-      .deleteSelection()
-      .run();
-  }
-}
-
-// 既存の目次を削除（ソースモード）
-function removeExistingTOCFromMarkdown(content) {
-  const lines = content.split('\n');
-  const cleanedLines = [];
-  let inTOC = false;
-  let tocStartIndex = -1;
-
-  lines.forEach((line, index) => {
-    // 目次の開始を検出
-    if (line.match(/^##\s+目次\s*$/)) {
-      inTOC = true;
-      tocStartIndex = index;
-      return;
-    }
-
-    // 目次の終了を検出（次の見出しまたは空行の後の通常テキスト）
-    if (inTOC) {
-      if (line.match(/^#{1,6}\s+/) && !line.includes('目次')) {
-        // 次の見出しが見つかった
-        inTOC = false;
-        cleanedLines.push(line);
-      } else if (line.trim() === '' || line.match(/^\s*-\s+(\[.*\]\(#.*\)|.*)/)) {
-        // 空行または目次項目はスキップ
-        return;
-      } else if (!line.match(/^\s*-/)) {
-        // 目次以外のコンテンツが始まった
-        inTOC = false;
-        cleanedLines.push(line);
-      }
-    } else {
-      cleanedLines.push(line);
-    }
-  });
-
-  return cleanedLines.join('\n');
-}
-
-// WYSIWYGエディタの検索機能（完全書き直し）
-export function searchInEditor(editor, searchText, options = {}) {
-  if (!editor || !searchText) return [];
-  
-  const matches = [];
-  const doc = editor.state.doc;
-  
-  // 正規表現を構築
   let regex;
-  try {
-    if (options.useRegex) {
-      regex = new RegExp(searchText, options.caseSensitive ? 'g' : 'gi');
-    } else {
-      let pattern = escapeRegExp(searchText);
-      if (options.wholeWord) {
-        pattern = `\\b${pattern}\\b`;
-      }
-      regex = new RegExp(pattern, options.caseSensitive ? 'g' : 'gi');
+  if (useRegex) {
+    try {
+      regex = new RegExp(searchTerm, caseSensitive ? 'g' : 'gi');
+    } catch (e) {
+      return [];
     }
-  } catch (e) {
-    console.error('Invalid regex:', e);
-    return [];
+  } else {
+    let pattern = escapeRegExp(searchTerm);
+    if (wholeWord) {
+      pattern = `\\b${pattern}\\b`;
+    }
+    regex = new RegExp(pattern, caseSensitive ? 'g' : 'gi');
   }
-
-  // ドキュメントを走査してテキストを検索
-  let globalOffset = 0;
   
-  doc.descendants((node, pos) => {
-    if (node.isText) {
-      const text = node.text;
+  editor.state.doc.descendants((node, pos) => {
+    if (node.isText && node.text) {
       let match;
-      
-      // この段落内でのマッチを検索
-      regex.lastIndex = 0; // regexの状態をリセット
-      while ((match = regex.exec(text)) !== null) {
-        const from = pos + match.index;
-        const to = from + match[0].length;
-        
-        matches.push({
-          from: from,
-          to: to,
-          text: match[0]
-        });
-        
-        console.log('Found match:', {
-          text: match[0],
-          from: from,
-          to: to,
-          nodeText: text,
-          nodePos: pos
+      while ((match = regex.exec(node.text)) !== null) {
+        results.push({
+          from: pos + match.index,
+          to: pos + match.index + match[0].length
         });
       }
     }
-    return true; // 全ノードを走査
   });
-
-  console.log('Total matches found:', matches.length);
-  return matches;
+  
+  return results;
 }
 
-// 正規表現エスケープ
 function escapeRegExp(string) {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-// 検索結果をハイライト（修正版）
+// 検索結果のハイライト
 export function highlightSearchResult(editor, from, to) {
-  console.log('Highlighting from', from, 'to', to);
+  editor.chain()
+    .focus()
+    .setTextSelection({ from, to })
+    .run();
+}
+
+// テキストの置換
+export function replaceText(editor, from, to, replacement) {
+  editor.chain()
+    .focus()
+    .setTextSelection({ from, to })
+    .deleteSelection()
+    .insertContent(replacement)
+    .run();
+}
+
+// すべて置換
+export function replaceAll(editor, searchTerm, replacement, options = {}) {
+  const results = searchInEditor(editor, searchTerm, options);
   
-  // ProseMirrorの有効な範囲内かチェック
-  const docSize = editor.state.doc.nodeSize - 2; // ドキュメントの実際のサイズ（開始/終了トークンを除く）
+  // 後ろから置換していく（位置がずれないように）
+  for (let i = results.length - 1; i >= 0; i--) {
+    const { from, to } = results[i];
+    replaceText(editor, from, to, replacement);
+  }
   
-  // 範囲を有効な値に修正
-  const validFrom = Math.max(0, Math.min(from, docSize));
-  const validTo = Math.max(validFrom, Math.min(to, docSize));
+  return results.length;
+}
+
+// HTMLのサニタイズ
+function sanitizeHtml(html) {
+  const div = document.createElement('div');
+  div.innerHTML = html;
   
-  console.log('Document size:', docSize, 'Valid range:', validFrom, 'to', validTo);
+  // scriptタグを削除
+  const scripts = div.querySelectorAll('script');
+  scripts.forEach(script => script.remove());
   
-  try {
-    editor.chain()
-      .focus()
-      .setTextSelection({ from: validFrom, to: validTo })
-      .scrollIntoView()
-      .run();
-  } catch (error) {
-    console.error('Error highlighting text:', error);
+  // onイベントハンドラを削除
+  const allElements = div.querySelectorAll('*');
+  allElements.forEach(element => {
+    Array.from(element.attributes).forEach(attr => {
+      if (attr.name.startsWith('on')) {
+        element.removeAttribute(attr.name);
+      }
+    });
+  });
+  
+  return div.innerHTML;
+}
+
+// 共通編集操作関数（context-menu.jsから呼び出し可能）
+// Markdownテキストかどうかを検出する関数
+function detectMarkdown(text) {
+  // Markdownの典型的なパターンをチェック
+  const markdownPatterns = [
+    /^#{1,6}\s+/m,           // 見出し: # ## ### など
+    /^\*{1,2}[^*]+\*{1,2}/m, // 太字・斜体: *text* **text**
+    /^_{1,2}[^_]+_{1,2}/m,   // 太字・斜体: _text_ __text**
+    /^~~[^~]+~~/m,           // 取り消し線: ~~text~~
+    /^\*\s+/m,               // リスト: * item
+    /^-\s+/m,                // リスト: - item
+    /^\+\s+/m,               // リスト: + item
+    /^\d+\.\s+/m,            // 番号付きリスト: 1. item
+    /^\[.*\]\(.*\)/m,        // リンク: [text](url)
+    /^!\[.*\]\(.*\)/m,       // 画像: ![alt](url)
+    /^```/m,                 // コードブロック: ```
+    /^`[^`]+`/m,             // インラインコード: `code`
+    /^>/m,                   // 引用: > text
+    /^\|.*\|/m,              // テーブル: |col1|col2|
+    /^---+/m,                // 水平線: ---
+  ];
+  
+  return markdownPatterns.some(pattern => pattern.test(text));
+}
+
+// プレーンテキストを挿入する関数
+function insertPlainText(text, state, from, to) {
+  const $from = state.selection.$from;
+  const parentType = $from.parent.type.name;
+  const isInlineContext = parentType === 'paragraph' || parentType === 'heading';
+  
+  // 改行を含むかチェック
+  const hasLineBreaks = text.includes('\n');
+  
+  if (isInlineContext && !hasLineBreaks) {
+    // 単一行のテキストで段落内の場合
+    // insertTextを使用して同じ段落内に挿入
+    const { view } = editor;
+    const tr = state.tr;
+    
+    if (from !== to) {
+      tr.delete(from, to);
+    }
+    
+    tr.insertText(text, tr.mapping.map(from));
+    
+    const newPos = tr.mapping.map(from) + text.length;
+    const newSelection = state.selection.constructor.create(
+      tr.doc,
+      newPos,
+      newPos
+    );
+    tr.setSelection(newSelection);
+    tr.scrollIntoView();
+    
+    view.dispatch(tr);
+  } else {
+    // 複数行のテキストの場合は段落として処理
+    const paragraphs = text.split('\n').filter(line => line.trim());
+    
+    if (paragraphs.length === 1) {
+      // 単一段落の場合
+      editor.chain()
+        .focus()
+        .deleteRange({ from, to })
+        .insertContent(paragraphs[0])
+        .run();
+    } else {
+      // 複数段落の場合
+      const content = paragraphs.map(p => ({
+        type: 'paragraph',
+        content: [{
+          type: 'text',
+          text: p
+        }]
+      }));
+      
+      editor.chain()
+        .focus()
+        .deleteRange({ from, to })
+        .insertContent(content)
+        .run();
+    }
   }
 }
 
-// テキストを置換（修正版）
-export function replaceText(editor, from, to, replaceWith) {
-  console.log('Replacing from', from, 'to', to, 'with', replaceWith);
+export const commonEditActions = {
+  // コピー処理（修正版：選択範囲のテキストを確実にクリップボードに書き込む）
+  copy: async () => {
+    // editorがグローバル変数として定義されているか確認
+    const currentEditor = editor || window.editor;
+    if (!currentEditor) return false;
+    
+    const { from, to } = currentEditor.state.selection;
+    const selectedText = currentEditor.state.doc.textBetween(from, to, '\n');
+    
+    if (selectedText) {
+      try {
+        // クリップボードAPIを使用して確実にコピー
+        await navigator.clipboard.writeText(selectedText);
+        window.showMessage('コピーしました', 'success');
+        return true;
+      } catch (err) {
+        // フォールバック：選択範囲を作成してコピーコマンドを実行
+        const selection = window.getSelection();
+        const range = document.createRange();
+        
+        // エディターの選択範囲をDOMの選択範囲に変換
+        const { view } = currentEditor;
+        const domRange = view.domAtPos(from);
+        const domRangeEnd = view.domAtPos(to);
+        
+        range.setStart(domRange.node, domRange.offset);
+        range.setEnd(domRangeEnd.node, domRangeEnd.offset);
+        
+        selection.removeAllRanges();
+        selection.addRange(range);
+        
+        const success = document.execCommand('copy');
+        if (success) {
+          window.showMessage('コピーしました', 'success');
+        } else {
+          window.showMessage('コピーに失敗しました', 'error');
+        }
+        return success;
+      }
+    }
+    
+    return false;
+  },
   
-  // ProseMirrorの有効な範囲内かチェック
-  const docSize = editor.state.doc.nodeSize - 2;
+  // 切り取り処理
+  cut: async (editor) => {
+    if (!editor) return false;
+    
+    const { from, to } = editor.state.selection;
+    const selectedText = editor.state.doc.textBetween(from, to, '\n');
+    
+    if (selectedText) {
+      try {
+        // クリップボードにコピー
+        await navigator.clipboard.writeText(selectedText);
+        // 選択範囲を削除
+        editor.chain().focus().deleteSelection().run();
+        window.showMessage('切り取りました', 'success');
+        return true;
+      } catch (err) {
+        // フォールバック
+        const success = document.execCommand('cut');
+        if (success) {
+          window.showMessage('切り取りました', 'success');
+        } else {
+          window.showMessage('切り取りに失敗しました', 'error');
+        }
+        return success;
+      }
+    }
+    return false;
+  },
   
-  // 範囲を有効な値に修正
-  const validFrom = Math.max(0, Math.min(from, docSize));
-  const validTo = Math.max(validFrom, Math.min(to, docSize));
+  // 貼り付け処理（書式を保持しつつ、余分な改行を追加しない）
+  paste: async (editor) => {
+    if (!editor) return false;
+    
+    try {
+      // クリップボードの内容を取得
+      let html = null;
+      let text = null;
+      
+      // まずHTML形式を試す
+      try {
+        const clipboardItems = await navigator.clipboard.read();
+        for (const clipboardItem of clipboardItems) {
+          for (const type of clipboardItem.types) {
+            if (type === 'text/html') {
+              const blob = await clipboardItem.getType(type);
+              html = await blob.text();
+              break;
+            }
+          }
+          if (html) break;
+        }
+      } catch (err) {
+        // Clipboard APIがHTMLを読めない場合はテキストのみ
+        console.log('HTML reading not supported, falling back to text');
+      }
+      
+      // HTMLが取得できない場合はテキストを取得
+      if (!html) {
+        text = await navigator.clipboard.readText();
+      }
+      
+      if (html || text) {
+        const { state } = editor;
+        const { from, to } = state.selection;
+        
+        if (html) {
+          // HTMLがある場合は書式を保持
+          // タグ間の不要な改行を削除（これが余分な段落を生成する原因）
+          const cleanedHtml = html
+            .replace(/>\s*\n\s*</g, '><')    // タグ間の改行と空白を削除
+            .replace(/\n\s*\n/g, '\n')       // 連続する改行を1つに
+            .trim();                         // 前後の空白を削除
+          
+          // 現在のカーソル位置の文脈を確認
+          const $from = state.selection.$from;
+          const parentType = $from.parent.type.name;
+          const isInlineContext = parentType === 'paragraph' || parentType === 'heading';
+          
+          // インラインHTML（<span>, <strong>, <em>など）かブロックHTML（<p>, <div>, <h1>など）かを判定
+          const hasBlockElements = /<(p|div|h[1-6]|ul|ol|li|blockquote|table|pre)[\s>]/i.test(cleanedHtml);
+          
+          if (isInlineContext && !hasBlockElements) {
+            // インラインコンテキストでインラインHTMLの場合
+            // 段落内に直接挿入（新しい段落を作らない）
+            editor.chain()
+              .focus()
+              .deleteRange({ from, to })
+              .insertContent(cleanedHtml, {
+                parseOptions: {
+                  preserveWhitespace: 'full'  // インライン要素では空白を保持
+                }
+              })
+              .run();
+          } else {
+            // ブロックレベルのHTMLまたは新しい段落が必要な場合
+            editor.chain()
+              .focus()
+              .deleteRange({ from, to })
+              .insertContent(cleanedHtml, {
+                parseOptions: {
+                  preserveWhitespace: false  // ブロック要素では余分な空白を削除
+                }
+              })
+              .run();
+          }
+        } else if (text) {
+          // プレーンテキストの場合 - Markdownかどうかを検出
+          const isMarkdown = detectMarkdown(text);
+          
+          if (isMarkdown) {
+            // Markdownテキストの場合はHTMLに変換してから挿入
+            try {
+              const html = markdownToHtml(text);
+              editor.chain()
+                .focus()
+                .deleteRange({ from, to })
+                .insertContent(html, {
+                  parseOptions: {
+                    preserveWhitespace: false
+                  }
+                })
+                .run();
+            } catch (error) {
+              console.error('Markdown conversion error:', error);
+              // 変換失敗時はプレーンテキストとして処理
+              insertPlainText(text, state, from, to);
+            }
+          } else {
+            // 通常のプレーンテキスト処理
+            insertPlainText(text, state, from, to);
+          }
+        }
+        
+        window.showMessage('貼り付けました', 'success');
+        return true;
+      }
+    } catch (error) {
+      console.error('Paste error:', error);
+      window.showMessage('貼り付けに失敗しました', 'error');
+    }
+    return false;
+  },
   
-  try {
-    editor.chain()
-      .focus()
-      .setTextSelection({ from: validFrom, to: validTo })
-      .deleteSelection()
-      .insertContent(replaceWith)
-      .run();
-  } catch (error) {
-    console.error('Error replacing text:', error);
+  // すべて選択
+  selectAll: (editor) => {
+    if (!editor) return false;
+    editor.chain().focus().selectAll().run();
+    return true;
   }
-}
+};
 
-// 全て置換（修正版）
-export function replaceAll(editor, searchText, replaceWith, options = {}) {
-  const matches = searchInEditor(editor, searchText, options);
-  
-  // 後ろから置換していく（インデックスがずれないように）
-  for (let i = matches.length - 1; i >= 0; i--) {
-    const match = matches[i];
-    replaceText(editor, match.from, match.to, replaceWith);
-  }
-  
-  return matches.length;
-}
+// エディターのエクスポート
+export default editor;

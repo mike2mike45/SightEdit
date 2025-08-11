@@ -225,6 +225,59 @@ export class GitUIManager {
     `;
   }
 
+
+  // Git状態に応じたUI切り替え（網羅化）
+  applyGitState(state) {
+    // state: { available:boolean, inRepo:boolean, hasChanges:boolean, hasRemote?:boolean, detached?:boolean, conflicts?:boolean }
+    this.hideAllSections();
+    const notAvail = document.getElementById('git-not-available');
+    const noRepo  = document.getElementById('git-no-repo');
+    const repoInfo = document.getElementById('git-repo-info');
+    const quick = document.getElementById('git-quick-settings');
+    const changes = document.getElementById('git-changes');
+
+    // 安全ガード
+    if (!document.getElementById('git-main-view')) return;
+
+    if (!state?.available) {
+      if (notAvail) notAvail.style.display = 'block';
+      return;
+    }
+    if (!state.inRepo) {
+      if (noRepo) noRepo.style.display = 'block';
+      if (quick) quick.style.display = 'block';
+      return;
+    }
+
+    // リポジトリ内
+    if (repoInfo) repoInfo.style.display = 'block';
+    if (quick) quick.style.display = 'block';
+
+    if (state.detached) {
+      const sync = document.getElementById('git-sync-status');
+      const info = document.getElementById('git-sync-info');
+      if (sync) sync.style.display = 'block';
+      if (info) info.textContent = 'detached HEAD';
+      return;
+    }
+
+    if (state.conflicts) {
+      const sync = document.getElementById('git-sync-status');
+      const info = document.getElementById('git-sync-info');
+      if (sync) sync.style.display = 'block';
+      if (info) info.textContent = 'コンフリクトあり';
+      if (changes) changes.style.display = 'block';
+      return;
+    }
+
+    if (state.hasChanges) {
+      if (changes) changes.style.display = 'block';
+    } else {
+      if (changes) changes.style.display = 'none';
+    }
+  }
+
+
   // ビュー管理
   showMainView() {
     document.getElementById('git-main-view').style.display = 'block';

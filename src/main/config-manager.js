@@ -11,6 +11,7 @@ class ConfigManager {
     this.configPath = path.join(__dirname, '../../sightedit-config.json');
     this.defaultConfig = {
       theme: 'light',
+      language: 'ja',
       window: {
         width: 1200,
         height: 800,
@@ -30,6 +31,18 @@ class ConfigManager {
           confirmBeforePull: true,
           defaultBranch: 'main'
         }
+      },
+      webAI: {
+        defaultProvider: 'chatgpt',
+        openMode: 'inapp',
+        targets: {
+          chatgpt: 'https://chat.openai.com/',
+          claude: 'https://claude.ai/',
+          gemini: 'https://gemini.google.com/',
+          mistral: 'https://chat.mistral.ai/',
+          poe: 'https://poe.com/',
+          copilot: 'https://copilot.microsoft.com/'
+        }
       }
     };
     this.config = { ...this.defaultConfig };
@@ -41,7 +54,7 @@ class ConfigManager {
       const loadedConfig = JSON.parse(data);
       // 深いマージを行う
       this.config = this.deepMerge(this.defaultConfig, loadedConfig);
-      console.log('Configuration loaded:', this.config);
+      console.log('Configuration loaded successfully');
       return this.config;
     } catch (error) {
       if (error.code === 'ENOENT') {
@@ -81,7 +94,7 @@ class ConfigManager {
   async save() {
     try {
       await fs.writeFile(this.configPath, JSON.stringify(this.config, null, 2), 'utf8');
-      console.log('Configuration saved:', this.config);
+      console.log('Configuration saved successfully');
     } catch (error) {
       console.error('Error saving config:', error);
     }
@@ -111,6 +124,11 @@ class ConfigManager {
 
   async updateTheme(theme) {
     this.set('theme', theme);
+    await this.save();
+  }
+
+  async updateLanguage(language) {
+    this.set('language', language);
     await this.save();
   }
 
@@ -239,6 +257,49 @@ class ConfigManager {
       return [];
     }
     return this.config.git.recentRepositories;
+  }
+
+  // Web AI関連の設定管理メソッド
+  async getWebAIConfig() {
+    if (!this.config.webAI) {
+      this.config.webAI = {
+        defaultProvider: 'chatgpt',
+        openMode: 'inapp',
+        targets: {
+          chatgpt: 'https://chat.openai.com/',
+          claude: 'https://claude.ai/',
+          gemini: 'https://gemini.google.com/',
+          mistral: 'https://chat.mistral.ai/',
+          poe: 'https://poe.com/',
+          copilot: 'https://copilot.microsoft.com/'
+        }
+      };
+    }
+    return this.config.webAI;
+  }
+
+  async setWebAIDefaultProvider(provider) {
+    if (!this.config.webAI) {
+      await this.getWebAIConfig();
+    }
+    this.config.webAI.defaultProvider = provider;
+    await this.save();
+  }
+
+  async setWebAITargets(targets) {
+    if (!this.config.webAI) {
+      await this.getWebAIConfig();
+    }
+    this.config.webAI.targets = { ...this.config.webAI.targets, ...targets };
+    await this.save();
+  }
+
+  async setWebAIOpenMode(mode) {
+    if (!this.config.webAI) {
+      await this.getWebAIConfig();
+    }
+    this.config.webAI.openMode = mode;
+    await this.save();
   }
 }
 
