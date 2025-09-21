@@ -13,3 +13,13 @@ yarn-error.log*
 package-lock.json
 yarn.lock
 sightedit-config.json
+*.backup
+*config*.json
+.env
+.env.local
+secrets/
+node_modules/
+.venv/
+.github/
+.git/
+.claude/
