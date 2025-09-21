@@ -1,21 +1,31 @@
-import path from 'path';
-import { fileURLToPath } from 'url';
-import HtmlWebpackPlugin from 'html-webpack-plugin';
+const path = require('path');
+const CopyWebpackPlugin = require('copy-webpack-plugin');
+const HtmlWebpackPlugin = require('html-webpack-plugin');
 
-// ESMでの__dirname代替
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-export default {
+module.exports = {
   mode: process.env.NODE_ENV || 'development',
-  entry: './src/renderer/index.js',
+  entry: {
+    background: './src/background/background.js',
+    popup: './src/popup/popup.js',
+    editor: './src/editor/editor.js'
+  },
   output: {
     path: path.resolve(__dirname, 'dist'),
-    filename: 'renderer.js'
+    filename: '[name].js',
+    clean: true
   },
-  target: 'electron-renderer',
   module: {
     rules: [
+      {
+        test: /\.js$/,
+        exclude: /node_modules/,
+        use: {
+          loader: 'babel-loader',
+          options: {
+            presets: ['@babel/preset-env']
+          }
+        }
+      },
       {
         test: /\.css$/,
         use: ['style-loader', 'css-loader']
@@ -24,12 +34,25 @@ export default {
   },
   plugins: [
     new HtmlWebpackPlugin({
-      template: './src/renderer/index.html',
-      filename: 'index.html'
+      template: './src/popup/popup.html',
+      filename: 'popup.html',
+      chunks: ['popup']
+    }),
+    new HtmlWebpackPlugin({
+      template: './src/editor/editor.html',
+      filename: 'editor.html',
+      chunks: ['editor'],
+      inject: 'body'
+    }),
+    new CopyWebpackPlugin({
+      patterns: [
+        { from: 'assets', to: 'assets', noErrorOnMissing: true }
+      ]
     })
   ],
   resolve: {
-    extensions: ['.js', '.json']
+    extensions: ['.js', '.json'],
+    modules: ['node_modules']
   },
-  devtool: 'source-map'
+  devtool: 'cheap-module-source-map'
 };

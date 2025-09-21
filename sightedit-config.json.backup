@@ -1,0 +1,52 @@
+{
+  "theme": "light",
+  "language": "ja",
+  "window": {
+    "width": 1106,
+    "height": 780,
+    "x": 209,
+    "y": 261,
+    "maximized": false
+  },
+  "git": {
+    "repositories": {},
+    "globalUser": {
+      "name": null,
+      "email": null
+    },
+    "defaultSettings": {
+      "autoStageAll": false,
+      "confirmBeforePush": true,
+      "confirmBeforePull": true,
+      "defaultBranch": "main"
+    },
+    "recentRepositories": [
+      {
+        "path": "C:/Users/mscat/OneDrive/デスクトップ/新しいフォルダー",
+        "name": "新しいフォルダー",
+        "lastAccessed": "2025-07-30T12:34:56.230Z"
+      }
+    ]
+  },
+  "webAI": {
+    "defaultProvider": "chatgpt",
+    "openMode": "inapp",
+    "targets": {
+      "chatgpt": "https://chat.openai.com/",
+      "claude": "https://claude.ai/",
+      "gemini": "https://gemini.google.com/",
+      "mistral": "https://chat.mistral.ai/",
+      "poe": "https://poe.com/",
+      "copilot": "https://copilot.microsoft.com/"
+    }
+  },
+  "gemini": {
+    "apiKey": ""
+  },
+  "claude": {
+    "apiKey": ""
+  },
+  "ai": {
+    "provider": "gemini"
+  }
+}

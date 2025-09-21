@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SightEdit - Visual Markdown Editor</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: #f8f9fa;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .header {
+      background: white;
+      border-bottom: 1px solid #dee2e6;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      font-size: 18px;
+      font-weight: 600;
+      color: #333;
+    }
+
+    .logo-icon {
+      margin-right: 8px;
+      font-size: 20px;
+    }
+
+    .header-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn {
+      padding: 6px 12px;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      background: white;
+      color: #333;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+
+    .btn:hover {
+      background: #f8f9fa;
+      border-color: #adb5bd;
+    }
+
+    .btn.primary {
+      background: #007bff;
+      color: white;
+      border-color: #007bff;
+    }
+
+    .btn.primary:hover {
+      background: #0056b3;
+      border-color: #0056b3;
+    }
+
+    .main-container {
+      flex: 1;
+      display: flex;
+      min-height: 0;
+    }
+
+    .toolbar {
+      background: white;
+      border-bottom: 1px solid #dee2e6;
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .toolbar-group {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding-right: 12px;
+      border-right: 1px solid #dee2e6;
+    }
+
+    .toolbar-group:last-child {
+      border-right: none;
+    }
+
+    .toolbar-btn {
+      padding: 6px 8px;
+      border: 1px solid transparent;
+      border-radius: 3px;
+      background: transparent;
+      color: #495057;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+
+    .toolbar-btn:hover {
+      background: #f8f9fa;
+      border-color: #dee2e6;
+    }
+
+    .toolbar-btn.active {
+      background: #e3f2fd;
+      color: #1976d2;
+      border-color: #bbdefb;
+    }
+
+    .editor-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: white;
+      margin: 20px;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+
+    .editor-content {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+      min-height: 0;
+    }
+
+    .ProseMirror {
+      outline: none;
+      line-height: 1.6;
+      font-size: 16px;
+      color: #333;
+    }
+
+    .ProseMirror h1,
+    .ProseMirror h2,
+    .ProseMirror h3,
+    .ProseMirror h4,
+    .ProseMirror h5,
+    .ProseMirror h6 {
+      margin: 1.5em 0 0.5em 0;
+      font-weight: 600;
+      line-height: 1.3;
+    }
+
+    .ProseMirror h1 { font-size: 2em; }
+    .ProseMirror h2 { font-size: 1.5em; }
+    .ProseMirror h3 { font-size: 1.3em; }
+    .ProseMirror h4 { font-size: 1.1em; }
+    .ProseMirror h5 { font-size: 1em; }
+    .ProseMirror h6 { font-size: 0.9em; }
+
+    .ProseMirror p {
+      margin: 0.5em 0;
+    }
+
+    .ProseMirror ul,
+    .ProseMirror ol {
+      padding-left: 1.5em;
+      margin: 0.5em 0;
+    }
+
+    .ProseMirror blockquote {
+      border-left: 4px solid #dee2e6;
+      padding-left: 1em;
+      margin: 1em 0;
+      color: #6c757d;
+      font-style: italic;
+    }
+
+    .ProseMirror code {
+      background: #f8f9fa;
+      padding: 0.2em 0.4em;
+      border-radius: 3px;
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 0.9em;
+    }
+
+    .ProseMirror pre {
+      background: #282c34;
+      color: #abb2bf;
+      border: 1px solid #444;
+      border-radius: 6px;
+      padding: 1.2em;
+      margin: 1.5em 0;
+      overflow-x: auto;
+      font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', Monaco, Inconsolata, 'Roboto Mono', monospace;
+      font-size: 14px;
+      line-height: 1.6;
+      white-space: pre;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .ProseMirror pre code {
+      background: none;
+      padding: 0;
+      color: inherit;
+      font-size: inherit;
+      border-radius: 0;
+    }
+
+    /* コードブロック内のシンタックスハイライト風 */
+    .ProseMirror pre .keyword {
+      color: #c678dd;
+      font-weight: bold;
+    }
+
+    .ProseMirror pre .string {
+      color: #98c379;
+    }
+
+    .ProseMirror pre .comment {
+      color: #5c6370;
+      font-style: italic;
+    }
+
+    .ProseMirror pre .number {
+      color: #d19a66;
+    }
+
+    .ProseMirror pre .function {
+      color: #61afef;
+    }
+
+    /* インラインコードの改良 */
+    .ProseMirror code {
+      background: #f1f3f4;
+      color: #e74c3c;
+      padding: 0.2em 0.4em;
+      border-radius: 3px;
+      font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', Monaco, Inconsolata, 'Roboto Mono', monospace;
+      font-size: 0.9em;
+      border: 1px solid #e1e4e8;
+      font-weight: 600;
+    }
+
+    /* タスクリスト */
+    .ProseMirror .task-item {
+      display: flex;
+      align-items: center;
+      margin: 0.5em 0;
+    }
+
+    .ProseMirror .task-item input[type="checkbox"] {
+      margin-right: 0.5em;
+      transform: scale(1.2);
+    }
+
+    /* テーブルの改良 */
+    .ProseMirror table,
+    .ProseMirror .markdown-table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 1.5em 0;
+      border: 2px solid #dee2e6;
+      border-radius: 6px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .ProseMirror table th,
+    .ProseMirror .markdown-table th {
+      background: #f8f9fa;
+      font-weight: 600;
+      text-align: left;
+      padding: 12px;
+      border-bottom: 2px solid #dee2e6;
+      border-right: 1px solid #dee2e6;
+    }
+
+    .ProseMirror table td,
+    .ProseMirror .markdown-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #dee2e6;
+      border-right: 1px solid #dee2e6;
+    }
+
+    .ProseMirror table th:last-child,
+    .ProseMirror table td:last-child {
+      border-right: none;
+    }
+
+    .ProseMirror table tr:hover,
+    .ProseMirror .markdown-table tr:hover {
+      background: #f8f9fa;
+    }
+
+    /* 引用の改良 */
+    .ProseMirror blockquote {
+      border-left: 4px solid #007bff;
+      background: #f8f9fa;
+      padding: 1em 1.5em;
+      margin: 1.5em 0;
+      color: #6c757d;
+      font-style: italic;
+      border-radius: 0 4px 4px 0;
+    }
+
+    .ProseMirror table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 1em 0;
+    }
+
+    .ProseMirror table td,
+    .ProseMirror table th {
+      border: 1px solid #dee2e6;
+      padding: 0.5em;
+      text-align: left;
+    }
+
+    .ProseMirror table th {
+      background: #f8f9fa;
+      font-weight: 600;
+    }
+
+    /* WYSIWYG Content styles - contentEditable用 */
+    /* WYSIWYG エディターコンテンツ */
+    .wysiwyg-editor-content {
+      outline: none;
+      min-height: 400px;
+      padding: 20px;
+      line-height: 1.6;
+      font-size: 16px;
+      color: #333;
+      white-space: pre-wrap;
+    }
+
+    #wysiwyg-content {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6;
+      color: #333;
+    }
+
+    /* インラインコード */
+    #wysiwyg-content code {
+      background: #f1f3f4;
+      color: #e74c3c;
+      padding: 0.2em 0.4em;
+      border-radius: 3px;
+      font-family: 'Monaco', 'Consolas', 'Courier New', monospace;
+      font-size: 0.9em;
+      border: 1px solid #e1e4e8;
+    }
+
+    /* 引用ブロック */
+    #wysiwyg-content blockquote {
+      border-left: 4px solid #007bff;
+      background: #f8f9fa;
+      padding: 1em 1.5em;
+      margin: 1.5em 0;
+      border-radius: 0 4px 4px 0;
+      color: #495057;
+      font-style: italic;
+    }
+
+    /* コードブロック */
+    #wysiwyg-content pre {
+      background: #282c34;
+      color: #abb2bf;
+      border: 1px solid #444;
+      border-radius: 6px;
+      padding: 1.2em;
+      margin: 1.5em 0;
+      overflow-x: auto;
+      line-height: 1.6;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    #wysiwyg-content pre code {
+      background: none;
+      padding: 0;
+      color: inherit;
+      border: none;
+      font-size: inherit;
+    }
+
+    /* テーブル */
+    #wysiwyg-content table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 1.5em 0;
+      border: 1px solid #dee2e6;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    #wysiwyg-content table th,
+    #wysiwyg-content table td {
+      border: 1px solid #dee2e6;
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    #wysiwyg-content table th {
+      background: #f8f9fa;
+      font-weight: 600;
+      color: #495057;
+    }
+
+    #wysiwyg-content table tr:hover {
+      background: #f8f9fa;
+    }
+
+    /* セル配置 */
+    #wysiwyg-content table td.text-left { text-align: left; }
+    #wysiwyg-content table td.text-center { text-align: center; }
+    #wysiwyg-content table td.text-right { text-align: right; }
+
+    /* タスクリスト */
+    #wysiwyg-content .task-item {
+      display: flex;
+      align-items: flex-start;
+      margin: 0.5em 0;
+      padding: 0.2em 0;
+    }
+
+    #wysiwyg-content .task-item input[type="checkbox"] {
+      margin-right: 0.5em;
+      margin-top: 0.1em;
+      cursor: pointer;
+    }
+
+    #wysiwyg-content .task-text {
+      flex: 1;
+      transition: text-decoration 0.2s ease;
+    }
+
+    /* ツールバーセレクトのスタイル */
+    .toolbar-select {
+      padding: 6px 8px;
+      border: 1px solid #dee2e6;
+      border-radius: 3px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    /* ソースエディターのスタイル */
+    #source-editor {
+      display: none;
+      width: 100%;
+      height: 100%;
+      padding: 20px;
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 14px;
+      line-height: 1.6;
+      border: none;
+      outline: none;
+      resize: none;
+    }
+
+    /* モーダル関連のスタイル */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-content {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      max-width: 600px;
+      max-height: 80vh;
+      overflow-y: auto;
+      position: relative;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #dee2e6;
+    }
+
+    .modal-title {
+      margin: 0;
+      color: #333;
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: #6c757d;
+      padding: 0;
+      width: 30px;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* 編集ダイアログ用のスタイル */
+    .edit-dialog-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .edit-dialog-content {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      max-width: 400px;
+      width: 90%;
+    }
+
+    .edit-dialog-title {
+      margin: 0 0 15px 0;
+      color: #333;
+    }
+
+    .edit-dialog-field {
+      margin-bottom: 10px;
+    }
+
+    .edit-dialog-field:last-of-type {
+      margin-bottom: 15px;
+    }
+
+    .edit-dialog-label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+      color: #555;
+    }
+
+    .edit-dialog-input {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+
+    .edit-dialog-buttons {
+      text-align: right;
+    }
+
+    .edit-dialog-btn {
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .edit-dialog-btn-cancel {
+      margin-right: 10px;
+      border: 1px solid #ddd;
+      background: #f5f5f5;
+      color: #333;
+    }
+
+    .edit-dialog-btn-ok {
+      border: none;
+      background: #007cba;
+      color: white;
+    }
+
+    .status-bar {
+      background: #f8f9fa;
+      border-top: 1px solid #dee2e6;
+      padding: 8px 16px;
+      font-size: 12px;
+      color: #6c757d;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .ai-loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+    }
+
+    .ai-loading-content {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      text-align: center;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    }
+
+    .ai-spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #007bff;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 15px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* AI設定モーダル */
+    .ai-settings-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10001;
+    }
+
+    .ai-settings-panel {
+      background: white;
+      border-radius: 8px;
+      padding: 24px;
+      width: 500px;
+      max-width: 90vw;
+      max-height: 80vh;
+      overflow-y: auto;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    }
+
+    .ai-settings-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #dee2e6;
+    }
+
+    .ai-settings-content label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 500;
+      color: #333;
+    }
+
+    .ai-settings-content select,
+    .ai-settings-content input {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      font-size: 14px;
+      margin-bottom: 15px;
+    }
+
+    .ai-settings-content small {
+      color: #6c757d;
+      font-size: 12px;
+    }
+
+    .ai-settings-content a {
+      color: #007bff;
+      text-decoration: none;
+    }
+
+    .ai-settings-content a:hover {
+      text-decoration: underline;
+    }
+
+    .ai-settings-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 20px;
+      padding-top: 15px;
+      border-top: 1px solid #dee2e6;
+    }
+
+    .close-btn {
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: #6c757d;
+      padding: 0;
+      width: 30px;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .close-btn:hover {
+      color: #333;
+    }
+
+    /* AI結果モーダル */
+    .ai-result-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10002;
+    }
+
+    .ai-result-panel {
+      background: white;
+      border-radius: 8px;
+      padding: 24px;
+      width: 700px;
+      max-width: 90vw;
+      max-height: 80vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    }
+
+    .ai-result-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #dee2e6;
+    }
+
+    .ai-result-content {
+      flex: 1;
+      overflow-y: auto;
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      padding: 16px;
+      margin-bottom: 20px;
+      line-height: 1.6;
+    }
+
+    .ai-result-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .secondary {
+      background: #6c757d;
+      border-color: #6c757d;
+    }
+
+    .secondary:hover {
+      background: #5a6268;
+      border-color: #545b62;
+    }
+
+    @media (max-width: 768px) {
+      .main-container {
+        flex-direction: column;
+      }
+
+      .editor-container {
+        margin: 10px;
+      }
+
+      .toolbar {
+        flex-wrap: wrap;
+      }
+
+      .header-controls {
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">
+      <span class="logo-icon">📝</span>
+      SightEdit
+    </div>
+    <div class="header-controls">
+      <button class="btn" id="new-file-btn" title="新規ファイル">📄 新規</button>
+      <button class="btn" id="open-file-btn" title="ファイルを開く">📂 開く</button>
+      <button class="btn" id="save-file-btn" title="保存">💾 保存</button>
+      <button class="btn" id="save-as-btn" title="名前を付けて保存">💾 名前付き保存</button>
+      <button class="btn" id="export-btn">📤 エクスポート</button>
+      <button class="btn" id="ai-menu-btn">🤖 AI (未設定)</button>
+      <button class="btn" id="settings-btn">⚙️ 設定</button>
+    </div>
+  </div>
+
+  <div class="main-container">
+    <div class="editor-container">
+      <div class="toolbar">
+        <div class="toolbar-group">
+          <button class="toolbar-btn" data-action="bold" title="太字"><strong>B</strong></button>
+          <button class="toolbar-btn" data-action="italic" title="斜体"><em>I</em></button>
+          <button class="toolbar-btn" data-action="strike" title="取り消し線"><s>S</s></button>
+          <button class="toolbar-btn" data-action="code" title="インラインコード">&lt;/&gt;</button>
+        </div>
+
+        <div class="toolbar-group">
+          <select id="heading-select" class="toolbar-select">
+            <option value="">見出し</option>
+            <option value="1">H1 - 大見出し</option>
+            <option value="2">H2 - 中見出し</option>
+            <option value="3">H3 - 小見出し</option>
+            <option value="4">H4 - 小見出し4</option>
+            <option value="5">H5 - 小見出し5</option>
+            <option value="6">H6 - 小見出し6</option>
+            <option value="p">段落</option>
+          </select>
+        </div>
+
+        <div class="toolbar-group">
+          <button class="toolbar-btn" data-action="bulletList" title="箇条書きリスト">• リスト</button>
+          <button class="toolbar-btn" data-action="orderedList" title="番号付きリスト">1. リスト</button>
+          <button class="toolbar-btn" data-action="blockquote" title="引用">❝ 引用</button>
+        </div>
+
+        <div class="toolbar-group">
+          <button class="toolbar-btn" data-action="codeBlock" title="コードブロック">{ } コード</button>
+          <button class="toolbar-btn" data-action="horizontalRule" title="水平線">— 水平線</button>
+        </div>
+
+        <div class="toolbar-group">
+          <button class="toolbar-btn" data-action="link" title="リンク">🔗 リンク</button>
+          <button class="toolbar-btn" data-action="image" title="画像">🖼️ 画像</button>
+          <button class="toolbar-btn" data-action="table" title="表">📦 表</button>
+        </div>
+
+        <div class="toolbar-group">
+          <button class="toolbar-btn" data-action="undo" title="元に戻す">↶</button>
+          <button class="toolbar-btn" data-action="redo" title="やり直し">↷</button>
+        </div>
+
+        <div class="toolbar-group">
+          <button class="toolbar-btn" id="toggle-mode-btn" title="WYSIWYG/ソース切り替え">🔄 モード</button>
+          <button class="toolbar-btn" id="toc-btn" title="目次生成">📋 目次</button>
+          <button class="toolbar-btn" id="help-btn" title="ヘルプ">❓ ヘルプ</button>
+        </div>
+      </div>
+
+      <div class="editor-content" id="editor"></div>
+
+      <div class="status-bar">
+        <span id="word-count">文字数: 0</span>
+        <span id="editor-mode">WYSIWYG モード</span>
+      </div>
+
+      <!-- ソースモード用のtextarea（非表示） -->
+      <textarea id="source-editor"></textarea>
+    </div>
+  </div>
+
+</body>
+</html>
