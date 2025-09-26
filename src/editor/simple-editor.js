@@ -1,6 +1,12 @@
 // SightEdit Simple Editor - Chrome Extension版
 // TipTapの代わりに基本的なtextareaベースのエディターを使用
 
+// CSSファイルをインポート
+import './ai-command-panel.css';
+import './export-menu.css';
+import './ai-settings.css';
+import './settings.css';
+
 class SimpleMarkdownEditor {
   constructor() {
     this.currentFileName = null;
@@ -348,10 +354,40 @@ class SimpleMarkdownEditor {
   }
 
   init() {
+    console.log('エディターの初期化を開始...');
+    
+    // DOM読み込みを確実に待つ
+    if (document.readyState === 'loading') {
+      console.log('DOCUMENTがまだ読み込み中です。DOMContentLoadedを待機...');
+      document.addEventListener('DOMContentLoaded', () => {
+        console.log('DOMContentLoaded後に初期化を実行');
+        this.performInit();
+      });
+    } else {
+      console.log('DOMは既に読み込み済み。即座に初期化を実行');
+      this.performInit();
+    }
+  }
+
+  performInit() {
+    console.log('実際の初期化処理を開始...');
     this.setupEditor();
     this.setupToolbar();
     this.setupEventListeners();
-    this.updateWordCount();
+    
+    // DOM要素が確実に存在することを確認してからボタンをセットアップ
+    setTimeout(() => {
+      console.log('DOM要素の存在確認:');
+      console.log('- settings-btn:', !!document.getElementById('settings-btn'));
+      console.log('- settings-overlay:', !!document.getElementById('settings-overlay'));
+      console.log('- settings-save:', !!document.getElementById('settings-save'));
+      console.log('- gemini-test-btn:', !!document.getElementById('gemini-test-btn'));
+      console.log('- claude-test-btn:', !!document.getElementById('claude-test-btn'));
+      
+      this.setupHeaderButtons();
+      this.updateWordCount();
+      console.log('エディターの初期化が完了しました');
+    }, 200);
   }
 
   setupEditor() {
@@ -464,6 +500,565 @@ class SimpleMarkdownEditor {
     const saveAsBtn = document.getElementById('save-as-btn');
     if (saveAsBtn) {
       saveAsBtn.addEventListener('click', () => this.saveAsFile());
+    }
+  }
+
+  setupHeaderButtons() {
+    console.log('ヘッダーボタンのセットアップを開始...');
+    
+    // 設定ボタン（全般設定ダイアログを表示）
+    const settingsBtn = document.getElementById('settings-btn');
+    if (settingsBtn) {
+      console.log('settings-btn要素が見つかりました');
+      settingsBtn.addEventListener('click', () => {
+        console.log('設定ボタンがクリックされました');
+        this.showSettings();
+      });
+      console.log('設定ボタンのイベントリスナーを設定しました');
+    } else {
+      console.error('settings-btn要素が見つかりません');
+    }
+
+    // 設定ダイアログのイベントリスナー
+    this.setupSettingsEventListeners();
+  }
+
+  setupSettingsEventListeners() {
+    console.log('設定イベントリスナーをセットアップ中...');
+    
+    // APIキーフィールドのリアルタイム保存
+    const geminiApiKeyField = document.getElementById('gemini-api-key');
+    const claudeApiKeyField = document.getElementById('claude-api-key');
+    
+    if (geminiApiKeyField) {
+      // 複数のイベントで確実にキャプチャ
+      ['input', 'change', 'keyup', 'paste'].forEach(eventType => {
+        geminiApiKeyField.addEventListener(eventType, () => {
+          console.log(`Gemini APIキー${eventType}イベント発生、保存中...`);
+          console.log('フィールド値:', geminiApiKeyField.value);
+          if (typeof chrome !== 'undefined' && chrome.storage) {
+            chrome.storage.sync.set({
+              geminiApiKey: geminiApiKeyField.value
+            }, () => {
+              console.log('Gemini APIキーをChrome Storageに保存しました');
+            });
+          }
+        });
+      });
+      console.log('Gemini APIキーフィールドのリアルタイム保存を設定しました');
+    }
+    
+    if (claudeApiKeyField) {
+      // 複数のイベントで確実にキャプチャ
+      ['input', 'change', 'keyup', 'paste'].forEach(eventType => {
+        claudeApiKeyField.addEventListener(eventType, () => {
+          console.log(`Claude APIキー${eventType}イベント発生、保存中...`);
+          console.log('フィールド値:', claudeApiKeyField.value);
+          if (typeof chrome !== 'undefined' && chrome.storage) {
+            chrome.storage.sync.set({
+              claudeApiKey: claudeApiKeyField.value
+            }, () => {
+              console.log('Claude APIキーをChrome Storageに保存しました');
+            });
+          }
+        });
+      });
+      console.log('Claude APIキーフィールドのリアルタイム保存を設定しました');
+    }
+    
+    // 閉じるボタン
+    const closeBtn = document.getElementById('settings-close');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        console.log('設定閉じるボタンがクリックされました');
+        this.hideSettings();
+      });
+      console.log('設定閉じるボタンのイベントリスナーを設定しました');
+    } else {
+      console.error('settings-close要素が見つかりません');
+    }
+
+    // オーバーレイクリックで閉じる
+    const overlay = document.getElementById('settings-overlay');
+    if (overlay) {
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+          console.log('設定オーバーレイがクリックされました');
+          this.hideSettings();
+        }
+      });
+      console.log('設定オーバーレイのイベントリスナーを設定しました');
+    } else {
+      console.error('settings-overlay要素が見つかりません');
+    }
+
+    // 設定タブの切り替え
+    const settingsTabs = document.querySelectorAll('.settings-tab');
+    settingsTabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        const tabName = tab.dataset.tab;
+        this.switchSettingsTab(tabName);
+      });
+    });
+
+    // プロバイダータブの切り替え
+    const providerTabs = document.querySelectorAll('.ai-provider-tab');
+    providerTabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        const provider = tab.dataset.provider;
+        this.switchAIProvider(provider);
+      });
+    });
+
+    // パスワード表示切り替え
+    const geminiToggle = document.getElementById('gemini-password-toggle');
+    const claudeToggle = document.getElementById('claude-password-toggle');
+    
+    if (geminiToggle) {
+      geminiToggle.addEventListener('click', () => {
+        this.togglePassword('gemini-api-key', 'gemini-password-toggle');
+      });
+    }
+    
+    if (claudeToggle) {
+      claudeToggle.addEventListener('click', () => {
+        this.togglePassword('claude-api-key', 'claude-password-toggle');
+      });
+    }
+
+    // 保存ボタン
+    const saveBtn = document.getElementById('settings-save');
+    if (saveBtn) {
+      saveBtn.addEventListener('click', () => {
+        console.log('設定保存ボタンがクリックされました');
+        this.saveAllSettings();
+      });
+      console.log('設定保存ボタンのイベントリスナーを設定しました');
+    } else {
+      console.error('settings-save要素が見つかりません');
+    }
+
+    // 接続テストボタン
+    const geminiTestBtn = document.getElementById('gemini-test-btn');
+    const claudeTestBtn = document.getElementById('claude-test-btn');
+    
+    if (geminiTestBtn) {
+      geminiTestBtn.addEventListener('click', () => {
+        console.log('Gemini接続テストボタンがクリックされました');
+        this.testConnection('gemini');
+      });
+      console.log('Gemini接続テストボタンのイベントリスナーを設定しました');
+    } else {
+      console.error('gemini-test-btn要素が見つかりません');
+    }
+    
+    if (claudeTestBtn) {
+      claudeTestBtn.addEventListener('click', () => {
+        console.log('Claude接続テストボタンがクリックされました');
+        this.testConnection('claude');
+      });
+      console.log('Claude接続テストボタンのイベントリスナーを設定しました');
+    } else {
+      console.error('claude-test-btn要素が見つかりません');
+    }
+  }
+
+  showSettings() {
+    console.log('設定ダイアログの表示を開始...');
+    
+    // 設定ダイアログを表示
+    const overlay = document.getElementById('settings-overlay');
+    if (overlay) {
+      console.log('settings-overlay要素が見つかりました');
+      overlay.style.display = 'flex';
+      console.log('設定ダイアログを表示しました');
+      this.loadAllSettings();
+    } else {
+      console.error('settings-overlay要素が見つかりません');
+    }
+  }
+
+  showAISettings() {
+    // AI設定ダイアログを表示（旧関数、互換性のため残す）
+    this.showSettings();
+    // AI設定タブをアクティブにする
+    this.switchSettingsTab('ai');
+  }
+
+
+  // AI設定機能
+  loadAISettings() {
+    // Chrome Storage APIから設定を読み込み
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      chrome.storage.sync.get(['geminiApiKey', 'geminiModel', 'claudeApiKey', 'claudeModel'], (result) => {
+        // Gemini設定を復元
+        const geminiKey = document.getElementById('gemini-api-key');
+        const geminiModel = document.getElementById('gemini-model');
+        if (geminiKey) geminiKey.value = result.geminiApiKey || '';
+        if (geminiModel) geminiModel.value = result.geminiModel || 'gemini-2.5-pro';
+
+        // Claude設定を復元
+        const claudeKey = document.getElementById('claude-api-key');
+        const claudeModel = document.getElementById('claude-model');
+        if (claudeKey) claudeKey.value = result.claudeApiKey || '';
+        if (claudeModel) claudeModel.value = result.claudeModel || 'claude-3-5-sonnet-20241022';
+      });
+    }
+  }
+
+  async saveAISettings() {
+    // フォームから設定を取得
+    const geminiKey = document.getElementById('gemini-api-key')?.value || '';
+    const geminiModel = document.getElementById('gemini-model')?.value || 'gemini-2.5-pro';
+    const claudeKey = document.getElementById('claude-api-key')?.value || '';
+    const claudeModel = document.getElementById('claude-model')?.value || 'claude-3-5-sonnet-20241022';
+
+    // Chrome Storage APIに保存
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      chrome.storage.sync.set({
+        geminiApiKey: geminiKey,
+        geminiModel: geminiModel,
+        claudeApiKey: claudeKey,
+        claudeModel: claudeModel
+      }, async () => {
+        this.showAIMessage('設定を保存しました', 'success');
+        
+        // AICommandManagerの設定を再読み込み
+        if (window.aiCommandUI && window.aiCommandUI.commandManager) {
+          await window.aiCommandUI.commandManager.loadSettings();
+        }
+      });
+    } else {
+      this.showAIMessage('Chrome拡張機能でのみ設定を保存できます', 'error');
+    }
+  }
+
+  hideSettings() {
+    const overlay = document.getElementById('settings-overlay');
+    if (overlay) {
+      overlay.style.display = 'none';
+    }
+  }
+
+  hideAISettings() {
+    // 互換性のため残す
+    this.hideSettings();
+  }
+
+  switchSettingsTab(tabName) {
+    // タブの切り替え
+    const tabs = document.querySelectorAll('.settings-tab');
+    const contents = document.querySelectorAll('.settings-tab-content');
+    
+    tabs.forEach(tab => tab.classList.remove('active'));
+    contents.forEach(content => content.classList.remove('active'));
+    
+    const activeTab = document.querySelector(`[data-tab="${tabName}"]`);
+    const activeContent = document.getElementById(`${tabName}-tab`);
+    
+    if (activeTab) activeTab.classList.add('active');
+    if (activeContent) activeContent.classList.add('active');
+  }
+
+  loadAllSettings() {
+    // すべての設定を読み込み
+    this.loadAISettings();
+    this.loadEditorSettings();
+    this.loadExportSettings();
+  }
+
+  loadEditorSettings() {
+    // エディター設定を読み込み（将来実装）
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      chrome.storage.sync.get(['autoSave', 'wordWrap'], (result) => {
+        const autoSave = document.getElementById('auto-save');
+        const wordWrap = document.getElementById('word-wrap');
+        
+        if (autoSave) autoSave.checked = result.autoSave !== false; // デフォルトtrue
+        if (wordWrap) wordWrap.checked = result.wordWrap !== false; // デフォルトtrue
+      });
+    }
+  }
+
+  loadExportSettings() {
+    // エクスポート設定を読み込み（将来実装）
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      chrome.storage.sync.get(['defaultExportFormat'], (result) => {
+        const defaultFormat = document.getElementById('default-export-format');
+        if (defaultFormat) defaultFormat.value = result.defaultExportFormat || 'markdown';
+      });
+    }
+  }
+
+  async saveAllSettings() {
+    console.log('すべての設定を保存開始...');
+    
+    try {
+      // すべての設定を保存
+      await this.saveAISettings();
+      console.log('AI設定の保存完了');
+      
+      this.saveEditorSettings();
+      console.log('エディター設定の保存完了');
+      
+      this.saveExportSettings();
+      console.log('エクスポート設定の保存完了');
+      
+      this.showSettingsMessage('すべての設定を保存しました', 'success');
+      console.log('設定保存完了、メッセージを表示');
+    } catch (error) {
+      console.error('設定保存中にエラーが発生:', error);
+      this.showSettingsMessage('設定保存中にエラーが発生しました: ' + error.message, 'error');
+    }
+  }
+
+  saveEditorSettings() {
+    // エディター設定を保存
+    const autoSave = document.getElementById('auto-save')?.checked || false;
+    const wordWrap = document.getElementById('word-wrap')?.checked || false;
+
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      chrome.storage.sync.set({
+        autoSave: autoSave,
+        wordWrap: wordWrap
+      });
+    }
+  }
+
+  saveExportSettings() {
+    // エクスポート設定を保存
+    const defaultFormat = document.getElementById('default-export-format')?.value || 'markdown';
+
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      chrome.storage.sync.set({
+        defaultExportFormat: defaultFormat
+      });
+    }
+  }
+
+  showSettingsMessage(text, type = 'info') {
+    console.log(`設定メッセージを表示: "${text}" (${type})`);
+    
+    // 既存のメッセージを削除
+    const existing = document.querySelector('.settings-message');
+    if (existing) {
+      existing.remove();
+      console.log('既存のメッセージを削除しました');
+    }
+
+    const messageContainer = document.querySelector('.settings-body');
+    if (!messageContainer) {
+      console.error('.settings-body要素が見つかりません');
+      return;
+    }
+
+    const message = document.createElement('div');
+    message.className = `settings-message ${type}`;
+    message.innerHTML = `
+      <span>${this.getMessageIcon(type)}</span>
+      <span>${text}</span>
+    `;
+
+    messageContainer.insertBefore(message, messageContainer.firstChild);
+    console.log('メッセージを挿入しました:', message);
+
+    // 3秒後に自動削除
+    setTimeout(() => {
+      if (message.parentNode) {
+        message.remove();
+        console.log('メッセージを自動削除しました');
+      }
+    }, 3000);
+  }
+
+  switchAIProvider(provider) {
+    // タブの切り替え
+    const tabs = document.querySelectorAll('.ai-provider-tab');
+    const contents = document.querySelectorAll('.ai-provider-content');
+    
+    tabs.forEach(tab => tab.classList.remove('active'));
+    contents.forEach(content => content.classList.remove('active'));
+    
+    const activeTab = document.querySelector(`[data-provider="${provider}"]`);
+    const activeContent = document.getElementById(`${provider}-settings`);
+    
+    if (activeTab) activeTab.classList.add('active');
+    if (activeContent) activeContent.classList.add('active');
+  }
+
+  togglePassword(inputId, buttonId) {
+    const input = document.getElementById(inputId);
+    const button = document.getElementById(buttonId);
+    
+    if (input && button) {
+      if (input.type === 'password') {
+        input.type = 'text';
+        button.textContent = '🙈';
+      } else {
+        input.type = 'password';
+        button.textContent = '👁️';
+      }
+    }
+  }
+
+  async testConnection(provider) {
+    console.log(`${provider}の接続テストを開始...`);
+    
+    const button = document.getElementById(`${provider}-test-btn`);
+    if (!button) {
+      console.error(`${provider}-test-btn要素が見つかりません`);
+      return;
+    }
+
+    console.log('ローディング状態に変更...');
+    // ローディング状態に変更
+    button.classList.add('loading');
+    button.disabled = true;
+
+    try {
+      // APIキーフィールドの詳細な検証
+      const apiKeyField = document.getElementById(`${provider}-api-key`);
+      const modelField = document.getElementById(`${provider}-model`);
+      
+      console.log(`${provider}-api-key要素:`, !!apiKeyField);
+      console.log(`${provider}-model要素:`, !!modelField);
+      console.log(`要素の値:`, apiKeyField?.value);
+      console.log(`要素のtypeプロパティ:`, apiKeyField?.type);
+      console.log(`要素の表示状態:`, apiKeyField?.style.display);
+      console.log(`親要素の表示状態:`, apiKeyField?.parentElement?.style.display);
+      
+      // パスワードフィールドの値取得を強制する
+      if (apiKeyField?.type === 'password') {
+        console.log('パスワードフィールドを一時的にtextタイプに変更して値を取得します');
+        const originalType = apiKeyField.type;
+        apiKeyField.type = 'text';
+        const valueAfterTypeChange = apiKeyField.value;
+        apiKeyField.type = originalType;
+        console.log('タイプ変更後の値:', valueAfterTypeChange);
+      }
+      
+      if (!apiKeyField) {
+        console.error(`${provider}-api-key要素が見つかりません`);
+        this.showSettingsMessage('入力フィールドが見つかりません', 'error');
+        return;
+      }
+      
+      // APIキーの値を複数の方法で取得を試行
+      let apiKey = apiKeyField.value?.trim();
+      
+      // パスワードフィールドで値が空の場合の対処
+      if (!apiKey && apiKeyField?.type === 'password') {
+        console.log('パスワードフィールドから直接値を取得できません。代替方法を試行...');
+        // フィールドのvalueプロパティを直接読み取り
+        apiKey = apiKeyField.getAttribute('value') || '';
+        console.log('getAttribute()で取得した値:', apiKey);
+        
+        if (!apiKey) {
+          // ChromeのStorage APIから取得を試行
+          if (typeof chrome !== 'undefined' && chrome.storage) {
+            try {
+              const result = await new Promise((resolve) => {
+                chrome.storage.sync.get([`${provider}ApiKey`], resolve);
+              });
+              apiKey = result[`${provider}ApiKey`] || '';
+              console.log('Chrome Storageから取得した値:', apiKey);
+            } catch (error) {
+              console.error('Chrome Storageからの取得エラー:', error);
+            }
+          }
+        }
+      } else {
+        // パスワードフィールドでない場合でも、Chrome Storageから取得を試行
+        if (!apiKey && typeof chrome !== 'undefined' && chrome.storage) {
+          try {
+            const result = await new Promise((resolve) => {
+              chrome.storage.sync.get([`${provider}ApiKey`], resolve);
+            });
+            const storedKey = result[`${provider}ApiKey`] || '';
+            if (storedKey) {
+              apiKey = storedKey;
+              console.log('Chrome Storageから補完取得した値:', apiKey);
+            }
+          } catch (error) {
+            console.error('Chrome Storage補完取得エラー:', error);
+          }
+        }
+      }
+      
+      const model = modelField?.value || '';
+      
+      console.log(`最終的に取得したAPIキー長さ: ${apiKey?.length || 0}, 値の先頭: ${apiKey?.substring(0, 10)}...`);
+      console.log(`モデル: ${model}`);
+      
+      if (!apiKey || apiKey.length < 10) {
+        console.log('APIキーが空または短すぎます');
+        this.showSettingsMessage('有効なAPIキーを入力してください', 'error');
+        return;
+      }
+
+      console.log('実際の接続テストを実行中...');
+      
+      // 実際のAPI接続テストを実行
+      let testResult = false;
+      
+      if (provider === 'gemini') {
+        testResult = await this.testGeminiConnection(apiKey, model);
+      } else if (provider === 'claude') {
+        testResult = await this.testClaudeConnection(apiKey, model);
+      }
+      
+      if (testResult) {
+        this.showSettingsMessage(`${provider.toUpperCase()}への接続テストに成功しました`, 'success');
+        console.log('接続テスト成功');
+      } else {
+        this.showSettingsMessage(`${provider.toUpperCase()}への接続テストに失敗しました`, 'error');
+        console.log('接続テスト失敗');
+      }
+
+    } catch (error) {
+      console.error('接続テストエラー:', error);
+      this.showSettingsMessage(`接続テストに失敗しました: ${error.message}`, 'error');
+    } finally {
+      console.log('ローディング状態を解除...');
+      // ローディング状態を解除
+      button.classList.remove('loading');
+      button.disabled = false;
+    }
+  }
+
+  showAIMessage(text, type = 'info') {
+    // 既存のメッセージを削除
+    const existing = document.querySelector('.ai-message');
+    if (existing) {
+      existing.remove();
+    }
+
+    const messageContainer = document.querySelector('.ai-settings-body');
+    if (!messageContainer) return;
+
+    const message = document.createElement('div');
+    message.className = `ai-message ${type}`;
+    message.innerHTML = `
+      <span>${this.getMessageIcon(type)}</span>
+      <span>${text}</span>
+    `;
+
+    messageContainer.insertBefore(message, messageContainer.firstChild);
+
+    // 3秒後に自動削除
+    setTimeout(() => {
+      if (message.parentNode) {
+        message.remove();
+      }
+    }, 3000);
+  }
+
+  getMessageIcon(type) {
+    switch (type) {
+      case 'success': return '✅';
+      case 'error': return '❌';
+      case 'info': return 'ℹ️';
+      default: return 'ℹ️';
     }
   }
 
@@ -780,6 +1375,7 @@ class SimpleMarkdownEditor {
           <input type="text" id="linkUrl" value="${currentUrl}" class="edit-dialog-input">
         </div>
         <div class="edit-dialog-buttons">
+          <button id="openInNewTabBtn" class="edit-dialog-btn edit-dialog-btn-primary" style="margin-right: auto;">新しいタブで開く</button>
           <button id="cancelBtn" class="edit-dialog-btn edit-dialog-btn-cancel">キャンセル</button>
           <button id="okBtn" class="edit-dialog-btn edit-dialog-btn-ok">OK</button>
         </div>
@@ -810,6 +1406,14 @@ class SimpleMarkdownEditor {
 
     dialog.querySelector('#cancelBtn').onclick = () => {
       document.body.removeChild(dialog);
+    };
+
+    // 新しいタブで開くボタン
+    dialog.querySelector('#openInNewTabBtn').onclick = () => {
+      const url = urlInput.value.trim();
+      if (url) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
     };
 
     // Escapeキーでキャンセル
@@ -1044,9 +1648,535 @@ function setupTaskListEvents() {
   }
 }
 
-// エディターを初期化
+// AIコマンド機能の追加
+class AICommandUI {
+  constructor(editor) {
+    this.editor = editor;
+    this.commandManager = null;
+    this.currentSelectedText = '';
+    this.init();
+  }
+
+  async init() {
+    // AICommandManagerを動的にインポート
+    try {
+      const { getAICommandManager } = await import('../lib/ai-command-manager.js');
+      this.commandManager = getAICommandManager();
+      this.setupEventListeners();
+      this.renderCommandPanel();
+    } catch (error) {
+      console.error('AIコマンドマネージャーの読み込みに失敗しました:', error);
+    }
+  }
+
+  setupEventListeners() {
+    // AIコマンドボタンのクリックイベント
+    const aiCommandBtn = document.getElementById('ai-command-btn');
+    const modal = document.getElementById('ai-command-modal');
+    const closeBtn = document.getElementById('ai-command-close');
+
+    if (aiCommandBtn) {
+      aiCommandBtn.addEventListener('click', () => {
+        this.showCommandPanel();
+      });
+    }
+
+    // モーダルを閉じる
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        this.hideCommandPanel();
+      });
+    }
+
+    // モーダル背景クリックで閉じる
+    if (modal) {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+          this.hideCommandPanel();
+        }
+      });
+    }
+
+    // 入力ダイアログのイベント
+    const inputCancel = document.getElementById('command-input-cancel');
+    const inputConfirm = document.getElementById('command-input-confirm');
+
+    if (inputCancel) {
+      inputCancel.addEventListener('click', () => {
+        this.hideInputDialog();
+      });
+    }
+
+    if (inputConfirm) {
+      inputConfirm.addEventListener('click', () => {
+        this.confirmInput();
+      });
+    }
+  }
+
+  showCommandPanel() {
+    // 選択されたテキストを取得
+    this.currentSelectedText = this.getSelectedText();
+    
+    const modal = document.getElementById('ai-command-modal');
+    const preview = document.getElementById('selected-text-preview');
+    const content = document.getElementById('selected-text-content');
+
+    if (this.currentSelectedText) {
+      preview.style.display = 'block';
+      content.textContent = this.currentSelectedText;
+    } else {
+      preview.style.display = 'none';
+      this.currentSelectedText = this.editor.getCurrentContent();
+    }
+
+    modal.style.display = 'flex';
+  }
+
+  hideCommandPanel() {
+    const modal = document.getElementById('ai-command-modal');
+    modal.style.display = 'none';
+  }
+
+  renderCommandPanel() {
+    if (!this.commandManager) return;
+
+    const container = document.getElementById('ai-command-panel-content');
+    if (container) {
+      container.innerHTML = this.commandManager.generateCommandPanelHTML();
+      this.attachCommandListeners();
+    }
+  }
+
+  attachCommandListeners() {
+    const commandButtons = document.querySelectorAll('.command-button');
+    commandButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        const commandId = button.dataset.commandId;
+        this.executeCommand(commandId);
+      });
+    });
+  }
+
+  async executeCommand(commandId) {
+    if (!this.commandManager) return;
+
+    const command = this.commandManager.commands[commandId];
+    if (!command) return;
+
+    try {
+      let params = {};
+
+      // 入力が必要な場合
+      if (command.requiresInput) {
+        const inputValue = await this.showInputDialog(command.inputField);
+        if (inputValue === null) return; // キャンセルされた
+        params[command.inputField.name] = inputValue;
+      }
+
+      // ローディング表示
+      this.showLoading(true);
+
+      // コマンド実行
+      const result = await this.commandManager.executeCommand(
+        commandId, 
+        this.currentSelectedText, 
+        params
+      );
+
+      this.showLoading(false);
+
+      if (result.success) {
+        // 結果をエディターに反映
+        this.applyResult(result.result);
+        this.hideCommandPanel();
+      } else {
+        alert('エラーが発生しました: ' + result.error);
+      }
+
+    } catch (error) {
+      this.showLoading(false);
+      console.error('コマンド実行エラー:', error);
+      alert('コマンドの実行に失敗しました: ' + error.message);
+    }
+  }
+
+  showInputDialog(inputField) {
+    return new Promise((resolve) => {
+      const dialog = document.getElementById('command-input-dialog');
+      const title = document.getElementById('command-input-title');
+      const field = document.getElementById('command-input-field');
+
+      title.textContent = inputField.label;
+      field.value = inputField.default || '';
+      field.type = inputField.type || 'text';
+      field.placeholder = inputField.placeholder || '値を入力してください';
+
+      dialog.style.display = 'block';
+      field.focus();
+
+      this.inputResolve = resolve;
+    });
+  }
+
+  hideInputDialog() {
+    const dialog = document.getElementById('command-input-dialog');
+    dialog.style.display = 'none';
+    if (this.inputResolve) {
+      this.inputResolve(null);
+    }
+  }
+
+  confirmInput() {
+    const field = document.getElementById('command-input-field');
+    const value = field.value.trim();
+    
+    this.hideInputDialog();
+    if (this.inputResolve) {
+      this.inputResolve(value || null);
+    }
+  }
+
+  showLoading(show) {
+    const loading = document.getElementById('ai-command-loading');
+    if (loading) {
+      loading.style.display = show ? 'flex' : 'none';
+    }
+  }
+
+  getSelectedText() {
+    const selection = window.getSelection();
+    if (selection.rangeCount > 0) {
+      return selection.toString().trim();
+    }
+    return '';
+  }
+
+  applyResult(result) {
+    if (this.editor.isSourceMode) {
+      // ソースモードの場合
+      const sourceEditor = document.getElementById('source-editor');
+      if (this.currentSelectedText && sourceEditor.value.includes(this.currentSelectedText)) {
+        sourceEditor.value = sourceEditor.value.replace(this.currentSelectedText, result);
+      } else {
+        sourceEditor.value = result;
+      }
+    } else {
+      // WYSIWYGモードの場合
+      const wysiwygContent = document.getElementById('wysiwyg-content');
+      if (this.currentSelectedText) {
+        // 選択されたテキストを置換
+        const selection = window.getSelection();
+        if (selection.rangeCount > 0) {
+          const range = selection.getRangeAt(0);
+          range.deleteContents();
+          const textNode = document.createTextNode(result);
+          range.insertNode(textNode);
+          range.collapse(false);
+        }
+      } else {
+        // 全体を置換
+        wysiwygContent.innerHTML = this.editor.markdownToHtml(result);
+      }
+    }
+    
+    this.editor.updateWordCount();
+  }
+}
+
+// エクスポート機能の追加
+class ExportUI {
+  constructor(editor) {
+    this.editor = editor;
+    this.exportManager = null;
+    this.init();
+  }
+
+  async init() {
+    try {
+      const { getExportManager } = await import('../lib/export-manager.js');
+      this.exportManager = getExportManager();
+      this.setupEventListeners();
+      this.renderExportMenu();
+    } catch (error) {
+      console.error('エクスポートマネージャーの読み込みに失敗しました:', error);
+    }
+  }
+
+  setupEventListeners() {
+    const exportBtn = document.getElementById('export-btn');
+    const menu = document.getElementById('export-menu');
+    const closeBtn = document.getElementById('export-menu-close');
+
+    if (exportBtn) {
+      exportBtn.addEventListener('click', () => {
+        this.showExportMenu();
+      });
+    }
+
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        this.hideExportMenu();
+      });
+    }
+
+    if (menu) {
+      menu.addEventListener('click', (e) => {
+        if (e.target === menu) {
+          this.hideExportMenu();
+        }
+      });
+    }
+  }
+
+  showExportMenu() {
+    const menu = document.getElementById('export-menu');
+    menu.style.display = 'flex';
+  }
+
+  hideExportMenu() {
+    const menu = document.getElementById('export-menu');
+    menu.style.display = 'none';
+  }
+
+  renderExportMenu() {
+    if (!this.exportManager) return;
+
+    this.renderServiceCategories();
+  }
+
+  renderServiceCategories() {
+    const clipboardContainer = document.getElementById('clipboard-buttons');
+    const downloadContainer = document.getElementById('download-buttons');
+    
+    if (!clipboardContainer || !downloadContainer) return;
+
+    const serviceFormats = this.exportManager.getServiceOptimizedFormats();
+    
+    // クリップボード用（コピー&ペースト）
+    const clipboardServices = [];
+    const downloadServices = [];
+    
+    Object.values(serviceFormats).forEach(category => {
+      category.services.forEach(service => {
+        if (service.type === 'clipboard') {
+          clipboardServices.push({ ...service, categoryName: category.name });
+        } else if (service.type === 'download') {
+          downloadServices.push({ ...service, categoryName: category.name });
+        }
+      });
+    });
+
+    // クリップボード用サービス表示
+    clipboardContainer.innerHTML = this.generateServiceButtons(clipboardServices, 'clipboard');
+    
+    // ダウンロード用サービス表示
+    downloadContainer.innerHTML = this.generateServiceButtons(downloadServices, 'download');
+    
+    // イベントリスナーを追加
+    this.attachServiceEventListeners();
+  }
+
+  generateServiceButtons(services, type) {
+    return services.map(service => `
+      <button class="export-button" data-service-id="${service.id}" data-type="${type}" title="${service.description}">
+        <span class="export-button-icon">${service.icon}</span>
+        <div class="export-button-content">
+          <div class="export-button-name">${service.name}</div>
+          <div class="export-button-description">${service.description}</div>
+        </div>
+      </button>
+    `).join('');
+  }
+
+  attachServiceEventListeners() {
+    const allButtons = document.querySelectorAll('.export-button[data-service-id]');
+    allButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        const serviceId = button.dataset.serviceId;
+        const type = button.dataset.type;
+        if (type === 'clipboard') {
+          this.executeServiceExport(serviceId);
+        } else if (type === 'download') {
+          this.executeServiceDownload(serviceId);
+        }
+      });
+    });
+  }
+
+  async executeServiceExport(serviceId) {
+    if (!this.exportManager) return;
+
+    const content = this.editor.getCurrentContent();
+    const serviceFormats = this.exportManager.getServiceOptimizedFormats();
+    
+    // サービスを検索
+    let targetService = null;
+    Object.values(serviceFormats).forEach(category => {
+      const found = category.services.find(s => s.id === serviceId);
+      if (found) targetService = found;
+    });
+
+    if (!targetService) return;
+
+    try {
+      const success = await targetService.action(content);
+      if (success) {
+        this.showMessage(`${targetService.name}向けにクリップボードにコピーしました`, 'success');
+        this.hideExportMenu();
+      } else {
+        this.showMessage('クリップボードへのコピーに失敗しました', 'error');
+      }
+    } catch (error) {
+      console.error('サービスエクスポートエラー:', error);
+      this.showMessage('エクスポートに失敗しました: ' + error.message, 'error');
+    }
+  }
+
+  async executeServiceDownload(serviceId) {
+    if (!this.exportManager) return;
+
+    const content = this.editor.getCurrentContent();
+    const serviceFormats = this.exportManager.getServiceOptimizedFormats();
+    
+    // サービスを検索
+    let targetService = null;
+    Object.values(serviceFormats).forEach(category => {
+      const found = category.services.find(s => s.id === serviceId);
+      if (found) targetService = found;
+    });
+
+    if (!targetService) return;
+
+    try {
+      const filename = this.generateFilename(targetService.format);
+      await targetService.action(content, filename);
+      this.showMessage(`${targetService.name}をダウンロードしました`, 'success');
+      this.hideExportMenu();
+    } catch (error) {
+      console.error('ダウンロードエクスポートエラー:', error);
+      this.showMessage('ダウンロードに失敗しました: ' + error.message, 'error');
+    }
+  }
+
+  generateFilename(format) {
+    const baseName = this.editor.currentFileName || 'document';
+    const nameWithoutExt = baseName.replace(/\.[^/.]+$/, '');
+    
+    const extensions = {
+      'markdown': '.md',
+      'html': '.html',
+      'pdf': '.pdf',
+      'text': '.txt'
+    };
+
+    return nameWithoutExt + (extensions[format] || '.txt');
+  }
+
+  showMessage(text, type = 'success') {
+    const existing = document.querySelector('.export-message');
+    if (existing) {
+      existing.remove();
+    }
+
+    const message = document.createElement('div');
+    message.className = `export-message ${type}`;
+    message.textContent = text;
+    document.body.appendChild(message);
+
+    setTimeout(() => {
+      message.remove();
+    }, 3000);
+  }
+}
+
+// グローバルにUI機能を初期化
+let aiCommandUI = null;
+let exportUI = null;
+
+// エディター初期化後に機能を追加
 document.addEventListener('DOMContentLoaded', () => {
-  new SimpleMarkdownEditor();
+  const editor = new SimpleMarkdownEditor();
+  
+  // 機能の初期化
+  setTimeout(() => {
+    aiCommandUI = new AICommandUI(editor);
+    exportUI = new ExportUI(editor);
+    
+    // グローバルアクセス用
+    window.aiCommandUI = aiCommandUI;
+    window.exportUI = exportUI;
+  }, 100);
 });
+
+// API接続テスト関数をSimpleMarkdownEditorクラスに追加
+SimpleMarkdownEditor.prototype.testGeminiConnection = async function(apiKey, model) {
+  try {
+    console.log('Gemini API接続テスト開始...');
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: "こんにちは"
+          }]
+        }]
+      })
+    });
+
+    console.log('Gemini APIレスポンス状態:', response.status);
+    
+    if (response.ok) {
+      const data = await response.json();
+      console.log('Gemini API接続成功:', data);
+      return true;
+    } else {
+      console.error('Gemini API接続失敗:', response.status, response.statusText);
+      return false;
+    }
+  } catch (error) {
+    console.error('Gemini API接続エラー:', error);
+    return false;
+  }
+};
+
+SimpleMarkdownEditor.prototype.testClaudeConnection = async function(apiKey, model) {
+  try {
+    console.log('Claude API接続テスト開始...');
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: model,
+        max_tokens: 10,
+        messages: [{
+          role: 'user',
+          content: 'こんにちは'
+        }]
+      })
+    });
+
+    console.log('Claude APIレスポンス状態:', response.status);
+    
+    if (response.ok) {
+      const data = await response.json();
+      console.log('Claude API接続成功:', data);
+      return true;
+    } else {
+      console.error('Claude API接続失敗:', response.status, response.statusText);
+      return false;
+    }
+  } catch (error) {
+    console.error('Claude API接続エラー:', error);
+    return false;
+  }
+};
 
 export default SimpleMarkdownEditor;

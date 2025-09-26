@@ -829,7 +829,6 @@
       <button class="btn" id="save-file-btn" title="保存">💾 保存</button>
       <button class="btn" id="save-as-btn" title="名前を付けて保存">💾 名前付き保存</button>
       <button class="btn" id="export-btn">📤 エクスポート</button>
-      <button class="btn" id="ai-menu-btn">🤖 AI (未設定)</button>
       <button class="btn" id="settings-btn">⚙️ 設定</button>
     </div>
   </div>
@@ -880,6 +879,7 @@
         </div>
 
         <div class="toolbar-group">
+          <button class="toolbar-btn" id="ai-command-btn" title="AIコマンド">🤖 AI</button>
           <button class="toolbar-btn" id="toggle-mode-btn" title="WYSIWYG/ソース切り替え">🔄 モード</button>
           <button class="toolbar-btn" id="toc-btn" title="目次生成">📋 目次</button>
           <button class="toolbar-btn" id="help-btn" title="ヘルプ">❓ ヘルプ</button>
@@ -895,6 +895,303 @@
 
       <!-- ソースモード用のtextarea（非表示） -->
       <textarea id="source-editor"></textarea>
+    </div>
+  </div>
+
+  <!-- AIコマンドパネルモーダル -->
+  <div id="ai-command-modal" class="ai-command-modal" style="display: none;">
+    <div class="ai-command-container">
+      <div class="ai-command-header">
+        <div class="ai-command-title">
+          <span class="ai-command-title-icon">🤖</span>
+          AIコマンド選択
+        </div>
+        <button class="ai-command-close" id="ai-command-close">×</button>
+      </div>
+      <div class="ai-command-body">
+        <div class="selected-text-preview" id="selected-text-preview" style="display: none;">
+          <div class="selected-text-label">選択されたテキスト</div>
+          <div class="selected-text-content" id="selected-text-content"></div>
+        </div>
+        <div id="ai-command-panel-content">
+          <!-- AIコマンドマネージャーによって動的に生成される -->
+        </div>
+      </div>
+      <div class="ai-command-loading" id="ai-command-loading" style="display: none;">
+        <div class="ai-command-spinner"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 入力ダイアログ -->
+  <div id="command-input-dialog" class="command-input-dialog" style="display: none;">
+    <div class="command-input-title" id="command-input-title">パラメータ入力</div>
+    <input type="text" class="command-input-field" id="command-input-field" placeholder="値を入力してください">
+    <div class="command-input-buttons">
+      <button class="command-input-cancel" id="command-input-cancel">キャンセル</button>
+      <button class="command-input-confirm" id="command-input-confirm">実行</button>
+    </div>
+  </div>
+
+  <!-- AI設定ダイアログ -->
+  <div id="ai-settings-modal" class="ai-settings-modal" style="display: none;">
+    <div class="ai-settings-container">
+      <div class="ai-settings-header">
+        <h3>🤖 AI設定</h3>
+        <button class="ai-settings-close" id="ai-settings-close">×</button>
+      </div>
+      <div class="ai-settings-body">
+        <div class="ai-settings-section">
+          <h4>🔑 APIキー設定</h4>
+          <div class="ai-provider-tabs">
+            <button class="ai-tab-btn active" data-provider="gemini">Gemini API</button>
+            <button class="ai-tab-btn" data-provider="claude">Claude API</button>
+          </div>
+          
+          <!-- Gemini設定 -->
+          <div class="ai-provider-panel active" id="gemini-panel">
+            <div class="form-group">
+              <label for="gemini-api-key">Gemini APIキー:</label>
+              <input type="text" id="gemini-api-key" class="api-key-input" placeholder="AIzaSy...">
+              <button type="button" class="toggle-password" data-target="gemini-api-key">👁️</button>
+            </div>
+            <div class="form-group">
+              <label for="gemini-model">モデル選択:</label>
+              <select id="gemini-model" class="ai-form-select">
+                <option value="gemini-2.0-flash-exp">Gemini 2.0 Flash (実験版・最新・無料枠あり)</option>
+                <option value="gemini-2.0-flash">Gemini 2.0 Flash (無料枠あり)</option>
+                <option value="gemini-2.5-pro" selected>Gemini 2.5 Pro (無料枠あり・推奨)</option>
+                <option value="gemini-1.5-flash">Gemini 1.5 Flash (無料枠あり・高速)</option>
+                <option value="gemini-1.5-pro">Gemini 1.5 Pro (無料枠あり)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Claude設定 -->
+          <div class="ai-provider-panel" id="claude-panel">
+            <div class="form-group">
+              <label for="claude-api-key">Claude APIキー:</label>
+              <input type="text" id="claude-api-key" class="api-key-input" placeholder="sk-ant-...">
+              <button type="button" class="toggle-password" data-target="claude-api-key">👁️</button>
+            </div>
+            <div class="form-group">
+              <label for="claude-model">モデル選択:</label>
+              <select id="claude-model" class="ai-form-select">
+                <option value="claude-3-5-sonnet-20241022" selected>Claude 3.5 Sonnet (最新・2024年10月版)</option>
+                <option value="claude-3-5-haiku-20241022">Claude 3.5 Haiku (最新・高速・2024年10月版)</option>
+                <option value="claude-3-opus-20240229">Claude 3 Opus (高性能)</option>
+                <option value="claude-3-sonnet-20240229">Claude 3 Sonnet</option>
+                <option value="claude-3-haiku-20240307">Claude 3 Haiku (高速)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="default-provider">既定のAIプロバイダー:</label>
+            <select id="default-provider" class="provider-select">
+              <option value="gemini">Gemini (Google)</option>
+              <option value="claude">Claude (Anthropic)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="ai-settings-section">
+          <h4>ℹ️ 取得方法</h4>
+          <div class="api-info">
+            <div class="api-info-item">
+              <strong>Gemini API:</strong>
+              <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio</a>
+              で無料取得可能
+            </div>
+            <div class="api-info-item">
+              <strong>Claude API:</strong>
+              <a href="https://console.anthropic.com/" target="_blank">Anthropic Console</a>
+              で取得（有料）
+            </div>
+          </div>
+        </div>
+
+        <div class="ai-settings-actions">
+          <button class="ai-settings-test" id="ai-settings-test">🧪 接続テスト</button>
+          <button class="ai-settings-save" id="ai-settings-save">💾 設定保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- エクスポートメニュー -->
+  <div id="export-menu" class="export-menu" style="display: none;">
+    <div class="export-menu-container">
+      <div class="export-menu-header">
+        <h3>📤 エクスポート・コピー</h3>
+        <button class="export-menu-close" id="export-menu-close">×</button>
+      </div>
+      <div class="export-menu-body">
+        <div class="export-section">
+          <h4>📋 サービス別コピー&ペースト</h4>
+          <p class="export-section-desc">各サービスに最適化されたフォーマットでクリップボードにコピー</p>
+          <div class="export-buttons" id="clipboard-buttons">
+            <!-- JavaScript で動的生成 -->
+          </div>
+        </div>
+        <div class="export-section">
+          <h4>💾 ファイル保存</h4>
+          <p class="export-section-desc">各種ファイル形式でダウンロード保存</p>
+          <div class="export-buttons" id="download-buttons">
+            <!-- JavaScript で動的生成 -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 設定ダイアログ -->
+  <div id="settings-overlay" class="settings-overlay" style="display: none;">
+    <div class="settings-dialog">
+      <div class="settings-header">
+        <h3>⚙️ 設定</h3>
+        <button id="settings-close" class="settings-close">&times;</button>
+      </div>
+      <div class="settings-body">
+        
+        <!-- 設定カテゴリータブ -->
+        <div class="settings-tabs">
+          <button class="settings-tab active" data-tab="ai">
+            <span>🤖 AI設定</span>
+          </button>
+          <button class="settings-tab" data-tab="editor">
+            <span>📝 エディター</span>
+          </button>
+          <button class="settings-tab" data-tab="export">
+            <span>📤 エクスポート</span>
+          </button>
+        </div>
+
+        <!-- AI設定タブ -->
+        <div id="ai-tab" class="settings-tab-content active">
+          <h4>AI設定</h4>
+          
+          <!-- プロバイダータブ -->
+          <div class="ai-provider-tabs">
+            <button class="ai-provider-tab active" data-provider="gemini">
+              <span>🧠 Gemini</span>
+            </button>
+            <button class="ai-provider-tab" data-provider="claude">
+              <span>🤖 Claude</span>
+            </button>
+          </div>
+
+          <!-- Gemini設定 -->
+          <div id="gemini-settings" class="ai-provider-content active">
+            <div class="ai-api-info">
+              <h4>Google Gemini API</h4>
+              <p>Google AI Studio でAPIキーを取得してください。無料枠が利用可能です。</p>
+              <a href="https://aistudio.google.com/app/apikey" target="_blank" class="ai-api-link">
+                APIキーを取得 ↗️
+              </a>
+            </div>
+            
+            <div class="ai-form-group">
+              <label for="gemini-api-key" class="ai-form-label">APIキー:</label>
+              <div class="ai-password-group">
+                <input type="text" id="gemini-api-key" class="ai-form-input" placeholder="Gemini APIキーを入力">
+                <button type="button" id="gemini-password-toggle" class="ai-password-toggle">👁️</button>
+              </div>
+            </div>
+            
+            <div class="ai-form-group">
+              <label for="gemini-model" class="ai-form-label">モデル選択:</label>
+              <select id="gemini-model" class="ai-form-select">
+                <option value="gemini-2.0-flash-exp">Gemini 2.0 Flash (実験版・最新・無料枠あり)</option>
+                <option value="gemini-2.0-flash">Gemini 2.0 Flash (無料枠あり)</option>
+                <option value="gemini-2.5-pro" selected>Gemini 2.5 Pro (無料枠あり・推奨)</option>
+                <option value="gemini-1.5-flash">Gemini 1.5 Flash (無料枠あり・高速)</option>
+                <option value="gemini-1.5-pro">Gemini 1.5 Pro (無料枠あり)</option>
+              </select>
+            </div>
+            
+            <button id="gemini-test-btn" class="ai-button ai-button-secondary ai-test-button">
+              🔍 接続テスト
+            </button>
+          </div>
+
+          <!-- Claude設定 -->
+          <div id="claude-settings" class="ai-provider-content">
+            <div class="ai-api-info">
+              <h4>Anthropic Claude API</h4>
+              <p>Anthropic Console でAPIキーを取得してください。従量課金制です。</p>
+              <a href="https://console.anthropic.com/keys" target="_blank" class="ai-api-link">
+                APIキーを取得 ↗️
+              </a>
+            </div>
+            
+            <div class="ai-form-group">
+              <label for="claude-api-key" class="ai-form-label">APIキー:</label>
+              <div class="ai-password-group">
+                <input type="text" id="claude-api-key" class="ai-form-input" placeholder="Claude APIキーを入力">
+                <button type="button" id="claude-password-toggle" class="ai-password-toggle">👁️</button>
+              </div>
+            </div>
+            
+            <div class="ai-form-group">
+              <label for="claude-model" class="ai-form-label">モデル選択:</label>
+              <select id="claude-model" class="ai-form-select">
+                <option value="claude-3-5-sonnet-20241022" selected>Claude 3.5 Sonnet (最新・2024年10月版)</option>
+                <option value="claude-3-5-haiku-20241022">Claude 3.5 Haiku (最新・高速・2024年10月版)</option>
+                <option value="claude-3-opus-20240229">Claude 3 Opus (高性能)</option>
+                <option value="claude-3-sonnet-20240229">Claude 3 Sonnet</option>
+                <option value="claude-3-haiku-20240307">Claude 3 Haiku (高速)</option>
+              </select>
+            </div>
+            
+            <button id="claude-test-btn" class="ai-button ai-button-secondary ai-test-button">
+              🔍 接続テスト
+            </button>
+          </div>
+        </div>
+
+        <!-- エディター設定タブ -->
+        <div id="editor-tab" class="settings-tab-content">
+          <h4>エディター設定</h4>
+          <p>エディターの動作設定（今後実装予定）</p>
+          
+          <div class="settings-form-group">
+            <label>
+              <input type="checkbox" id="auto-save" checked>
+              自動保存を有効にする
+            </label>
+          </div>
+          
+          <div class="settings-form-group">
+            <label>
+              <input type="checkbox" id="word-wrap" checked>
+              行の折り返しを有効にする
+            </label>
+          </div>
+        </div>
+
+        <!-- エクスポート設定タブ -->
+        <div id="export-tab" class="settings-tab-content">
+          <h4>エクスポート設定</h4>
+          <p>エクスポート機能の設定（今後実装予定）</p>
+          
+          <div class="settings-form-group">
+            <label for="default-export-format">デフォルトエクスポート形式:</label>
+            <select id="default-export-format" class="settings-form-select">
+              <option value="markdown">Markdown</option>
+              <option value="html">HTML</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 保存ボタン -->
+        <div class="settings-button-group">
+          <button id="settings-save" class="settings-button settings-button-primary">
+            💾 設定を保存
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 

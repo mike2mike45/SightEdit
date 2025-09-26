@@ -71,9 +71,10 @@ export class AIManager {
 
     async loadSettings() {
         try {
-            const result = await chrome.storage.local.get(['aiSettings']);
-            if (result.aiSettings) {
-                this.settings = { ...this.settings, ...result.aiSettings };
+            // Chrome Storage APIから設定を読み込み（AI設定ダイアログ用）
+            const result = await this.getChromeStorageSettings();
+            if (result) {
+                this.settings = { ...this.settings, ...result };
             }
 
             // selectedModelが設定されていない場合や、現在のプロバイダーに対応していない場合はデフォルトを設定
@@ -85,6 +86,39 @@ export class AIManager {
         } catch (error) {
             console.error('AI設定の読み込みに失敗:', error);
         }
+    }
+
+    async getChromeStorageSettings() {
+        if (typeof chrome !== 'undefined' && chrome.storage) {
+            return new Promise((resolve) => {
+                chrome.storage.sync.get(['geminiApiKey', 'geminiModel', 'claudeApiKey', 'claudeModel'], (result) => {
+                    const settings = {};
+                    
+                    if (result.geminiApiKey) {
+                        settings.geminiApiKey = result.geminiApiKey;
+                    }
+                    if (result.claudeApiKey) {
+                        settings.claudeApiKey = result.claudeApiKey;
+                    }
+                    
+                    // プロバイダーの判定
+                    if (result.geminiApiKey && !result.claudeApiKey) {
+                        settings.aiProvider = 'gemini';
+                        settings.selectedModel = result.geminiModel || 'gemini-2.5-pro';
+                    } else if (!result.geminiApiKey && result.claudeApiKey) {
+                        settings.aiProvider = 'claude';
+                        settings.selectedModel = result.claudeModel || 'claude-3-5-sonnet-20241022';
+                    } else if (result.geminiApiKey && result.claudeApiKey) {
+                        // 両方設定されている場合はGeminiを優先（デフォルト）
+                        settings.aiProvider = 'gemini';
+                        settings.selectedModel = result.geminiModel || 'gemini-2.5-pro';
+                    }
+                    
+                    resolve(settings);
+                });
+            });
+        }
+        return null;
     }
 
     async saveSettings(externalSettings = null) {
@@ -113,26 +147,14 @@ export class AIManager {
     }
 
     updateAIButton() {
-        const button = document.getElementById('ai-menu-btn');
-        if (button) {
-            const hasKey = this.settings.geminiApiKey || this.settings.claudeApiKey;
-            const provider = this.settings.aiProvider;
-            const model = this.getCurrentModel();
-
-            console.log('AIボタン更新:', { provider, selectedModel: this.settings.selectedModel, modelName: model.name });
-
-            if (hasKey) {
-                // モデル名を短縮して表示
-                const shortModelName = this.getShortModelName(model.name);
-                button.textContent = `🤖 AI (${shortModelName})`;
-                button.title = `AIプロバイダー: ${provider.toUpperCase()}\nモデル: ${model.name}\n使用料金: ${this.getModelPricing(provider, this.settings.selectedModel)}`;
-            } else {
-                button.textContent = '🤖 AI (未設定)';
-                button.title = 'AIを使用するにはAPIキーの設定が必要です';
-            }
-        } else {
-            console.warn('ai-menu-btnが見つかりません');
-        }
+        // AI表示ボタンは削除されたため、この機能は無効化
+        // 設定は正常に保存・読み込みされるが、UIの更新は行わない
+        console.log('AI設定更新:', { 
+            provider: this.settings.aiProvider, 
+            selectedModel: this.settings.selectedModel,
+            hasGeminiKey: !!this.settings.geminiApiKey,
+            hasClaudeKey: !!this.settings.claudeApiKey
+        });
     }
 
     getCurrentModel() {

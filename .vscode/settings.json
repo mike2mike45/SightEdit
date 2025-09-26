@@ -1,0 +1,9 @@
+{
+  "claude.enabled": true,
+  "claude.contextFiles": [
+    "CLAUDE.md",
+    ".kiro/steering/**/*.md"
+  ],
+  "terminal.integrated.cwd": "${workspaceFolder}",
+  "terminal.integrated.defaultProfile.windows": "Git Bash"
+}

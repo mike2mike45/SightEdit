@@ -1,0 +1,380 @@
+/* AI設定ダイアログのスタイル */
+
+.ai-settings-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    animation: fadeIn 0.2s ease-in-out;
+}
+
+.ai-settings-dialog {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+    width: 90%;
+    max-width: 500px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    animation: slideUp 0.3s ease-out;
+}
+
+.ai-settings-header {
+    padding: 20px;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.ai-settings-header h3 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+    color: #1f2937;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ai-settings-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: #6b7280;
+    cursor: pointer;
+    padding: 4px;
+    line-height: 1;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.ai-settings-close:hover {
+    background: #f3f4f6;
+    color: #1f2937;
+}
+
+.ai-settings-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+}
+
+/* タブナビゲーション */
+.ai-provider-tabs {
+    display: flex;
+    border-bottom: 1px solid #e5e7eb;
+    margin-bottom: 20px;
+}
+
+.ai-provider-tab {
+    flex: 1;
+    padding: 12px 20px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    color: #6b7280;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.ai-provider-tab.active {
+    color: #3b82f6;
+    border-bottom-color: #3b82f6;
+}
+
+.ai-provider-tab:hover {
+    background: #f9fafb;
+    color: #1f2937;
+}
+
+/* タブコンテンツ */
+.ai-provider-content {
+    display: none;
+}
+
+.ai-provider-content.active {
+    display: block;
+}
+
+/* フォームスタイル */
+.ai-form-group {
+    margin-bottom: 20px;
+}
+
+.ai-form-label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #374151;
+}
+
+.ai-form-input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 14px;
+    color: #1f2937;
+    transition: border-color 0.2s;
+    box-sizing: border-box;
+}
+
+.ai-form-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    ring: 2px;
+    ring-color: rgba(59, 130, 246, 0.1);
+}
+
+.ai-form-select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 14px;
+    color: #1f2937;
+    background: white;
+    cursor: pointer;
+    transition: border-color 0.2s;
+    box-sizing: border-box;
+}
+
+.ai-form-select:focus {
+    outline: none;
+    border-color: #3b82f6;
+}
+
+/* パスワード入力フィールド */
+.ai-password-group {
+    position: relative;
+}
+
+.ai-password-toggle {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: #6b7280;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 2px;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.ai-password-toggle:hover {
+    color: #374151;
+    background: #f3f4f6;
+}
+
+/* API情報セクション */
+.ai-api-info {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 20px;
+}
+
+.ai-api-info h4 {
+    margin: 0 0 8px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #374151;
+}
+
+.ai-api-info p {
+    margin: 0 0 12px 0;
+    font-size: 13px;
+    color: #6b7280;
+    line-height: 1.4;
+}
+
+.ai-api-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: #3b82f6;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    transition: color 0.2s;
+}
+
+.ai-api-link:hover {
+    color: #1d4ed8;
+    text-decoration: underline;
+}
+
+/* ボタンスタイル */
+.ai-button-group {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+}
+
+.ai-button {
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ai-button-primary {
+    background: #3b82f6;
+    color: white;
+    border-color: #3b82f6;
+}
+
+.ai-button-primary:hover {
+    background: #2563eb;
+    border-color: #2563eb;
+}
+
+.ai-button-secondary {
+    background: white;
+    color: #374151;
+    border-color: #d1d5db;
+}
+
+.ai-button-secondary:hover {
+    background: #f9fafb;
+    border-color: #9ca3af;
+}
+
+.ai-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* 接続テストボタン */
+.ai-test-button {
+    width: 100%;
+    margin-top: 16px;
+}
+
+/* ローディング状態 */
+.ai-button.loading {
+    pointer-events: none;
+}
+
+.ai-button.loading::after {
+    content: '';
+    width: 16px;
+    height: 16px;
+    border: 2px solid transparent;
+    border-top: 2px solid currentColor;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-left: 8px;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 640px) {
+    .ai-settings-dialog {
+        width: 95%;
+        max-height: 90vh;
+    }
+    
+    .ai-settings-header {
+        padding: 16px;
+    }
+    
+    .ai-settings-body {
+        padding: 16px;
+    }
+    
+    .ai-button-group {
+        flex-direction: column;
+    }
+    
+    .ai-provider-tab {
+        padding: 10px 16px;
+        font-size: 13px;
+    }
+}
+
+/* 成功・エラーメッセージ */
+.ai-message {
+    padding: 12px 16px;
+    border-radius: 6px;
+    margin-bottom: 16px;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    animation: slideDown 0.3s ease-out;
+}
+
+.ai-message.success {
+    background: #dcfce7;
+    color: #166534;
+    border: 1px solid #bbf7d0;
+}
+
+.ai-message.error {
+    background: #fef2f2;
+    color: #dc2626;
+    border: 1px solid #fecaca;
+}
+
+.ai-message.info {
+    background: #dbeafe;
+    color: #1e40af;
+    border: 1px solid #bfdbfe;
+}
+
+@keyframes slideDown {
+    from {
+        transform: translateY(-10px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
