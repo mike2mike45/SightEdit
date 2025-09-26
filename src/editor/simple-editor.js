@@ -375,6 +375,9 @@ class SimpleMarkdownEditor {
     this.setupToolbar();
     this.setupEventListeners();
     
+    // URLパラメータによるファイル読み込みを追加
+    this.handleURLFileParameter();
+    
     // DOM要素が確実に存在することを確認してからボタンをセットアップ
     setTimeout(() => {
       console.log('DOM要素の存在確認:');
@@ -1616,6 +1619,217 @@ class SimpleMarkdownEditor {
 
     selection.removeAllRanges();
     selection.addRange(range);
+  }
+
+  // URLパラメータ処理
+  handleURLFileParameter() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const fileUrl = urlParams.get('file');
+    
+    if (fileUrl) {
+      // セキュリティチェック: localhostのみ許可
+      if (!fileUrl.startsWith('http://localhost:') && !fileUrl.startsWith('https://localhost:')) {
+        console.warn('セキュリティ警告: localhost以外のURLは許可されていません:', fileUrl);
+        this.showModal('セキュリティエラー', 
+          'セキュリティ上の理由により、localhost以外のURLからのファイル読み込みは許可されていません。');
+        return;
+      }
+      
+      // URLの妥当性検証
+      try {
+        new URL(fileUrl);
+      } catch (error) {
+        console.error('無効なURL形式:', fileUrl);
+        this.showModal('URLエラー', 
+          '無効なURL形式です。正しいURLを指定してください。');
+        return;
+      }
+      
+      console.log('外部ファイルURLが指定されました:', fileUrl);
+      this.loadFileFromURL(fileUrl);
+    }
+  }
+
+  // HTTP経由でのファイル取得
+  async loadFileFromURL(fileUrl) {
+    try {
+      console.log('ファイルを取得中:', fileUrl);
+      
+      // タイムアウト設定付きfetch
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒タイムアウト
+      
+      // CORS対応のfetchオプション
+      const response = await fetch(fileUrl, {
+        method: 'GET',
+        mode: 'cors',
+        cache: 'no-cache',
+        signal: controller.signal,
+        headers: {
+          'Accept': 'text/plain,text/markdown,text/*,*/*'
+        }
+      });
+      
+      clearTimeout(timeoutId);
+      
+      // HTTPステータスチェック
+      if (!response.ok) {
+        let statusMessage = '';
+        switch (response.status) {
+          case 404:
+            statusMessage = 'ファイルが見つかりません（404）';
+            break;
+          case 403:
+            statusMessage = 'ファイルへのアクセスが拒否されました（403）';
+            break;
+          case 500:
+            statusMessage = 'サーバー内部エラーが発生しました（500）';
+            break;
+          case 502:
+          case 503:
+            statusMessage = 'サーバーが一時的に利用できません';
+            break;
+          default:
+            statusMessage = `サーバーエラー: ${response.status} ${response.statusText}`;
+        }
+        throw new Error(statusMessage);
+      }
+      
+      // Content-Typeチェック
+      const contentType = response.headers.get('content-type');
+      if (contentType && !contentType.includes('text/') && !contentType.includes('application/')) {
+        console.warn('警告: テキストファイル以外の可能性があります:', contentType);
+      }
+      
+      const content = await response.text();
+      console.log('ファイル取得成功、コンテンツ長:', content.length);
+      
+      // コンテンツサイズの検証
+      const maxSize = await this.getMaxFileSize();
+      if (content.length > maxSize) {
+        const sizeMB = Math.round(content.length / 1024 / 1024 * 10) / 10;
+        const limitMB = Math.round(maxSize / 1024 / 1024);
+        throw new Error(`ファイルサイズが大きすぎます（${sizeMB}MB > ${limitMB}MB制限）`);
+      }
+      
+      // 空ファイルチェック
+      if (content.length === 0) {
+        console.warn('警告: 空のファイルです');
+        this.showModal('ファイル読み込み警告', 
+          'ファイルは空です。内容がないファイルが読み込まれました。');
+      }
+      
+      // エディターにコンテンツを設定
+      if (this.isSourceMode) {
+        const sourceEditor = document.getElementById('source-editor');
+        sourceEditor.value = content;
+      } else {
+        const wysiwygContent = document.getElementById('wysiwyg-content');
+        if (wysiwygContent) {
+          wysiwygContent.innerHTML = this.markdownToHtml(content);
+          setupTaskListEvents();
+        }
+      }
+      
+      // ファイル名を推定して設定
+      const filename = this.extractFilenameFromURL(fileUrl);
+      this.currentFileName = filename;
+      this.updateWordCount();
+      
+      console.log('外部ファイルの読み込み完了:', filename);
+      
+      // 成功メッセージを表示（オプション）
+      const statusElement = document.getElementById('word-count');
+      if (statusElement) {
+        const originalText = statusElement.textContent;
+        statusElement.textContent = `✅ ${filename} を読み込み完了`;
+        setTimeout(() => {
+          this.updateWordCount(); // 元の表示に戻す
+        }, 3000);
+      }
+      
+    } catch (error) {
+      // 詳細なエラーメッセージとユーザー向けガイダンス
+      let errorMessage = '';
+      let userGuidance = '';
+      
+      if (error.name === 'AbortError') {
+        errorMessage = 'ファイル読み込みがタイムアウトしました（30秒）';
+        userGuidance = '• 中継アプリが起動しているか確認してください<br>• ネットワーク接続を確認してください';
+      } else if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        errorMessage = 'ネットワークエラー: 中継アプリが起動していない可能性があります';
+        userGuidance = '• SightEditRelay.exeが起動しているか確認してください<br>• ポート8080が使用可能か確認してください';
+      } else if (error.message.includes('CORS')) {
+        errorMessage = 'CORS エラー: 中継アプリのCORS設定を確認してください';
+        userGuidance = '• 中継アプリの設定でCORSが有効になっているか確認してください';
+      } else if (error.message.includes('ファイルが見つかりません')) {
+        errorMessage = error.message;
+        userGuidance = '• ファイルパスが正しいか確認してください<br>• ファイルが存在するか確認してください';
+      } else {
+        errorMessage = error.message;
+        userGuidance = '• 中継アプリとの接続を確認してください<br>• ファイルパスとファイル形式を確認してください';
+      }
+      
+      console.error('外部ファイル読み込みエラー:', error);
+      this.showModal('ファイル読み込みエラー', 
+        `<div style="margin-bottom: 15px;"><strong>${errorMessage}</strong></div>
+         <div style="color: #666; font-size: 14px;">
+           <strong>解決方法:</strong><br>
+           ${userGuidance}
+         </div>`);
+    }
+  }
+
+  // URLからファイル名を抽出
+  extractFilenameFromURL(url) {
+    try {
+      const urlObj = new URL(url);
+      const pathname = urlObj.pathname;
+      const filename = pathname.split('/').pop();
+      return filename || 'external-file.md';
+    } catch {
+      return 'external-file.md';
+    }
+  }
+
+  // ファイルサイズ制限を取得
+  async getMaxFileSize() {
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      try {
+        const result = await new Promise((resolve) => {
+          chrome.storage.sync.get(['maxFileSize'], resolve);
+        });
+        
+        const maxSize = result.maxFileSize;
+        if (maxSize && typeof maxSize === 'number' && maxSize > 0) {
+          // 最小1MB、最大100MBに制限
+          return Math.max(1024 * 1024, Math.min(maxSize, 100 * 1024 * 1024));
+        }
+      } catch (error) {
+        console.warn('ファイルサイズ制限の設定取得に失敗:', error);
+      }
+    }
+    
+    // デフォルト10MB
+    return 10 * 1024 * 1024;
+  }
+
+  // ファイルサイズ制限を設定
+  async setMaxFileSize(sizeInMB) {
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      const sizeInBytes = Math.max(1, Math.min(sizeInMB, 100)) * 1024 * 1024;
+      try {
+        await new Promise((resolve) => {
+          chrome.storage.sync.set({ maxFileSize: sizeInBytes }, resolve);
+        });
+        console.log(`ファイルサイズ制限を${sizeInMB}MBに設定しました`);
+        return true;
+      } catch (error) {
+        console.error('ファイルサイズ制限の設定に失敗:', error);
+        return false;
+      }
+    }
+    return false;
   }
 }
 
