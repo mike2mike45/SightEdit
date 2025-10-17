@@ -1,0 +1,10 @@
+c:\Users\mscat\OneDrive\デスクトップ\SightEdit用C#中継アプリケーション\bin\Debug\net48\SightEditRelay.exe.config
+c:\Users\mscat\OneDrive\デスクトップ\SightEdit用C#中継アプリケーション\bin\Debug\net48\SightEditRelay.exe
+c:\Users\mscat\OneDrive\デスクトップ\SightEdit用C#中継アプリケーション\bin\Debug\net48\SightEditRelay.pdb
+c:\Users\mscat\OneDrive\デスクトップ\SightEdit用C#中継アプリケーション\obj\Debug\net48\SightEditRelay.csproj.AssemblyReference.cache
+c:\Users\mscat\OneDrive\デスクトップ\SightEdit用C#中継アプリケーション\obj\Debug\net48\SightEditRelay.GeneratedMSBuildEditorConfig.editorconfig
+c:\Users\mscat\OneDrive\デスクトップ\SightEdit用C#中継アプリケーション\obj\Debug\net48\SightEditRelay.AssemblyInfoInputs.cache
+c:\Users\mscat\OneDrive\デスクトップ\SightEdit用C#中継アプリケーション\obj\Debug\net48\SightEditRelay.AssemblyInfo.cs
+c:\Users\mscat\OneDrive\デスクトップ\SightEdit用C#中継アプリケーション\obj\Debug\net48\SightEditRelay.csproj.CoreCompileInputs.cache
+c:\Users\mscat\OneDrive\デスクトップ\SightEdit用C#中継アプリケーション\obj\Debug\net48\SightEditRelay.exe
+c:\Users\mscat\OneDrive\デスクトップ\SightEdit用C#中継アプリケーション\obj\Debug\net48\SightEditRelay.pdb

@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "dgSpecHash": "OQp6y+TJe2k=",
+  "success": true,
+  "projectFilePath": "C:\\Users\\mscat\\OneDrive\\ドキュメント\\GitHub\\SightEdit\\SightEdit用C#中継アプリケーション\\SightEditRelay.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\mscat\\.nuget\\packages\\microsoft.netframework.referenceassemblies\\1.0.3\\microsoft.netframework.referenceassemblies.1.0.3.nupkg.sha512",
+    "C:\\Users\\mscat\\.nuget\\packages\\microsoft.netframework.referenceassemblies.net48\\1.0.3\\microsoft.netframework.referenceassemblies.net48.1.0.3.nupkg.sha512"
+  ],
+  "logs": []
+}
