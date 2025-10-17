@@ -2,6 +2,28 @@
 
 Chrome拡張版SightEdit - TipTapベースのWYSIWYG Markdownエディター with AI機能
 
+## 📁 プロジェクト構成
+
+```
+SightEdit/
+├── src/                      # ソースコード
+│   ├── background/          # バックグラウンドスクリプト
+│   ├── editor/              # エディタ本体
+│   └── popup/               # 拡張機能ポップアップ
+├── dist/                    # ビルド出力（Chrome拡張機能）
+├── SightEdit用C#中継アプリケーション/  # ファイル関連付け用中継アプリ
+│   ├── SightEditRelay.cs    # C#中継アプリソース
+│   ├── SightEditRelay.csproj # プロジェクトファイル
+│   └── App.config           # 設定ファイル（拡張機能ID: chibfgpnajlchhljdojcpmamhplnogcp）
+├── assets/                  # アイコン等のリソース
+├── manifest.json            # Chrome拡張機能マニフェスト
+├── package.json             # Node.js依存関係
+├── webpack.config.js        # ビルド設定
+├── build-relay.bat          # C#アプリビルドスクリプト
+├── setup-file-association.bat # ファイル関連付け設定（.md/.markdown）
+└── test.md                  # 動作確認用テストファイル
+```
+
 ## 🚀 機能
 
 ### ✨ エディター機能
@@ -58,7 +80,22 @@ npm run build
    - Chrome で `chrome://extensions/` を開く
    - 「デベロッパーモード」を有効にする
    - 「パッケージ化されていない拡張機能を読み込む」をクリック
-   - プロジェクトフォルダを選択
+   - `dist`フォルダを選択
+   - 拡張機能IDをメモ（現在: `chibfgpnajlchhljdojcpmamhplnogcp`）
+
+### ファイル関連付け設定（Windows）
+
+1. **C#中継アプリのビルド**
+```bash
+.\build-relay.bat
+```
+
+2. **ファイル関連付けの設定**（管理者権限で実行）
+```bash
+.\setup-file-association.bat
+```
+
+これで`.md`ファイルをダブルクリックするとSightEditで開きます。
 
 ## 🔧 開発
 

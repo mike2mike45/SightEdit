@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (openEditorBtn && !openEditorBtn.dataset.listenerAdded) {
     openEditorBtn.addEventListener('click', () => {
       chrome.tabs.create({
-        url: chrome.runtime.getURL('dist/editor.html')
+        url: chrome.runtime.getURL('editor.html')
       });
       window.close();
     });

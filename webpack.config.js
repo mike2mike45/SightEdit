@@ -46,6 +46,7 @@ module.exports = {
     }),
     new CopyWebpackPlugin({
       patterns: [
+        { from: 'manifest.json', to: 'manifest.json' },
         { from: 'assets', to: 'assets', noErrorOnMissing: true }
       ]
     })
