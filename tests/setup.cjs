@@ -1,4 +1,5 @@
-require('@testing-library/jest-dom');
+// @testing-library/jest-domは現在未使用
+// require('@testing-library/jest-dom');
 
 // Electronのモック
 global.electron = {
