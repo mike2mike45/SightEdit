@@ -7,10 +7,17 @@ import './export-menu.css';
 import './ai-settings.css';
 import './settings.css';
 
+// バージョン管理機能をインポート
+import { VersionIntegration } from './version-integration.js';
+// ローカル履歴機能をインポート
+import { LocalHistoryIntegration } from './local-history-integration.js';
+
 class SimpleMarkdownEditor {
   constructor() {
     this.currentFileName = null;
     this.isSourceMode = false;
+    this.versionIntegration = null;
+    this.localHistoryIntegration = null;
     this.init();
   }
 
@@ -321,7 +328,7 @@ class SimpleMarkdownEditor {
     });
     markdown = markdown.replace(/<ol[^>]*>([\s\S]*?)<\/ol>/g, (match, content) => {
       let counter = 1;
-      return content.replace(/<li[^>]*>(.*?)<\/li>/g, () => `${counter++}. $1\n`).trim();
+      return content.replace(/<li[^>]*>(.*?)<\/li>/g, (match, captured) => `${counter++}. ${captured}\n`).trim();
     });
 
     // 9. 引用
@@ -369,15 +376,35 @@ class SimpleMarkdownEditor {
     }
   }
 
-  performInit() {
+  async performInit() {
     console.log('実際の初期化処理を開始...');
     this.setupEditor();
     this.setupToolbar();
     this.setupEventListeners();
-    
+
     // URLパラメータによるファイル読み込みを追加
     this.handleURLFileParameter();
-    
+
+    // バージョン管理機能を初期化
+    try {
+      this.versionIntegration = new VersionIntegration(this);
+      await this.versionIntegration.init();
+      console.log('バージョン管理機能の初期化完了');
+    } catch (error) {
+      console.error('バージョン管理機能の初期化に失敗:', error);
+      // エラーがあってもエディター自体は動作させる
+    }
+
+    // ローカル履歴機能を初期化
+    try {
+      this.localHistoryIntegration = new LocalHistoryIntegration(this);
+      await this.localHistoryIntegration.init();
+      console.log('ローカル履歴機能の初期化完了');
+    } catch (error) {
+      console.error('ローカル履歴機能の初期化に失敗:', error);
+      // エラーがあってもエディター自体は動作させる
+    }
+
     // DOM要素が確実に存在することを確認してからボタンをセットアップ
     setTimeout(() => {
       console.log('DOM要素の存在確認:');
@@ -386,7 +413,7 @@ class SimpleMarkdownEditor {
       console.log('- settings-save:', !!document.getElementById('settings-save'));
       console.log('- gemini-test-btn:', !!document.getElementById('gemini-test-btn'));
       console.log('- claude-test-btn:', !!document.getElementById('claude-test-btn'));
-      
+
       this.setupHeaderButtons();
       this.updateWordCount();
       console.log('エディターの初期化が完了しました');
@@ -1265,6 +1292,11 @@ class SimpleMarkdownEditor {
     }
   }
 
+  // バージョン管理機能のためのエイリアス
+  getMarkdownContent() {
+    return this.getCurrentContent();
+  }
+
   showHelp() {
     const helpContent = `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
@@ -1519,8 +1551,19 @@ class SimpleMarkdownEditor {
     input.click();
   }
 
-  saveFile() {
+  async saveFile() {
     const content = this.getCurrentContent();
+
+    // バージョン履歴に保存
+    if (this.versionIntegration) {
+      try {
+        await this.versionIntegration.showSaveDialog();
+      } catch (error) {
+        console.error('バージョン保存エラー:', error);
+      }
+    }
+
+    // ローカルファイルとして保存
     const blob = new Blob([content], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1830,6 +1873,33 @@ class SimpleMarkdownEditor {
       }
     }
     return false;
+  }
+
+  // クリーンアップメソッド
+  cleanup() {
+    console.log('エディターのクリーンアップを開始...');
+
+    // バージョン管理機能のクリーンアップ
+    if (this.versionIntegration) {
+      try {
+        this.versionIntegration.cleanup();
+        console.log('バージョン管理機能のクリーンアップ完了');
+      } catch (error) {
+        console.error('バージョン管理機能のクリーンアップエラー:', error);
+      }
+    }
+
+    // ローカル履歴機能のクリーンアップ
+    if (this.localHistoryIntegration) {
+      try {
+        this.localHistoryIntegration.cleanup();
+        console.log('ローカル履歴機能のクリーンアップ完了');
+      } catch (error) {
+        console.error('ローカル履歴機能のクリーンアップエラー:', error);
+      }
+    }
+
+    console.log('エディターのクリーンアップが完了しました');
   }
 }
 

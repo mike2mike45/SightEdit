@@ -27,6 +27,18 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   });
+
+  // AI初期設定ボタン
+  const openSettingsBtn = document.getElementById('open-settings');
+  if (openSettingsBtn && !openSettingsBtn.dataset.listenerAdded) {
+    openSettingsBtn.addEventListener('click', () => {
+      chrome.tabs.create({
+        url: chrome.runtime.getURL('settings.html')
+      });
+      window.close();
+    });
+    openSettingsBtn.dataset.listenerAdded = 'true';
+  }
 });
 
 // 言語設定を読み込む

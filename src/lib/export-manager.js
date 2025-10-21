@@ -4,6 +4,8 @@ import { marked } from 'marked';
 import TurndownService from 'turndown';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
+import htmlDocx from 'html-docx-js/dist/html-docx';
+import mammoth from 'mammoth';
 
 export class ExportManager {
     constructor() {
@@ -11,7 +13,9 @@ export class ExportManager {
             marked: marked,
             turndown: new TurndownService(),
             jsPDF: jsPDF,
-            html2canvas: html2canvas
+            html2canvas: html2canvas,
+            htmlDocx: htmlDocx,
+            mammoth: mammoth
         };
         console.log('エクスポートライブラリの初期化完了');
     }
@@ -224,6 +228,125 @@ ${htmlContent}
     }
 
     /**
+     * HTMLをDOCXに変換
+     */
+    async exportToDOCX(html) {
+        if (!this.libraries.htmlDocx) {
+            throw new Error('html-docx-jsライブラリが読み込まれていません');
+        }
+
+        // 完全なHTMLドキュメントとしてラップ
+        const wrappedHtml = this.wrapHTMLForDOCX(html);
+
+        // DOCXに変換
+        const docxBlob = this.libraries.htmlDocx.asBlob(wrappedHtml);
+        return docxBlob;
+    }
+
+    /**
+     * DOCXファイルとしてダウンロード
+     */
+    async downloadDOCX(content, filename = 'document.docx') {
+        // contentがMarkdownの場合はHTMLに変換
+        let html = content;
+        if (typeof content === 'string' && !content.trim().startsWith('<')) {
+            html = this.libraries.marked.parse(content);
+        }
+
+        const docxBlob = await this.exportToDOCX(html);
+        const url = URL.createObjectURL(docxBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    /**
+     * DOCXファイルをインポート
+     */
+    async importFromDOCX(file) {
+        if (!this.libraries.mammoth) {
+            throw new Error('mammothライブラリが読み込まれていません');
+        }
+
+        try {
+            const arrayBuffer = await file.arrayBuffer();
+            const result = await this.libraries.mammoth.convertToHtml({ arrayBuffer });
+
+            return {
+                success: true,
+                html: result.value,
+                messages: result.messages,
+                format: 'DOCX'
+            };
+        } catch (error) {
+            console.error('DOCXインポートエラー:', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * DOCX用のHTMLラッパー
+     */
+    wrapHTMLForDOCX(htmlContent) {
+        return `<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>SightEdit Export</title>
+    <style>
+        body {
+            font-family: 'MS Gothic', 'Yu Gothic', 'Meiryo', sans-serif;
+            font-size: 11pt;
+            line-height: 1.6;
+            margin: 1in;
+        }
+        h1, h2, h3, h4, h5, h6 {
+            margin-top: 1em;
+            margin-bottom: 0.5em;
+            font-weight: bold;
+        }
+        h1 { font-size: 18pt; }
+        h2 { font-size: 16pt; }
+        h3 { font-size: 14pt; }
+        p { margin: 0.5em 0; }
+        code {
+            background-color: #f1f3f4;
+            padding: 2px 4px;
+            font-family: 'Consolas', 'Courier New', monospace;
+        }
+        pre {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            padding: 10px;
+            overflow-x: auto;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 1em 0;
+        }
+        table th, table td {
+            border: 1px solid #dee2e6;
+            padding: 8px 12px;
+        }
+        table th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+${htmlContent}
+</body>
+</html>`;
+    }
+
+    /**
      * HTMLファイルとしてダウンロード
      */
     async downloadHTML(markdown, filename = 'document.html') {
@@ -398,7 +521,7 @@ ${htmlContent}
                         type: 'download',
                         format: 'docx',
                         icon: '📄',
-                        action: (content, filename) => this.downloadPDF(content, filename)
+                        action: (content, filename) => this.downloadDOCX(content, filename)
                     },
                     {
                         id: 'pdf',

@@ -1,0 +1,19 @@
+{
+  "version_history": {
+    "enabled": true,
+    "auto_save_enabled": true,
+    "auto_save_interval_seconds": 300,
+    "max_local_versions": 10,
+    "drive_folder_name": "SightEdit Version History"
+  },
+  "google_api": {
+    "retry_attempts": 3,
+    "request_timeout_seconds": 30,
+    "rate_limit_per_hour": 1000
+  },
+  "ui": {
+    "show_version_panel": true,
+    "confirm_restore": true,
+    "show_diff_on_restore": true
+  }
+}
