@@ -21,6 +21,37 @@ Kiro-style Spec Driven Development implementation using claude code slash comman
 ## Development Guidelines
 - Think in English, but generate responses in Japanese (思考は英語、回答の生成は日本語で行うように)
 
+## Documentation Repository (_docs/)
+
+過去の文脈を参照し、開発効率を向上させるための知識蓄積庫
+
+### Directory Structure
+
+| ディレクトリ | 目的 | 記載内容 |
+|---|---|---|
+| `_docs/thinking/` | 設計判断や思考過程を外部化 | 迷った点、却下した案、判断理由などを箇条書きする。Claude が設計方針を理解しやすい形に |
+| `_docs/features/` | 新機能の追加・改修の目的 | 実装目的、画面構成、データ構造、リスク、完了条件などを簡潔にまとめる |
+| `_docs/deleted/` | 削除・廃止した機能やファイルの履歴 | 削除理由、影響範囲、代替手段、再発防止策を記録する |
+
+### Usage Guidelines
+
+1. **思考ログの記録** (`_docs/thinking/`)
+   - 重要な技術選定時に記録
+   - アーキテクチャ変更の判断理由を明記
+   - 却下した案とその理由も含める
+
+2. **機能ドキュメント** (`_docs/features/`)
+   - 新機能実装前に作成
+   - 実装中に随時更新
+   - 完了後も参照ドキュメントとして保持
+
+3. **削除履歴** (`_docs/deleted/`)
+   - 機能削除時に必ず記録
+   - 影響範囲と代替手段を明記
+   - 同じ問題の再発防止に活用
+
+詳細は各ディレクトリの README.md を参照してください。
+
 ## Workflow
 
 ### Phase 0: Steering (Optional)
