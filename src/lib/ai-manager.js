@@ -41,30 +41,10 @@ export class AIManager {
                 }
             },
             claude: {
-                'claude-3-5-sonnet-20241022': {
-                    name: 'Claude 3.5 Sonnet (最新・2024年10月版)',
+                'claude-sonnet-4-20250514': {
+                    name: 'Claude Sonnet 4 (Artifacts対応)',
                     endpoint: 'https://api.anthropic.com/v1/messages',
                     maxTokens: 8192
-                },
-                'claude-3-5-haiku-20241022': {
-                    name: 'Claude 3.5 Haiku (最新・高速・2024年10月版)',
-                    endpoint: 'https://api.anthropic.com/v1/messages',
-                    maxTokens: 8192
-                },
-                'claude-3-opus-20240229': {
-                    name: 'Claude 3 Opus (高性能)',
-                    endpoint: 'https://api.anthropic.com/v1/messages',
-                    maxTokens: 4096
-                },
-                'claude-3-sonnet-20240229': {
-                    name: 'Claude 3 Sonnet',
-                    endpoint: 'https://api.anthropic.com/v1/messages',
-                    maxTokens: 4096
-                },
-                'claude-3-haiku-20240307': {
-                    name: 'Claude 3 Haiku (高速)',
-                    endpoint: 'https://api.anthropic.com/v1/messages',
-                    maxTokens: 4096
                 }
             }
         };
@@ -80,7 +60,7 @@ export class AIManager {
 
             // selectedModelが設定されていない場合や、現在のプロバイダーに対応していない場合はデフォルトを設定
             if (!this.settings.selectedModel || !this.aiModels[this.settings.aiProvider][this.settings.selectedModel]) {
-                this.settings.selectedModel = this.settings.aiProvider === 'gemini' ? 'gemini-2.5-pro' : 'claude-3-5-sonnet-20241022';
+                this.settings.selectedModel = this.settings.aiProvider === 'gemini' ? 'gemini-2.5-pro' : 'claude-sonnet-4-20250514';
             }
 
             this.updateAIButton();
@@ -108,7 +88,7 @@ export class AIManager {
                         settings.selectedModel = result.geminiModel || 'gemini-2.5-pro';
                     } else if (!result.geminiApiKey && result.claudeApiKey) {
                         settings.aiProvider = 'claude';
-                        settings.selectedModel = result.claudeModel || 'claude-3-5-sonnet-20241022';
+                        settings.selectedModel = result.claudeModel || 'claude-sonnet-4-20250514';
                     } else if (result.geminiApiKey && result.claudeApiKey) {
                         // 両方設定されている場合はGeminiを優先（デフォルト）
                         settings.aiProvider = 'gemini';
@@ -136,7 +116,7 @@ export class AIManager {
 
                 // selectedModelが新しいプロバイダーに対応していない場合はデフォルトを設定
                 if (!this.aiModels[this.settings.aiProvider][this.settings.selectedModel]) {
-                    this.settings.selectedModel = this.settings.aiProvider === 'gemini' ? 'gemini-2.5-pro' : 'claude-3-5-sonnet-20241022';
+                    this.settings.selectedModel = this.settings.aiProvider === 'gemini' ? 'gemini-2.5-pro' : 'claude-sonnet-4-20250514';
                 }
             }
 
@@ -198,11 +178,7 @@ export class AIManager {
                 'gemini-1.5-pro': '無料枠あり'
             },
             claude: {
-                'claude-3-5-sonnet-20241022': '$3/$15 per 1M tokens',
-                'claude-3-5-haiku-20241022': '$1/$5 per 1M tokens',
-                'claude-3-opus-20240229': '$15/$75 per 1M tokens',
-                'claude-3-sonnet-20240229': '$3/$15 per 1M tokens',
-                'claude-3-haiku-20240307': '$0.25/$1.25 per 1M tokens'
+                'claude-sonnet-4-20250514': 'Artifacts対応（認証不要）'
             }
         };
 
@@ -248,11 +224,7 @@ export class AIManager {
                     </div>
 
                     <div class="api-key-section" id="claude-section" style="display: ${this.settings.aiProvider === 'claude' ? 'block' : 'none'}">
-                        <label>Claude API キー:</label>
-                        <input type="password" id="claude-api-key" value="${this.settings.claudeApiKey}" placeholder="sk-ant-...で始まるAPIキー">
-                        <small>
-                            <a href="https://console.anthropic.com/account/keys" target="_blank">Anthropic Consoleで取得</a>
-                        </small>
+                        <p class="info-text">Claude Artifacts対応モデルは認証不要で使用できます。</p>
                     </div>
                 </div>
                 <div class="ai-settings-actions">
@@ -291,7 +263,7 @@ export class AIManager {
         // 現在選択されているモデルが現在のプロバイダーにない場合はデフォルトを使用
         const currentSelectedModel = models[this.settings.selectedModel] ?
             this.settings.selectedModel :
-            (provider === 'gemini' ? 'gemini-2.5-pro' : 'claude-3-5-sonnet-20241022');
+            (provider === 'gemini' ? 'gemini-2.5-pro' : 'claude-sonnet-4-20250514');
 
         return Object.entries(models).map(([id, model]) =>
             `<option value="${id}" ${currentSelectedModel === id ? 'selected' : ''}>${model.name}</option>`
@@ -319,7 +291,7 @@ export class AIManager {
         if (provider === this.settings.aiProvider && this.settings.selectedModel && models[this.settings.selectedModel]) {
             selectedModel = this.settings.selectedModel;
         } else {
-            selectedModel = provider === 'gemini' ? 'gemini-2.5-pro' : 'claude-3-5-sonnet-20241022';
+            selectedModel = provider === 'gemini' ? 'gemini-2.5-pro' : 'claude-sonnet-4-20250514';
         }
 
         modelSelect.value = selectedModel;
@@ -328,23 +300,20 @@ export class AIManager {
     async saveSettingsFromModal(modal) {
         const provider = modal.querySelector('#ai-provider-select').value;
         const model = modal.querySelector('#ai-model-select').value;
-        const geminiKey = modal.querySelector('#gemini-api-key').value.trim();
-        const claudeKey = modal.querySelector('#claude-api-key').value.trim();
+        const geminiKeyInput = modal.querySelector('#gemini-api-key');
+        const geminiKey = geminiKeyInput ? geminiKeyInput.value.trim() : '';
 
-        // APIキーの検証
+        // APIキーの検証（Geminiのみ）
         if (provider === 'gemini' && !geminiKey) {
             alert('Gemini APIキーを入力してください');
-            return;
-        }
-        if (provider === 'claude' && !claudeKey) {
-            alert('Claude APIキーを入力してください');
             return;
         }
 
         this.settings.aiProvider = provider;
         this.settings.selectedModel = model;
         this.settings.geminiApiKey = geminiKey;
-        this.settings.claudeApiKey = claudeKey;
+        // Claude APIキーは不要になったため、削除
+        this.settings.claudeApiKey = '';
 
         await this.saveSettings();
         modal.remove();
@@ -359,14 +328,15 @@ export class AIManager {
             return;
         }
 
-        // APIキーの確認
+        // APIキーの確認（Geminiのみ）
         const provider = this.settings.aiProvider;
-        const apiKey = provider === 'gemini' ? this.settings.geminiApiKey : this.settings.claudeApiKey;
-
-        if (!apiKey) {
-            alert('AIを使用するにはAPIキーの設定が必要です');
-            this.showSettings();
-            return;
+        if (provider === 'gemini') {
+            const apiKey = this.settings.geminiApiKey;
+            if (!apiKey) {
+                alert('Gemini AIを使用するにはAPIキーの設定が必要です');
+                this.showSettings();
+                return;
+            }
         }
 
         // カスタム命令の場合
@@ -519,7 +489,6 @@ export class AIManager {
 
     async callClaude(prompt) {
         const model = this.getCurrentModel();
-        const apiKey = this.settings.claudeApiKey;
 
         const requestBody = {
             model: this.settings.selectedModel,
@@ -533,9 +502,7 @@ export class AIManager {
         const response = await fetch(model.endpoint, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': apiKey,
-                'anthropic-version': '2023-06-01'
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify(requestBody)
         });
@@ -712,12 +679,17 @@ export class AIManager {
      */
     async callAIWithStreaming(messages, onChunk, onComplete, onError) {
         const provider = this.settings.aiProvider;
-        const apiKey = provider === 'gemini' ? this.settings.geminiApiKey : this.settings.claudeApiKey;
 
-        if (!apiKey) {
-            onError(new Error('APIキーが設定されていません'));
-            return;
+        // Geminiの場合のみAPIキーチェック
+        if (provider === 'gemini') {
+            const apiKey = this.settings.geminiApiKey;
+            if (!apiKey) {
+                onError(new Error('Gemini APIキーが設定されていません'));
+                return;
+            }
         }
+
+        const apiKey = provider === 'gemini' ? this.settings.geminiApiKey : null;
 
         const model = this.getCurrentModel();
         const streamingHandler = new StreamingHandler();
