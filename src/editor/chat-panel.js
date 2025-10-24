@@ -8,13 +8,14 @@ import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 
 export class ChatPanel {
-    constructor(chatManager, promptManager, promptLibrary = null, styleController = null, structuredGenerator = null, structuredGenerationModal = null) {
+    constructor(chatManager, promptManager, promptLibrary = null, styleController = null, structuredGenerator = null, structuredGenerationModal = null, exportImportManager = null) {
         this.chatManager = chatManager;
         this.promptManager = promptManager;
         this.promptLibrary = promptLibrary;
         this.styleController = styleController;
         this.structuredGenerator = structuredGenerator;
         this.structuredGenerationModal = structuredGenerationModal;
+        this.exportImportManager = exportImportManager;
         this.element = null;
         this.isVisible = false;
         this.position = 'right'; // 'right' | 'bottom' | 'floating'
@@ -725,6 +726,16 @@ export class ChatPanel {
             <div class="session-list-container">
                 <div class="session-list-header">
                     <h3>会話履歴</h3>
+                    <div class="header-actions">
+                        <button class="btn-icon" id="import-session-btn" title="インポート">
+                            <span class="icon">📥</span>
+                            <span class="label">インポート</span>
+                        </button>
+                        <button class="btn-icon" id="export-all-btn" title="すべてエクスポート">
+                            <span class="icon">📤</span>
+                            <span class="label">エクスポート</span>
+                        </button>
+                    </div>
                     <button class="close-btn" id="session-list-close">×</button>
                 </div>
 
@@ -792,6 +803,7 @@ export class ChatPanel {
                     </div>
                     <div class="session-actions">
                         <button class="session-open" data-session-id="${session.id}">開く</button>
+                        <button class="session-export" data-session-id="${session.id}" title="エクスポート">📤</button>
                         <button class="session-delete" data-session-id="${session.id}">削除</button>
                     </div>
                 </div>
@@ -871,6 +883,20 @@ export class ChatPanel {
         searchInput.addEventListener('input', updateList);
         filterSelect.addEventListener('change', updateList);
 
+        // インポートボタン
+        const importBtn = modal.querySelector('#import-session-btn');
+        if (importBtn && this.exportImportManager) {
+            importBtn.addEventListener('click', () => this.showImportDialog());
+        }
+
+        // すべてエクスポートボタン
+        const exportAllBtn = modal.querySelector('#export-all-btn');
+        if (exportAllBtn && this.exportImportManager) {
+            exportAllBtn.addEventListener('click', async () => {
+                await this.exportAllSessions();
+            });
+        }
+
         // セッションアイテムのイベントリスナー
         this.setupSessionItemListeners(modal, sessions);
     }
@@ -928,6 +954,15 @@ export class ChatPanel {
                         this.renderSessionItems(updatedSessions, filter, query);
                     this.setupSessionItemListeners(modal, updatedSessions);
                 }
+            });
+        });
+
+        // エクスポートボタン
+        modal.querySelectorAll('.session-export').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const sessionId = e.target.dataset.sessionId;
+                await this.showExportDialog(sessionId);
             });
         });
     }
@@ -1004,6 +1039,311 @@ export class ChatPanel {
         } catch (error) {
             console.error('Failed to toggle favorite:', error);
             this.showNotification('お気に入りの更新に失敗しました', 'error');
+        }
+    }
+
+    /**
+     * エクスポートダイアログを表示
+     * @param {string} sessionId - セッションID
+     */
+    async showExportDialog(sessionId) {
+        if (!this.exportImportManager) {
+            this.showNotification('エクスポート機能が利用できません', 'error');
+            return;
+        }
+
+        const session = await this.chatManager.chatStorage.getSession(sessionId);
+        if (!session) {
+            this.showNotification('セッションが見つかりません', 'error');
+            return;
+        }
+
+        // エクスポートダイアログを作成
+        const dialog = document.createElement('div');
+        dialog.className = 'export-dialog-overlay';
+        dialog.innerHTML = `
+            <div class="export-dialog">
+                <div class="export-dialog-header">
+                    <h3>セッションのエクスポート</h3>
+                    <button class="close-btn" id="export-dialog-close">×</button>
+                </div>
+                <div class="export-dialog-content">
+                    <div class="session-info">
+                        <strong>${session.title}</strong>
+                        <span>${session.messages.length} メッセージ</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label>フォーマット:</label>
+                        <select id="export-format">
+                            <option value="json">JSON</option>
+                            <option value="markdown">Markdown</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="export-encrypt">
+                            暗号化する
+                        </label>
+                    </div>
+
+                    <div class="form-group password-group" id="password-group" style="display: none;">
+                        <label>パスワード:</label>
+                        <input type="password" id="export-password" placeholder="パスワードを入力">
+                    </div>
+                </div>
+                <div class="export-dialog-footer">
+                    <button class="btn-secondary" id="export-cancel">キャンセル</button>
+                    <button class="btn-primary" id="export-confirm">エクスポート</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(dialog);
+
+        // イベントリスナー
+        const encryptCheckbox = dialog.querySelector('#export-encrypt');
+        const passwordGroup = dialog.querySelector('#password-group');
+
+        encryptCheckbox.addEventListener('change', () => {
+            passwordGroup.style.display = encryptCheckbox.checked ? 'block' : 'none';
+        });
+
+        dialog.querySelector('#export-dialog-close').addEventListener('click', () => dialog.remove());
+        dialog.querySelector('#export-cancel').addEventListener('click', () => dialog.remove());
+        dialog.querySelector('.export-dialog-overlay').addEventListener('click', (e) => {
+            if (e.target.classList.contains('export-dialog-overlay')) {
+                dialog.remove();
+            }
+        });
+
+        dialog.querySelector('#export-confirm').addEventListener('click', async () => {
+            const format = dialog.querySelector('#export-format').value;
+            const encrypt = encryptCheckbox.checked;
+            const password = dialog.querySelector('#export-password').value;
+
+            if (encrypt && !password) {
+                this.showNotification('パスワードを入力してください', 'error');
+                return;
+            }
+
+            try {
+                await this.exportImportManager.downloadSession(session, format, {
+                    encrypt,
+                    password: encrypt ? password : undefined
+                });
+                this.showNotification('セッションをエクスポートしました', 'success');
+                dialog.remove();
+            } catch (error) {
+                console.error('Export failed:', error);
+                this.showNotification('エクスポートに失敗しました', 'error');
+            }
+        });
+    }
+
+    /**
+     * インポートダイアログを表示
+     */
+    async showImportDialog() {
+        if (!this.exportImportManager) {
+            this.showNotification('インポート機能が利用できません', 'error');
+            return;
+        }
+
+        // ファイル選択ダイアログ
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json,.md,.markdown';
+
+        input.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            try {
+                const text = await file.text();
+                let data;
+
+                try {
+                    data = JSON.parse(text);
+                } catch {
+                    this.showNotification('JSONファイルの形式が正しくありません', 'error');
+                    return;
+                }
+
+                // 暗号化されている場合、パスワードを要求
+                if (data.encrypted) {
+                    this.showPasswordDialog(async (password) => {
+                        try {
+                            const imported = await this.exportImportManager.importFromJSON(text, password);
+                            await this.handleImportedData(imported);
+                        } catch (error) {
+                            console.error('Import failed:', error);
+                            this.showNotification('インポートに失敗しました。パスワードが正しいか確認してください。', 'error');
+                        }
+                    });
+                } else {
+                    const imported = await this.exportImportManager.importFromJSON(text);
+                    await this.handleImportedData(imported);
+                }
+            } catch (error) {
+                console.error('Import failed:', error);
+                this.showNotification('インポートに失敗しました', 'error');
+            }
+        });
+
+        input.click();
+    }
+
+    /**
+     * パスワード入力ダイアログを表示
+     * @param {function} onConfirm - 確認コールバック
+     */
+    showPasswordDialog(onConfirm) {
+        const dialog = document.createElement('div');
+        dialog.className = 'export-dialog-overlay';
+        dialog.innerHTML = `
+            <div class="export-dialog">
+                <div class="export-dialog-header">
+                    <h3>パスワード入力</h3>
+                    <button class="close-btn" id="password-dialog-close">×</button>
+                </div>
+                <div class="export-dialog-content">
+                    <p>このファイルは暗号化されています。パスワードを入力してください。</p>
+                    <div class="form-group">
+                        <label>パスワード:</label>
+                        <input type="password" id="import-password" placeholder="パスワードを入力">
+                    </div>
+                </div>
+                <div class="export-dialog-footer">
+                    <button class="btn-secondary" id="password-cancel">キャンセル</button>
+                    <button class="btn-primary" id="password-confirm">OK</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(dialog);
+
+        dialog.querySelector('#password-dialog-close').addEventListener('click', () => dialog.remove());
+        dialog.querySelector('#password-cancel').addEventListener('click', () => dialog.remove());
+
+        dialog.querySelector('#password-confirm').addEventListener('click', () => {
+            const password = dialog.querySelector('#import-password').value;
+            if (password) {
+                dialog.remove();
+                onConfirm(password);
+            } else {
+                this.showNotification('パスワードを入力してください', 'error');
+            }
+        });
+    }
+
+    /**
+     * インポートされたデータを処理
+     * @param {object} imported - インポートされたデータ
+     */
+    async handleImportedData(imported) {
+        if (imported.type === 'chat-session') {
+            // 単一セッション
+            await this.chatManager.chatStorage.saveSession(imported.session);
+            this.showNotification('セッションをインポートしました', 'success');
+        } else if (imported.type === 'batch-export') {
+            // 複数セッション
+            for (const session of imported.sessions) {
+                await this.chatManager.chatStorage.saveSession(session);
+            }
+            this.showNotification(`${imported.sessions.length}件のセッションをインポートしました`, 'success');
+        }
+    }
+
+    /**
+     * すべてのセッションをエクスポート
+     */
+    async exportAllSessions() {
+        if (!this.exportImportManager) {
+            this.showNotification('エクスポート機能が利用できません', 'error');
+            return;
+        }
+
+        try {
+            const sessions = await this.chatManager.getSessions({
+                sortBy: 'updatedAt',
+                order: 'desc'
+            });
+
+            if (sessions.length === 0) {
+                this.showNotification('エクスポートするセッションがありません', 'info');
+                return;
+            }
+
+            // エクスポートダイアログを作成
+            const dialog = document.createElement('div');
+            dialog.className = 'export-dialog-overlay';
+            dialog.innerHTML = `
+                <div class="export-dialog">
+                    <div class="export-dialog-header">
+                        <h3>すべてのセッションをエクスポート</h3>
+                        <button class="close-btn" id="export-all-dialog-close">×</button>
+                    </div>
+                    <div class="export-dialog-content">
+                        <p>${sessions.length}件のセッションをエクスポートします</p>
+
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="export-all-encrypt">
+                                暗号化する
+                            </label>
+                        </div>
+
+                        <div class="form-group password-group" id="password-all-group" style="display: none;">
+                            <label>パスワード:</label>
+                            <input type="password" id="export-all-password" placeholder="パスワードを入力">
+                        </div>
+                    </div>
+                    <div class="export-dialog-footer">
+                        <button class="btn-secondary" id="export-all-cancel">キャンセル</button>
+                        <button class="btn-primary" id="export-all-confirm">エクスポート</button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(dialog);
+
+            // イベントリスナー
+            const encryptCheckbox = dialog.querySelector('#export-all-encrypt');
+            const passwordGroup = dialog.querySelector('#password-all-group');
+
+            encryptCheckbox.addEventListener('change', () => {
+                passwordGroup.style.display = encryptCheckbox.checked ? 'block' : 'none';
+            });
+
+            dialog.querySelector('#export-all-dialog-close').addEventListener('click', () => dialog.remove());
+            dialog.querySelector('#export-all-cancel').addEventListener('click', () => dialog.remove());
+
+            dialog.querySelector('#export-all-confirm').addEventListener('click', async () => {
+                const encrypt = encryptCheckbox.checked;
+                const password = dialog.querySelector('#export-all-password').value;
+
+                if (encrypt && !password) {
+                    this.showNotification('パスワードを入力してください', 'error');
+                    return;
+                }
+
+                try {
+                    await this.exportImportManager.downloadBatchSessions(sessions, {
+                        encrypt,
+                        password: encrypt ? password : undefined
+                    });
+                    this.showNotification('すべてのセッションをエクスポートしました', 'success');
+                    dialog.remove();
+                } catch (error) {
+                    console.error('Batch export failed:', error);
+                    this.showNotification('エクスポートに失敗しました', 'error');
+                }
+            });
+        } catch (error) {
+            console.error('Failed to get sessions:', error);
+            this.showNotification('セッションの取得に失敗しました', 'error');
         }
     }
 

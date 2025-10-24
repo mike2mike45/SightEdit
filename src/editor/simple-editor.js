@@ -31,6 +31,9 @@ import { getStyleController } from '../lib/style-controller.js';
 import { getStructuredGenerator } from '../lib/structured-generator.js';
 import { StructuredGenerationModal } from './structured-generation-modal.js';
 
+// Export/Import機能をインポート
+import { ExportImportManager } from '../lib/export-import-manager.js';
+
 class SimpleMarkdownEditor {
   constructor() {
     this.currentFileName = null;
@@ -2463,8 +2466,11 @@ async function initChatFeature(editor) {
         // StructuredGenerationModal の初期化
         const structuredGenerationModal = new StructuredGenerationModal(structuredGenerator, chatManager);
 
-        // ChatPanel の初期化（structuredGenerator, structuredGenerationModalを追加）
-        chatPanel = new ChatPanel(chatManager, promptManager, promptLibrary, styleController, structuredGenerator, structuredGenerationModal);
+        // ExportImportManager の初期化
+        const exportImportManager = new ExportImportManager();
+
+        // ChatPanel の初期化（structuredGenerator, structuredGenerationModal, exportImportManagerを追加）
+        chatPanel = new ChatPanel(chatManager, promptManager, promptLibrary, styleController, structuredGenerator, structuredGenerationModal, exportImportManager);
         chatPanel.render();
 
         // グローバルアクセス用
@@ -2476,6 +2482,7 @@ async function initChatFeature(editor) {
         window.styleController = styleController;
         window.structuredGenerator = structuredGenerator;
         window.structuredGenerationModal = structuredGenerationModal;
+        window.exportImportManager = exportImportManager;
 
         // チャットトグルボタンのイベントリスナー
         const chatToggleBtn = document.getElementById('chat-toggle-btn');
