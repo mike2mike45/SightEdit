@@ -1,5 +1,6 @@
 // Chrome Extension用のAI管理クラス
 import { marked } from 'marked';
+import { StreamingHandler } from './streaming-handler.js';
 
 export class AIManager {
     constructor() {
@@ -695,5 +696,164 @@ export class AIManager {
             console.error('エディター挿入エラー:', error);
             throw error;
         }
+    }
+
+    // ========================================
+    // ストリーミング機能（チャット機能用）
+    // ========================================
+
+    /**
+     * ストリーミングでAIを呼び出し
+     * @param {Array} messages - メッセージ配列（マルチターン会話）
+     * @param {Function} onChunk - チャンク受信コールバック
+     * @param {Function} onComplete - 完了コールバック
+     * @param {Function} onError - エラーコールバック
+     * @returns {Promise<void>}
+     */
+    async callAIWithStreaming(messages, onChunk, onComplete, onError) {
+        const provider = this.settings.aiProvider;
+        const apiKey = provider === 'gemini' ? this.settings.geminiApiKey : this.settings.claudeApiKey;
+
+        if (!apiKey) {
+            onError(new Error('APIキーが設定されていません'));
+            return;
+        }
+
+        const model = this.getCurrentModel();
+        const streamingHandler = new StreamingHandler();
+
+        try {
+            if (provider === 'gemini') {
+                // Gemini 用のリクエストボディ構築
+                const requestBody = this.buildGeminiRequestBody(messages);
+
+                await streamingHandler.streamGemini(
+                    model.endpoint,
+                    apiKey,
+                    requestBody,
+                    onChunk,
+                    onComplete,
+                    onError
+                );
+            } else if (provider === 'claude') {
+                // Claude 用のリクエストボディ構築
+                const requestBody = this.buildClaudeRequestBody(messages);
+
+                await streamingHandler.streamClaude(
+                    model.endpoint,
+                    apiKey,
+                    requestBody,
+                    onChunk,
+                    onComplete,
+                    onError
+                );
+            } else {
+                throw new Error(`サポートされていないプロバイダー: ${provider}`);
+            }
+        } catch (error) {
+            console.error('ストリーミングエラー:', error);
+            onError(error);
+        }
+    }
+
+    /**
+     * マルチターン会話用のメッセージ配列を構築（Gemini形式）
+     * @param {Array} messages - 標準メッセージ形式 [{role, content}]
+     * @returns {Object} Gemini リクエストボディ
+     */
+    buildGeminiRequestBody(messages) {
+        const model = this.getCurrentModel();
+
+        // Gemini 形式: {contents: [{role, parts: [{text}]}]}
+        const contents = messages.map(msg => ({
+            role: msg.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: msg.content }]
+        }));
+
+        return {
+            contents: contents,
+            generationConfig: {
+                temperature: 0.7,
+                topK: 40,
+                topP: 0.95,
+                maxOutputTokens: model.maxTokens
+            }
+        };
+    }
+
+    /**
+     * マルチターン会話用のメッセージ配列を構築（Claude形式）
+     * @param {Array} messages - 標準メッセージ形式 [{role, content}]
+     * @returns {Object} Claude リクエストボディ
+     */
+    buildClaudeRequestBody(messages) {
+        const model = this.getCurrentModel();
+
+        // Claude 形式: {messages: [{role, content}]}
+        const claudeMessages = messages.map(msg => ({
+            role: msg.role,
+            content: msg.content
+        }));
+
+        return {
+            model: this.settings.selectedModel,
+            max_tokens: model.maxTokens,
+            messages: claudeMessages
+        };
+    }
+
+    /**
+     * トークン制限を超えないようにメッセージを調整
+     * @param {Array} messages - メッセージ配列
+     * @param {number} maxTokens - 最大トークン数
+     * @returns {Array} 調整されたメッセージ配列
+     */
+    manageTokenLimit(messages, maxTokens = 4096) {
+        // 簡易的なトークン推定（1トークン ≈ 4文字）
+        const estimateTokens = (text) => Math.ceil(text.length / 4);
+
+        let totalTokens = 0;
+        const managedMessages = [];
+
+        // 最新のメッセージから逆順で追加
+        for (let i = messages.length - 1; i >= 0; i--) {
+            const message = messages[i];
+            const messageTokens = estimateTokens(message.content);
+
+            if (totalTokens + messageTokens > maxTokens * 0.8) {
+                // 80%を超えたら古いメッセージは省略
+                break;
+            }
+
+            managedMessages.unshift(message);
+            totalTokens += messageTokens;
+        }
+
+        // 最低1つはメッセージが必要
+        if (managedMessages.length === 0 && messages.length > 0) {
+            managedMessages.push(messages[messages.length - 1]);
+        }
+
+        return managedMessages;
+    }
+
+    /**
+     * 標準メッセージ形式を構築
+     * @param {string} role - 'user' | 'assistant'
+     * @param {string} content - メッセージ内容
+     * @param {Object} metadata - メタデータ
+     * @returns {Object} メッセージオブジェクト
+     */
+    createMessage(role, content, metadata = {}) {
+        return {
+            role: role,
+            content: content,
+            timestamp: Date.now(),
+            metadata: {
+                model: this.settings.selectedModel,
+                provider: this.settings.aiProvider,
+                ...metadata
+            }
+        };
     }
 }
