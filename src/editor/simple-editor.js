@@ -8,6 +8,7 @@ import './ai-settings.css';
 import './settings.css';
 import './chat-panel.css';
 import './prompt-library.css';
+import './structured-generation.css';
 
 // バージョン管理機能をインポート
 import { VersionIntegration } from './version-integration.js';
@@ -25,6 +26,10 @@ import { PromptLibrary } from './prompt-library.js';
 
 // スタイル制御機能をインポート
 import { getStyleController } from '../lib/style-controller.js';
+
+// 構造化生成機能をインポート
+import { getStructuredGenerator } from '../lib/structured-generator.js';
+import { StructuredGenerationModal } from './structured-generation-modal.js';
 
 class SimpleMarkdownEditor {
   constructor() {
@@ -2444,6 +2449,10 @@ async function initChatFeature(editor) {
     await styleController.init();
     console.log('StyleController initialized');
 
+    // StructuredGenerator の初期化
+    const structuredGenerator = getStructuredGenerator();
+    console.log('StructuredGenerator initialized');
+
     // AIChatManager の初期化（aiManagerが設定されるまで待つ）
     const waitForAIManager = setInterval(() => {
       if (window.aiManager) {
@@ -2451,8 +2460,11 @@ async function initChatFeature(editor) {
 
         chatManager = new AIChatManager(window.aiManager, promptManager, chatStorage);
 
-        // ChatPanel の初期化（styleControllerを追加）
-        chatPanel = new ChatPanel(chatManager, promptManager, promptLibrary, styleController);
+        // StructuredGenerationModal の初期化
+        const structuredGenerationModal = new StructuredGenerationModal(structuredGenerator, chatManager);
+
+        // ChatPanel の初期化（structuredGenerator, structuredGenerationModalを追加）
+        chatPanel = new ChatPanel(chatManager, promptManager, promptLibrary, styleController, structuredGenerator, structuredGenerationModal);
         chatPanel.render();
 
         // グローバルアクセス用
@@ -2462,6 +2474,8 @@ async function initChatFeature(editor) {
         window.promptManager = promptManager;
         window.promptLibrary = promptLibrary;
         window.styleController = styleController;
+        window.structuredGenerator = structuredGenerator;
+        window.structuredGenerationModal = structuredGenerationModal;
 
         // チャットトグルボタンのイベントリスナー
         const chatToggleBtn = document.getElementById('chat-toggle-btn');

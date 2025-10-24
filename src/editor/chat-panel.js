@@ -8,11 +8,13 @@ import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 
 export class ChatPanel {
-    constructor(chatManager, promptManager, promptLibrary = null, styleController = null) {
+    constructor(chatManager, promptManager, promptLibrary = null, styleController = null, structuredGenerator = null, structuredGenerationModal = null) {
         this.chatManager = chatManager;
         this.promptManager = promptManager;
         this.promptLibrary = promptLibrary;
         this.styleController = styleController;
+        this.structuredGenerator = structuredGenerator;
+        this.structuredGenerationModal = structuredGenerationModal;
         this.element = null;
         this.isVisible = false;
         this.position = 'right'; // 'right' | 'bottom' | 'floating'
@@ -63,6 +65,10 @@ export class ChatPanel {
                     <button class="btn-icon" id="chat-prompts" title="プロンプトライブラリ (Ctrl+P)">
                         <span class="icon">📝</span>
                         <span class="label">プロンプト</span>
+                    </button>
+                    <button class="btn-icon" id="chat-structured" title="構造化生成">
+                        <span class="icon">📋</span>
+                        <span class="label">構造化</span>
                     </button>
                 </div>
                 <div class="header-center">
@@ -499,6 +505,12 @@ export class ChatPanel {
         const promptsBtn = this.element.querySelector('#chat-prompts');
         promptsBtn.addEventListener('click', () => this.showPromptLibrary());
 
+        // 構造化生成ボタン
+        const structuredBtn = this.element.querySelector('#chat-structured');
+        if (structuredBtn) {
+            structuredBtn.addEventListener('click', () => this.showStructuredGeneration());
+        }
+
         // スタイル制御有効化トグル
         const styleEnabled = this.element.querySelector('#style-enabled');
         if (styleEnabled && this.styleController) {
@@ -660,6 +672,18 @@ export class ChatPanel {
 
         // プロンプトライブラリを表示
         this.promptLibrary.show(onExecute);
+    }
+
+    /**
+     * 構造化生成を表示
+     */
+    showStructuredGeneration() {
+        if (!this.structuredGenerator || !this.structuredGenerationModal) {
+            this.showNotification('構造化生成が利用できません', 'error');
+            return;
+        }
+
+        this.structuredGenerationModal.show();
     }
 
     /**
