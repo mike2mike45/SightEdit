@@ -609,6 +609,44 @@ export class PromptManager {
                 usageCount: 0,
                 isFavorite: false
             },
+            {
+                id: 'default-continue-writing',
+                name: '続きを書く',
+                description: '文章の続きを自然に生成',
+                category: '執筆支援',
+                prompt: `以下の文章の続きを自然に書いてください:
+
+{{text}}
+
+文体とトーンを保ちながら、論理的に続く内容を生成してください。`,
+                variables: [
+                    { name: 'text', type: 'textarea', description: '続きを書く文章', required: true }
+                ],
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+                lastUsed: 0,
+                usageCount: 0,
+                isFavorite: false
+            },
+            {
+                id: 'default-paraphrase',
+                name: 'パラフレーズ',
+                description: '文章を別の表現で書き直す',
+                category: '執筆支援',
+                prompt: `以下の文章を別の表現で書き直してください:
+
+{{text}}
+
+元の意味を保ちながら、異なる言い回しや構造を使用してください。`,
+                variables: [
+                    { name: 'text', type: 'textarea', description: 'パラフレーズする文章', required: true }
+                ],
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+                lastUsed: 0,
+                usageCount: 0,
+                isFavorite: false
+            },
 
             // コーディング
             {
