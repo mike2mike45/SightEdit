@@ -8,13 +8,30 @@ import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 
 export class ChatPanel {
-    constructor(chatManager, promptManager) {
+    constructor(chatManager, promptManager, promptLibrary = null) {
         this.chatManager = chatManager;
         this.promptManager = promptManager;
+        this.promptLibrary = promptLibrary;
         this.element = null;
         this.isVisible = false;
         this.position = 'right'; // 'right' | 'bottom' | 'floating'
         this.currentStreamingMessageId = null;
+    }
+
+    /**
+     * プロンプトライブラリを設定
+     * @param {PromptLibrary} promptLibrary - プロンプトライブラリインスタンス
+     */
+    setPromptLibrary(promptLibrary) {
+        this.promptLibrary = promptLibrary;
+
+        // プロンプトボタンを表示
+        if (this.element) {
+            const promptsBtn = this.element.querySelector('#chat-prompts');
+            if (promptsBtn) {
+                promptsBtn.style.display = 'flex';
+            }
+        }
     }
 
     // ========================================
@@ -42,7 +59,7 @@ export class ChatPanel {
                         <span class="icon">📋</span>
                         <span class="label">履歴</span>
                     </button>
-                    <button class="btn-icon" id="chat-prompts" title="プロンプトライブラリ" style="display: none;">
+                    <button class="btn-icon" id="chat-prompts" title="プロンプトライブラリ (Ctrl+P)">
                         <span class="icon">📝</span>
                         <span class="label">プロンプト</span>
                     </button>
@@ -464,6 +481,10 @@ export class ChatPanel {
             }
         });
 
+        // プロンプトライブラリボタン
+        const promptsBtn = this.element.querySelector('#chat-prompts');
+        promptsBtn.addEventListener('click', () => this.showPromptLibrary());
+
         // テキストエリアで Ctrl+Enter で送信
         const input = this.element.querySelector('#chat-input');
         input.addEventListener('keydown', (e) => {
@@ -569,6 +590,37 @@ export class ChatPanel {
         } else {
             titleElement.textContent = 'AI Chat';
         }
+    }
+
+    /**
+     * プロンプトライブラリを表示
+     */
+    showPromptLibrary() {
+        if (!this.promptLibrary) {
+            this.showNotification('プロンプトライブラリが利用できません', 'error');
+            return;
+        }
+
+        // プロンプト実行のコールバック
+        const onExecute = (prompt, template) => {
+            console.log('Executing prompt:', template.name);
+            console.log('Generated prompt:', prompt);
+
+            // チャット入力欄にプロンプトを設定
+            const input = this.element.querySelector('#chat-input');
+            if (input) {
+                input.value = prompt;
+                input.focus();
+
+                // 自動的に送信（オプション）
+                // this.onSendMessage();
+            }
+
+            this.showNotification(`プロンプト「${template.name}」を適用しました`, 'success');
+        };
+
+        // プロンプトライブラリを表示
+        this.promptLibrary.show(onExecute);
     }
 
     /**

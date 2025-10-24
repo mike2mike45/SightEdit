@@ -2428,21 +2428,31 @@ async function initChatFeature(editor) {
     await chatStorage.initDB();
     console.log('ChatStorage initialized');
 
+    // PromptManager の初期化
+    const promptManager = getPromptManager();
+    await promptManager.init();
+    console.log('PromptManager initialized');
+
+    // PromptLibrary の初期化
+    const promptLibrary = new PromptLibrary(promptManager);
+
     // AIChatManager の初期化（aiManagerが設定されるまで待つ）
     const waitForAIManager = setInterval(() => {
       if (window.aiManager) {
         clearInterval(waitForAIManager);
 
-        chatManager = new AIChatManager(window.aiManager, null, chatStorage);
+        chatManager = new AIChatManager(window.aiManager, promptManager, chatStorage);
 
         // ChatPanel の初期化
-        chatPanel = new ChatPanel(chatManager, null);
+        chatPanel = new ChatPanel(chatManager, promptManager, promptLibrary);
         chatPanel.render();
 
         // グローバルアクセス用
         window.chatPanel = chatPanel;
         window.chatManager = chatManager;
         window.chatStorage = chatStorage;
+        window.promptManager = promptManager;
+        window.promptLibrary = promptLibrary;
 
         // チャットトグルボタンのイベントリスナー
         const chatToggleBtn = document.getElementById('chat-toggle-btn');
@@ -2490,6 +2500,14 @@ function setupKeyboardShortcuts() {
             chatManager.currentSession = null;
           }
         }
+      }
+    }
+
+    // Ctrl+P: プロンプトライブラリ
+    if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+      e.preventDefault();
+      if (chatPanel && chatPanel.isVisible) {
+        chatPanel.showPromptLibrary();
       }
     }
   });
