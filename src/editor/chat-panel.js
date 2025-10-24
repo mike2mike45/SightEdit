@@ -572,10 +572,377 @@ export class ChatPanel {
     }
 
     /**
-     * セッション一覧を表示（未実装）
+     * セッション一覧を表示
      */
-    showSessionList() {
-        this.showNotification('セッション一覧機能は次のタスクで実装されます');
+    async showSessionList() {
+        // 既存のモーダルがあれば削除
+        const existingModal = document.getElementById('session-list-modal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+
+        // セッション取得
+        const sessions = await this.chatManager.getSessions({
+            sortBy: 'updatedAt',
+            order: 'desc'
+        });
+
+        // モーダルを作成
+        const modal = this.createSessionListModal(sessions);
+        document.body.appendChild(modal);
+
+        // イベントリスナー設定
+        this.setupSessionListEventListeners(modal, sessions);
+    }
+
+    /**
+     * セッション一覧モーダルのHTML構造を作成
+     * @param {Array} sessions - セッション一覧
+     * @returns {HTMLElement} モーダル要素
+     */
+    createSessionListModal(sessions) {
+        const modal = document.createElement('div');
+        modal.id = 'session-list-modal';
+        modal.className = 'session-list-modal';
+
+        modal.innerHTML = `
+            <div class="session-list-overlay"></div>
+            <div class="session-list-container">
+                <div class="session-list-header">
+                    <h3>会話履歴</h3>
+                    <button class="close-btn" id="session-list-close">×</button>
+                </div>
+
+                <div class="session-list-controls">
+                    <input
+                        type="search"
+                        id="session-search"
+                        placeholder="セッションを検索..."
+                        class="session-search"
+                    >
+                    <select id="session-filter" class="session-filter">
+                        <option value="all">すべて</option>
+                        <option value="favorites">お気に入り</option>
+                        <option value="today">今日</option>
+                        <option value="week">今週</option>
+                    </select>
+                </div>
+
+                <div class="session-list-items" id="session-list-items">
+                    ${this.renderSessionItems(sessions)}
+                </div>
+            </div>
+        `;
+
+        return modal;
+    }
+
+    /**
+     * セッションアイテムのHTMLをレンダリング
+     * @param {Array} sessions - セッション一覧
+     * @param {string} filter - フィルタータイプ
+     * @param {string} searchQuery - 検索クエリ
+     * @returns {string} HTML文字列
+     */
+    renderSessionItems(sessions, filter = 'all', searchQuery = '') {
+        if (!sessions || sessions.length === 0) {
+            return '<div class="session-empty">会話履歴がありません</div>';
+        }
+
+        // フィルタリング
+        let filteredSessions = this.filterSessions(sessions, filter, searchQuery);
+
+        if (filteredSessions.length === 0) {
+            return '<div class="session-empty">該当するセッションがありません</div>';
+        }
+
+        return filteredSessions.map(session => {
+            const date = new Date(session.updatedAt);
+            const dateStr = this.formatDate(date);
+            const preview = this.getSessionPreview(session);
+            const favoriteIcon = session.isFavorite ? '⭐' : '☆';
+
+            return `
+                <div class="session-item" data-session-id="${session.id}">
+                    <div class="session-item-header">
+                        <span class="session-title">${this.escapeHtml(session.title)}</span>
+                        <button class="session-favorite" data-session-id="${session.id}" title="お気に入り">
+                            ${favoriteIcon}
+                        </button>
+                    </div>
+                    <div class="session-preview">${this.escapeHtml(preview)}</div>
+                    <div class="session-meta">
+                        <span class="session-date">${dateStr}</span>
+                        <span class="session-count">${session.messages.length} メッセージ</span>
+                    </div>
+                    <div class="session-actions">
+                        <button class="session-open" data-session-id="${session.id}">開く</button>
+                        <button class="session-delete" data-session-id="${session.id}">削除</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    /**
+     * セッションをフィルタリング
+     * @param {Array} sessions - セッション一覧
+     * @param {string} filter - フィルタータイプ
+     * @param {string} searchQuery - 検索クエリ
+     * @returns {Array} フィルタリングされたセッション
+     */
+    filterSessions(sessions, filter, searchQuery) {
+        let filtered = sessions;
+
+        // フィルター適用
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+        switch (filter) {
+            case 'favorites':
+                filtered = filtered.filter(s => s.isFavorite);
+                break;
+            case 'today':
+                filtered = filtered.filter(s => new Date(s.updatedAt) >= today);
+                break;
+            case 'week':
+                filtered = filtered.filter(s => new Date(s.updatedAt) >= weekAgo);
+                break;
+        }
+
+        // 検索クエリ適用
+        if (searchQuery && searchQuery.trim()) {
+            const query = searchQuery.toLowerCase();
+            filtered = filtered.filter(session => {
+                const titleMatch = session.title.toLowerCase().includes(query);
+                const messageMatch = session.messages.some(msg =>
+                    msg.content.toLowerCase().includes(query)
+                );
+                return titleMatch || messageMatch;
+            });
+        }
+
+        return filtered;
+    }
+
+    /**
+     * セッション一覧モーダルのイベントリスナー設定
+     * @param {HTMLElement} modal - モーダル要素
+     * @param {Array} sessions - セッション一覧
+     */
+    setupSessionListEventListeners(modal, sessions) {
+        // 閉じるボタン
+        const closeBtn = modal.querySelector('#session-list-close');
+        const overlay = modal.querySelector('.session-list-overlay');
+
+        closeBtn.addEventListener('click', () => modal.remove());
+        overlay.addEventListener('click', () => modal.remove());
+
+        // 検索
+        const searchInput = modal.querySelector('#session-search');
+        const filterSelect = modal.querySelector('#session-filter');
+        const itemsContainer = modal.querySelector('#session-list-items');
+
+        const updateList = () => {
+            const filter = filterSelect.value;
+            const query = searchInput.value;
+            itemsContainer.innerHTML = this.renderSessionItems(sessions, filter, query);
+
+            // 再度イベントリスナーを設定
+            this.setupSessionItemListeners(modal, sessions);
+        };
+
+        searchInput.addEventListener('input', updateList);
+        filterSelect.addEventListener('change', updateList);
+
+        // セッションアイテムのイベントリスナー
+        this.setupSessionItemListeners(modal, sessions);
+    }
+
+    /**
+     * セッションアイテムのイベントリスナー設定
+     * @param {HTMLElement} modal - モーダル要素
+     * @param {Array} sessions - セッション一覧
+     */
+    setupSessionItemListeners(modal, sessions) {
+        // 開くボタン
+        modal.querySelectorAll('.session-open').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const sessionId = e.target.dataset.sessionId;
+                await this.loadSession(sessionId);
+                modal.remove();
+            });
+        });
+
+        // お気に入りボタン
+        modal.querySelectorAll('.session-favorite').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const sessionId = e.target.dataset.sessionId;
+                await this.toggleSessionFavorite(sessionId, sessions);
+
+                // UI更新
+                const filter = modal.querySelector('#session-filter').value;
+                const query = modal.querySelector('#session-search').value;
+                const updatedSessions = await this.chatManager.getSessions({
+                    sortBy: 'updatedAt',
+                    order: 'desc'
+                });
+                modal.querySelector('#session-list-items').innerHTML =
+                    this.renderSessionItems(updatedSessions, filter, query);
+                this.setupSessionItemListeners(modal, updatedSessions);
+            });
+        });
+
+        // 削除ボタン
+        modal.querySelectorAll('.session-delete').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const sessionId = e.target.dataset.sessionId;
+                if (confirm('このセッションを削除しますか？')) {
+                    await this.deleteSession(sessionId);
+
+                    // UI更新
+                    const filter = modal.querySelector('#session-filter').value;
+                    const query = modal.querySelector('#session-search').value;
+                    const updatedSessions = await this.chatManager.getSessions({
+                        sortBy: 'updatedAt',
+                        order: 'desc'
+                    });
+                    modal.querySelector('#session-list-items').innerHTML =
+                        this.renderSessionItems(updatedSessions, filter, query);
+                    this.setupSessionItemListeners(modal, updatedSessions);
+                }
+            });
+        });
+    }
+
+    /**
+     * セッションを読み込む
+     * @param {string} sessionId - セッションID
+     */
+    async loadSession(sessionId) {
+        try {
+            const session = await this.chatManager.chatStorage.getSession(sessionId);
+            if (!session) {
+                this.showNotification('セッションが見つかりません', 'error');
+                return;
+            }
+
+            // 現在のセッションを設定
+            this.chatManager.currentSession = session;
+
+            // メッセージを表示
+            this.clearMessages();
+            session.messages.forEach(msg => {
+                this.addMessage(msg.role, msg.content);
+            });
+
+            // タイトル更新
+            this.updateSessionTitle(session.title);
+
+            this.showNotification('セッションを読み込みました', 'success');
+        } catch (error) {
+            console.error('Failed to load session:', error);
+            this.showNotification('セッションの読み込みに失敗しました', 'error');
+        }
+    }
+
+    /**
+     * セッションを削除
+     * @param {string} sessionId - セッションID
+     */
+    async deleteSession(sessionId) {
+        try {
+            await this.chatManager.chatStorage.deleteSession(sessionId);
+
+            // 現在のセッションと同じ場合はクリア
+            if (this.chatManager.currentSession?.id === sessionId) {
+                this.chatManager.currentSession = null;
+                this.clearMessages();
+            }
+
+            this.showNotification('セッションを削除しました', 'success');
+        } catch (error) {
+            console.error('Failed to delete session:', error);
+            this.showNotification('セッションの削除に失敗しました', 'error');
+        }
+    }
+
+    /**
+     * セッションのお気に入りをトグル
+     * @param {string} sessionId - セッションID
+     * @param {Array} sessions - セッション一覧
+     */
+    async toggleSessionFavorite(sessionId, sessions) {
+        try {
+            const session = sessions.find(s => s.id === sessionId);
+            if (!session) return;
+
+            session.isFavorite = !session.isFavorite;
+            await this.chatManager.chatStorage.saveSession(session);
+
+            this.showNotification(
+                session.isFavorite ? 'お気に入りに追加しました' : 'お気に入りから削除しました',
+                'success'
+            );
+        } catch (error) {
+            console.error('Failed to toggle favorite:', error);
+            this.showNotification('お気に入りの更新に失敗しました', 'error');
+        }
+    }
+
+    /**
+     * セッションのプレビューテキストを取得
+     * @param {object} session - セッション
+     * @returns {string} プレビューテキスト
+     */
+    getSessionPreview(session) {
+        if (!session.messages || session.messages.length === 0) {
+            return 'メッセージなし';
+        }
+
+        const firstUserMessage = session.messages.find(m => m.role === 'user');
+        if (firstUserMessage) {
+            return firstUserMessage.content.substring(0, 100);
+        }
+
+        return session.messages[0].content.substring(0, 100);
+    }
+
+    /**
+     * 日時をフォーマット
+     * @param {Date} date - 日時
+     * @returns {string} フォーマットされた日時
+     */
+    formatDate(date) {
+        const now = new Date();
+        const diff = now - date;
+        const minutes = Math.floor(diff / 60000);
+        const hours = Math.floor(diff / 3600000);
+        const days = Math.floor(diff / 86400000);
+
+        if (minutes < 1) return 'たった今';
+        if (minutes < 60) return `${minutes}分前`;
+        if (hours < 24) return `${hours}時間前`;
+        if (days < 7) return `${days}日前`;
+
+        return date.toLocaleDateString('ja-JP', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        });
+    }
+
+    /**
+     * HTMLエスケープ
+     * @param {string} text - テキスト
+     * @returns {string} エスケープされたテキスト
+     */
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
     // ========================================
