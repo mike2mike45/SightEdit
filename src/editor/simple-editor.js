@@ -7,6 +7,7 @@ import './export-menu.css';
 import './ai-settings.css';
 import './settings.css';
 import './chat-panel.css';
+import './prompt-library.css';
 
 // バージョン管理機能をインポート
 import { VersionIntegration } from './version-integration.js';
@@ -17,6 +18,10 @@ import { LocalHistoryIntegration } from './local-history-integration.js';
 import { ChatStorage } from '../lib/chat-storage.js';
 import { AIChatManager } from '../lib/ai-chat-manager.js';
 import { ChatPanel } from './chat-panel.js';
+
+// プロンプト管理機能をインポート
+import { getPromptManager } from '../lib/prompt-manager.js';
+import { PromptLibrary } from './prompt-library.js';
 
 class SimpleMarkdownEditor {
   constructor() {
