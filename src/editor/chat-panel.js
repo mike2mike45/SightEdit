@@ -8,10 +8,11 @@ import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 
 export class ChatPanel {
-    constructor(chatManager, promptManager, promptLibrary = null) {
+    constructor(chatManager, promptManager, promptLibrary = null, styleController = null) {
         this.chatManager = chatManager;
         this.promptManager = promptManager;
         this.promptLibrary = promptLibrary;
+        this.styleController = styleController;
         this.element = null;
         this.isVisible = false;
         this.position = 'right'; // 'right' | 'bottom' | 'floating'
@@ -96,6 +97,19 @@ export class ChatPanel {
                     <input type="radio" name="context" value="full">
                     <span>ドキュメント全体</span>
                 </label>
+            </div>
+
+            <div class="style-control">
+                <div class="style-header">
+                    <label class="style-toggle">
+                        <input type="checkbox" id="style-enabled">
+                        <span>スタイル制御</span>
+                    </label>
+                    <button class="btn-link" id="style-settings" title="スタイル設定">
+                        <span class="icon">⚙️</span>
+                    </button>
+                </div>
+                <div class="style-summary" id="style-summary">スタイル制御: オフ</div>
             </div>
 
             <div class="chat-messages" id="chat-messages"></div>
@@ -485,6 +499,22 @@ export class ChatPanel {
         const promptsBtn = this.element.querySelector('#chat-prompts');
         promptsBtn.addEventListener('click', () => this.showPromptLibrary());
 
+        // スタイル制御有効化トグル
+        const styleEnabled = this.element.querySelector('#style-enabled');
+        if (styleEnabled && this.styleController) {
+            styleEnabled.checked = this.styleController.isEnabled();
+            styleEnabled.addEventListener('change', async (e) => {
+                await this.styleController.setEnabled(e.target.checked);
+                this.updateStyleSummary();
+            });
+        }
+
+        // スタイル設定ボタン
+        const styleSettings = this.element.querySelector('#style-settings');
+        if (styleSettings) {
+            styleSettings.addEventListener('click', () => this.showStyleSettings());
+        }
+
         // テキストエリアで Ctrl+Enter で送信
         const input = this.element.querySelector('#chat-input');
         input.addEventListener('keydown', (e) => {
@@ -493,6 +523,9 @@ export class ChatPanel {
                 this.onSendMessage();
             }
         });
+
+        // スタイルサマリーを初期化
+        this.updateStyleSummary();
     }
 
     /**
@@ -500,17 +533,23 @@ export class ChatPanel {
      */
     async onSendMessage() {
         const input = this.element.querySelector('#chat-input');
-        const content = input.value.trim();
+        const originalContent = input.value.trim();
 
-        if (!content) {
+        if (!originalContent) {
             return;
         }
 
         // 入力欄をクリア
         input.value = '';
 
-        // ユーザーメッセージを表示
-        this.addMessage('user', content);
+        // ユーザーメッセージを表示（元のメッセージのみ表示）
+        this.addMessage('user', originalContent);
+
+        // スタイル制御が有効な場合、スタイル情報を適用してAIに送信
+        let content = originalContent;
+        if (this.styleController && this.styleController.isEnabled()) {
+            content = this.styleController.applyStyleToPrompt(originalContent);
+        }
 
         // コンテキスト設定を取得
         const contextType = this.element.querySelector('input[name="context"]:checked').value;
@@ -1028,6 +1067,172 @@ export class ChatPanel {
         setTimeout(() => {
             notification.remove();
         }, 3000);
+    }
+
+    // ========================================
+    // スタイル制御
+    // ========================================
+
+    /**
+     * スタイル設定ダイアログを表示
+     */
+    showStyleSettings() {
+        if (!this.styleController) {
+            this.showNotification('スタイル制御が利用できません', 'error');
+            return;
+        }
+
+        const modal = document.createElement('div');
+        modal.className = 'style-settings-modal';
+
+        const definitions = this.styleController.getStyleDefinitions();
+        const currentStyle = this.styleController.getStyle();
+        const presets = this.styleController.getPresets();
+
+        modal.innerHTML = `
+            <div class="modal-overlay"></div>
+            <div class="modal-container">
+                <div class="modal-header">
+                    <h3>スタイル制御設定</h3>
+                    <button class="btn-icon close-modal" title="閉じる">×</button>
+                </div>
+                <div class="modal-content">
+                    <!-- プリセット選択 -->
+                    <div class="form-section">
+                        <label class="form-label">プリセット</label>
+                        <select id="style-preset" class="form-control">
+                            <option value="">カスタム設定</option>
+                            ${presets.map(preset => `
+                                <option value="${preset.id}">${preset.name} - ${preset.description}</option>
+                            `).join('')}
+                        </select>
+                    </div>
+
+                    <!-- トーン -->
+                    <div class="form-section">
+                        <label class="form-label">${definitions.tone.label}</label>
+                        <select id="style-tone" class="form-control">
+                            ${definitions.tone.options.map(opt => `
+                                <option value="${opt.value}" ${currentStyle.tone === opt.value ? 'selected' : ''}>
+                                    ${opt.label} - ${opt.description}
+                                </option>
+                            `).join('')}
+                        </select>
+                    </div>
+
+                    <!-- 長さ -->
+                    <div class="form-section">
+                        <label class="form-label">${definitions.length.label}</label>
+                        <select id="style-length" class="form-control">
+                            ${definitions.length.options.map(opt => `
+                                <option value="${opt.value}" ${currentStyle.length === opt.value ? 'selected' : ''}>
+                                    ${opt.label} - ${opt.description}
+                                </option>
+                            `).join('')}
+                        </select>
+                        <input type="number"
+                               id="style-custom-length"
+                               class="form-control"
+                               placeholder="カスタム文字数"
+                               value="${currentStyle.customLength || ''}"
+                               style="margin-top: 8px; display: ${currentStyle.length === 'custom' ? 'block' : 'none'};">
+                    </div>
+
+                    <!-- 対象読者 -->
+                    <div class="form-section">
+                        <label class="form-label">${definitions.audience.label}</label>
+                        <select id="style-audience" class="form-control">
+                            ${definitions.audience.options.map(opt => `
+                                <option value="${opt.value}" ${currentStyle.audience === opt.value ? 'selected' : ''}>
+                                    ${opt.label} - ${opt.description}
+                                </option>
+                            `).join('')}
+                        </select>
+                    </div>
+
+                    <!-- 言語 -->
+                    <div class="form-section">
+                        <label class="form-label">${definitions.language.label}</label>
+                        <select id="style-language" class="form-control">
+                            ${definitions.language.options.map(opt => `
+                                <option value="${opt.value}" ${currentStyle.language === opt.value ? 'selected' : ''}>
+                                    ${opt.label} - ${opt.description}
+                                </option>
+                            `).join('')}
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-secondary cancel-modal">キャンセル</button>
+                    <button class="btn-primary save-style">保存</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        // イベントリスナー
+        const presetSelect = modal.querySelector('#style-preset');
+        const lengthSelect = modal.querySelector('#style-length');
+        const customLengthInput = modal.querySelector('#style-custom-length');
+        const closeBtn = modal.querySelector('.close-modal');
+        const cancelBtn = modal.querySelector('.cancel-modal');
+        const saveBtn = modal.querySelector('.save-style');
+        const overlay = modal.querySelector('.modal-overlay');
+
+        // プリセット選択
+        presetSelect.addEventListener('change', async (e) => {
+            if (e.target.value) {
+                const preset = presets.find(p => p.id === e.target.value);
+                if (preset) {
+                    modal.querySelector('#style-tone').value = preset.style.tone;
+                    modal.querySelector('#style-length').value = preset.style.length;
+                    modal.querySelector('#style-audience').value = preset.style.audience;
+                    modal.querySelector('#style-language').value = preset.style.language;
+                }
+            }
+        });
+
+        // 長さ選択時のカスタム入力表示切り替え
+        lengthSelect.addEventListener('change', (e) => {
+            customLengthInput.style.display = e.target.value === 'custom' ? 'block' : 'none';
+        });
+
+        // 閉じる
+        const closeModal = () => modal.remove();
+        closeBtn.addEventListener('click', closeModal);
+        cancelBtn.addEventListener('click', closeModal);
+        overlay.addEventListener('click', closeModal);
+
+        // 保存
+        saveBtn.addEventListener('click', async () => {
+            const newStyle = {
+                tone: modal.querySelector('#style-tone').value,
+                length: modal.querySelector('#style-length').value,
+                audience: modal.querySelector('#style-audience').value,
+                language: modal.querySelector('#style-language').value,
+                customLength: modal.querySelector('#style-custom-length').value || null
+            };
+
+            await this.styleController.setStyle(newStyle);
+            this.updateStyleSummary();
+            this.showNotification('スタイル設定を保存しました', 'success');
+            closeModal();
+        });
+    }
+
+    /**
+     * スタイルサマリーを更新
+     */
+    updateStyleSummary() {
+        if (!this.styleController) {
+            return;
+        }
+
+        const summaryElement = this.element?.querySelector('#style-summary');
+        if (summaryElement) {
+            summaryElement.textContent = this.styleController.getStyleSummary();
+        }
     }
 
     /**

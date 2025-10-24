@@ -23,6 +23,9 @@ import { ChatPanel } from './chat-panel.js';
 import { getPromptManager } from '../lib/prompt-manager.js';
 import { PromptLibrary } from './prompt-library.js';
 
+// スタイル制御機能をインポート
+import { getStyleController } from '../lib/style-controller.js';
+
 class SimpleMarkdownEditor {
   constructor() {
     this.currentFileName = null;
@@ -2436,6 +2439,11 @@ async function initChatFeature(editor) {
     // PromptLibrary の初期化
     const promptLibrary = new PromptLibrary(promptManager);
 
+    // StyleController の初期化
+    const styleController = getStyleController();
+    await styleController.init();
+    console.log('StyleController initialized');
+
     // AIChatManager の初期化（aiManagerが設定されるまで待つ）
     const waitForAIManager = setInterval(() => {
       if (window.aiManager) {
@@ -2443,8 +2451,8 @@ async function initChatFeature(editor) {
 
         chatManager = new AIChatManager(window.aiManager, promptManager, chatStorage);
 
-        // ChatPanel の初期化
-        chatPanel = new ChatPanel(chatManager, promptManager, promptLibrary);
+        // ChatPanel の初期化（styleControllerを追加）
+        chatPanel = new ChatPanel(chatManager, promptManager, promptLibrary, styleController);
         chatPanel.render();
 
         // グローバルアクセス用
@@ -2453,6 +2461,7 @@ async function initChatFeature(editor) {
         window.chatStorage = chatStorage;
         window.promptManager = promptManager;
         window.promptLibrary = promptLibrary;
+        window.styleController = styleController;
 
         // チャットトグルボタンのイベントリスナー
         const chatToggleBtn = document.getElementById('chat-toggle-btn');
