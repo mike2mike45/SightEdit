@@ -5,11 +5,14 @@
  * Chrome Storage の容量制限を回避するため IndexedDB を使用。
  */
 
+import { getPerformanceOptimizer } from './performance-optimizer.js';
+
 export class ChatStorage {
     constructor() {
         this.dbName = 'SightEditChatDB';
         this.dbVersion = 1;
         this.db = null;
+        this.performanceOptimizer = getPerformanceOptimizer();
     }
 
     /**
@@ -548,5 +551,154 @@ export class ChatStorage {
                 console.warn('データベース削除がブロックされました');
             };
         });
+    }
+
+    /**
+     * 複数のセッションを一括保存（バッチ操作）
+     * @param {Array} sessions - セッション配列
+     * @param {number} batchSize - バッチサイズ
+     * @returns {Promise<Array<string>>} 保存されたセッションIDの配列
+     */
+    async batchSaveSessions(sessions, batchSize = 50) {
+        await this.ensureDB();
+
+        const results = [];
+
+        for (let i = 0; i < sessions.length; i += batchSize) {
+            const batch = sessions.slice(i, i + batchSize);
+
+            const transaction = this.db.transaction(['sessions'], 'readwrite');
+            const store = transaction.objectStore('sessions');
+
+            const batchPromises = batch.map(session => {
+                return new Promise((resolve, reject) => {
+                    const request = store.put(session);
+                    request.onsuccess = () => resolve(request.result);
+                    request.onerror = () => reject(request.error);
+                });
+            });
+
+            const batchResults = await Promise.all(batchPromises);
+            results.push(...batchResults);
+
+            // UIブロッキング防止
+            if (i + batchSize < sessions.length) {
+                await new Promise(resolve => setTimeout(resolve, 0));
+            }
+        }
+
+        return results;
+    }
+
+    /**
+     * 複数のセッションを一括削除（バッチ操作）
+     * @param {Array<string>} sessionIds - セッションIDの配列
+     * @param {number} batchSize - バッチサイズ
+     * @returns {Promise<void>}
+     */
+    async batchDeleteSessions(sessionIds, batchSize = 50) {
+        await this.ensureDB();
+
+        for (let i = 0; i < sessionIds.length; i += batchSize) {
+            const batch = sessionIds.slice(i, i + batchSize);
+
+            const transaction = this.db.transaction(['sessions', 'messages'], 'readwrite');
+            const sessionsStore = transaction.objectStore('sessions');
+            const messagesStore = transaction.objectStore('messages');
+
+            const batchPromises = batch.map(async sessionId => {
+                // セッションを削除
+                await new Promise((resolve, reject) => {
+                    const request = sessionsStore.delete(sessionId);
+                    request.onsuccess = () => resolve();
+                    request.onerror = () => reject(request.error);
+                });
+
+                // 関連メッセージを削除
+                const messagesIndex = messagesStore.index('sessionId');
+                const messagesRequest = messagesIndex.openCursor(IDBKeyRange.only(sessionId));
+
+                await new Promise((resolve, reject) => {
+                    messagesRequest.onsuccess = (event) => {
+                        const cursor = event.target.result;
+                        if (cursor) {
+                            cursor.delete();
+                            cursor.continue();
+                        } else {
+                            resolve();
+                        }
+                    };
+                    messagesRequest.onerror = () => reject(messagesRequest.error);
+                });
+            });
+
+            await Promise.all(batchPromises);
+
+            // UIブロッキング防止
+            if (i + batchSize < sessionIds.length) {
+                await new Promise(resolve => setTimeout(resolve, 0));
+            }
+        }
+    }
+
+    /**
+     * 古いセッションをアーカイブ（メモリ管理）
+     * @param {number} maxSessions - 保持する最大セッション数
+     * @returns {Promise<Object>} アーカイブ結果
+     */
+    async archiveOldSessions(maxSessions = 100) {
+        await this.ensureDB();
+
+        // すべてのセッションを取得（更新日時でソート）
+        const sessions = await this.getSessions({
+            sortBy: 'updatedAt',
+            order: 'desc'
+        });
+
+        if (sessions.length <= maxSessions) {
+            return {
+                archived: 0,
+                remaining: sessions.length
+            };
+        }
+
+        // アーカイブ対象（古いセッション）を選択
+        const toArchive = sessions.slice(maxSessions);
+
+        // お気に入りは除外
+        const archiveIds = toArchive
+            .filter(s => !s.isFavorite)
+            .map(s => s.id);
+
+        // バッチ削除
+        if (archiveIds.length > 0) {
+            await this.batchDeleteSessions(archiveIds);
+        }
+
+        return {
+            archived: archiveIds.length,
+            remaining: sessions.length - archiveIds.length
+        };
+    }
+
+    /**
+     * メモリ使用量を最適化
+     * @returns {Promise<Object>} 最適化結果
+     */
+    async optimizeMemory() {
+        const sessions = await this.getSessions({
+            sortBy: 'updatedAt',
+            order: 'desc'
+        });
+
+        const result = await this.performanceOptimizer.checkMemoryAndArchive(
+            sessions,
+            async (sessionsToArchive) => {
+                const archiveIds = sessionsToArchive.map(s => s.id);
+                await this.batchDeleteSessions(archiveIds);
+            }
+        );
+
+        return result;
     }
 }

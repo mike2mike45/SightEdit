@@ -491,4 +491,47 @@ export class AIChatManager {
     async cleanup(maxSessions = 100) {
         return await this.chatStorage.cleanup(maxSessions);
     }
+
+    /**
+     * メモリ最適化を実行
+     * @returns {Promise<Object>} 最適化結果
+     */
+    async optimizeMemory() {
+        try {
+            const result = await this.chatStorage.optimizeMemory();
+            console.log('メモリ最適化完了:', result);
+            return result;
+        } catch (error) {
+            console.error('メモリ最適化エラー:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * 古いセッションをアーカイブ
+     * @param {number} maxSessions - 保持する最大セッション数
+     * @returns {Promise<Object>} アーカイブ結果
+     */
+    async archiveOldSessions(maxSessions = 100) {
+        try {
+            const result = await this.chatStorage.archiveOldSessions(maxSessions);
+            console.log('セッションアーカイブ完了:', result);
+            return result;
+        } catch (error) {
+            console.error('セッションアーカイブエラー:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * パフォーマンス統計を取得
+     * @returns {Object} 統計情報
+     */
+    getPerformanceStats() {
+        return {
+            currentSession: this.currentSession?.id || null,
+            isStreaming: this.isStreaming,
+            storageStats: this.chatStorage.performanceOptimizer.getStats()
+        };
+    }
 }

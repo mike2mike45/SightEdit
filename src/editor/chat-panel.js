@@ -6,6 +6,7 @@
 
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
+import { getPerformanceOptimizer } from '../lib/performance-optimizer.js';
 
 export class ChatPanel {
     constructor(chatManager, promptManager, promptLibrary = null, styleController = null, structuredGenerator = null, structuredGenerationModal = null, exportImportManager = null) {
@@ -16,6 +17,7 @@ export class ChatPanel {
         this.structuredGenerator = structuredGenerator;
         this.structuredGenerationModal = structuredGenerationModal;
         this.exportImportManager = exportImportManager;
+        this.performanceOptimizer = getPerformanceOptimizer();
         this.element = null;
         this.isVisible = false;
         this.position = 'right'; // 'right' | 'bottom' | 'floating'
@@ -579,6 +581,9 @@ export class ChatPanel {
         // チャットマネージャーでメッセージ送信
         let accumulatedContent = '';
 
+        // パフォーマンス最適化：ストリーミングバッファを初期化
+        this.performanceOptimizer.initStreamingBuffer(this.currentStreamingMessageId);
+
         try {
             await this.chatManager.sendMessageWithStreaming(
                 content,
@@ -586,18 +591,34 @@ export class ChatPanel {
                     includeContext: contextType !== 'none',
                     contextType: contextType
                 },
-                // onChunk
+                // onChunk - バッファリングを使用
                 (chunk) => {
                     accumulatedContent += chunk;
-                    this.updateStreamingMessage(accumulatedContent);
+
+                    // バッファリングされたチャンクを追加
+                    this.performanceOptimizer.addToStreamingBuffer(
+                        this.currentStreamingMessageId,
+                        chunk,
+                        (bufferedContent) => {
+                            // バッファがフラッシュされたときにUIを更新
+                            this.updateStreamingMessage(accumulatedContent);
+                        }
+                    );
                 },
                 // onComplete
                 (fullResponse) => {
-                    this.finalizeStreamingMessage(fullResponse);
+                    // バッファを完了してUIを更新
+                    this.performanceOptimizer.completeStreamingBuffer(
+                        this.currentStreamingMessageId,
+                        () => {
+                            this.finalizeStreamingMessage(fullResponse);
+                        }
+                    );
                     this.updateSessionTitle();
                 },
                 // onError
                 (error) => {
+                    this.performanceOptimizer.completeStreamingBuffer(this.currentStreamingMessageId);
                     this.finalizeStreamingMessage(`エラーが発生しました: ${error.message}`);
                     this.showNotification('エラーが発生しました', 'error');
                 }
