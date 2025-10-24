@@ -5,6 +5,7 @@
  */
 
 import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 
 export class ChatPanel {
     constructor(chatManager, promptManager) {
@@ -251,8 +252,21 @@ export class ChatPanel {
     renderMessageContent(content, container, streaming = false) {
         try {
             // Markdown を HTML に変換
-            const html = marked.parse(content);
-            container.innerHTML = html;
+            const rawHtml = marked.parse(content);
+
+            // DOMPurify でサニタイズ（XSS対策）
+            const cleanHtml = DOMPurify.sanitize(rawHtml, {
+                ALLOWED_TAGS: [
+                    'p', 'br', 'strong', 'em', 'code', 'pre',
+                    'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+                    'a', 'blockquote', 'table', 'tr', 'td', 'th', 'thead', 'tbody',
+                    'img', 'hr', 'del', 'span', 'div'
+                ],
+                ALLOWED_ATTR: ['href', 'class', 'src', 'alt', 'title', 'target'],
+                ALLOW_DATA_ATTR: false
+            });
+
+            container.innerHTML = cleanHtml;
 
             // ストリーミング中はカーソルを表示
             if (streaming) {
