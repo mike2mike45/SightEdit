@@ -6,11 +6,17 @@ import './ai-command-panel.css';
 import './export-menu.css';
 import './ai-settings.css';
 import './settings.css';
+import './chat-panel.css';
 
 // バージョン管理機能をインポート
 import { VersionIntegration } from './version-integration.js';
 // ローカル履歴機能をインポート
 import { LocalHistoryIntegration } from './local-history-integration.js';
+
+// AI チャット機能をインポート
+import { ChatStorage } from '../lib/chat-storage.js';
+import { AIChatManager } from '../lib/ai-chat-manager.js';
+import { ChatPanel } from './chat-panel.js';
 
 class SimpleMarkdownEditor {
   constructor() {
@@ -2377,21 +2383,112 @@ class ExportUI {
 // グローバルにUI機能を初期化
 let aiCommandUI = null;
 let exportUI = null;
+let chatPanel = null;
+let chatManager = null;
 
 // エディター初期化後に機能を追加
 document.addEventListener('DOMContentLoaded', () => {
   const editor = new SimpleMarkdownEditor();
-  
+
+  // グローバルアクセス用
+  window.editorManager = editor;
+
   // 機能の初期化
-  setTimeout(() => {
+  setTimeout(async () => {
     aiCommandUI = new AICommandUI(editor);
     exportUI = new ExportUI(editor);
-    
+
     // グローバルアクセス用
     window.aiCommandUI = aiCommandUI;
     window.exportUI = exportUI;
+
+    // AICommandManager を aiManager として公開（AICommandManager は AIManager を拡張）
+    if (aiCommandUI.commandManager) {
+      window.aiManager = aiCommandUI.commandManager;
+    }
+
+    // AI チャット機能の初期化
+    await initChatFeature(editor);
+
+    // キーボードショートカットの設定
+    setupKeyboardShortcuts();
   }, 100);
 });
+
+// AI チャット機能の初期化
+async function initChatFeature(editor) {
+  try {
+    // ChatStorage の初期化
+    const chatStorage = new ChatStorage();
+    await chatStorage.initDB();
+    console.log('ChatStorage initialized');
+
+    // AIChatManager の初期化（aiManagerが設定されるまで待つ）
+    const waitForAIManager = setInterval(() => {
+      if (window.aiManager) {
+        clearInterval(waitForAIManager);
+
+        chatManager = new AIChatManager(window.aiManager, null, chatStorage);
+
+        // ChatPanel の初期化
+        chatPanel = new ChatPanel(chatManager, null);
+        chatPanel.render();
+
+        // グローバルアクセス用
+        window.chatPanel = chatPanel;
+        window.chatManager = chatManager;
+        window.chatStorage = chatStorage;
+
+        // チャットトグルボタンのイベントリスナー
+        const chatToggleBtn = document.getElementById('chat-toggle-btn');
+        if (chatToggleBtn) {
+          chatToggleBtn.addEventListener('click', () => {
+            chatPanel.toggle();
+          });
+        }
+
+        console.log('Chat feature initialized');
+      }
+    }, 50);
+
+    // タイムアウト（5秒後）
+    setTimeout(() => {
+      clearInterval(waitForAIManager);
+      if (!window.aiManager) {
+        console.error('AIManager not available after timeout');
+      }
+    }, 5000);
+
+  } catch (error) {
+    console.error('Failed to initialize chat feature:', error);
+  }
+}
+
+// キーボードショートカットの設定
+function setupKeyboardShortcuts() {
+  document.addEventListener('keydown', (e) => {
+    // Ctrl+K: チャットパネルのトグル
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      e.preventDefault();
+      if (chatPanel) {
+        chatPanel.toggle();
+      }
+    }
+
+    // Ctrl+L: 会話クリア
+    if ((e.ctrlKey || e.metaKey) && e.key === 'l') {
+      e.preventDefault();
+      if (chatPanel && chatPanel.isVisible) {
+        if (confirm('会話をクリアしますか？')) {
+          chatPanel.clearMessages();
+          if (chatManager) {
+            chatManager.currentSession = null;
+          }
+        }
+      }
+    }
+  });
+}
 
 // API接続テスト関数をSimpleMarkdownEditorクラスに追加
 SimpleMarkdownEditor.prototype.testGeminiConnection = async function(apiKey, model) {
