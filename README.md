@@ -49,13 +49,17 @@ SightEdit/
 ### 🤖 AI機能
 - **マルチプロバイダー対応**: Gemini（デフォルト）& Claude
 - **Geminiモデル**:
-  - Gemini 2.5 Pro（推奨・無料枠あり）
-  - Gemini 2.0 Flash（最新・無料枠あり）
-  - Gemini 1.5 Flash（高速・無料枠あり）
+  - Gemini 2.0 Flash (実験版) - 最新・無料枠あり
+  - Gemini 2.0 Flash - 無料枠あり
+  - Gemini 2.5 Pro - 無料枠あり・推奨 ⭐
+  - Gemini 1.5 Flash - 無料枠あり・高速
+  - Gemini 1.5 Pro - 無料枠あり
 - **Claudeモデル**:
-  - Claude 3.5 Sonnet（最新・2024年10月版）
-  - Claude 3.5 Haiku（高速・2024年10月版）
-  - Claude 3 Opus（高性能）
+  - Claude 3.5 Sonnet (2024年10月版) - 最新
+  - Claude 3.5 Haiku (2024年10月版) - 最新・高速
+  - Claude 3 Opus - 高性能
+  - Claude 3 Sonnet
+  - Claude 3 Haiku - 高速
 
 ### 🎯 AI機能一覧
 - 📝 **要約**: テキストの要約生成
@@ -121,28 +125,32 @@ npm run build
 ```bash
 # C#中継アプリをビルド
 .\build-relay.bat
-
-# ファイル関連付けを設定（管理者権限で実行）
-.\setup-file-association.bat
 ```
 
-#### ステップ5: 初回認証
+#### ステップ5: ファイル関連付け設定（Windows）
+
+**実行場所**: `C:\Users\mscat\OneDrive\ドキュメント\GitHub\SightEdit` (インストールしたフォルダ)
+**使用シェル**: コマンドプロンプト または PowerShell
+
+```cmd
+# 1. コマンドプロンプトを「管理者として実行」で起動
+#    （スタートメニュー → cmd → 右クリック → 管理者として実行）
+
+# 2. ディレクトリに移動（インストールしたフォルダ）
+cd C:\Users\mscat\OneDrive\ドキュメント\GitHub\SightEdit
+
+# 3. バッチファイルを実行
+setup-file-association.bat
+```
+
+これで`.md`ファイルをダブルクリックするとSightEditで開きます。
+
+#### ステップ6: 初回認証
 
 1. `.md`ファイルをダブルクリックしてSightEditを起動
 2. 初回起動時にブラウザでGoogleアカウント認証画面が開く
 3. 「SightEditを許可」をクリック
 4. 以降は自動的にGoogle Driveと連携
-
-### 4. ファイル関連付け設定（Windows）
-
-上記のステップ4で完了していますが、手動で設定する場合：
-
-```bash
-# 管理者権限で実行
-.\setup-file-association.bat
-```
-
-これで`.md`ファイルをダブルクリックするとSightEditで開きます。
 
 ## 🔧 開発
 
