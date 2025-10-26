@@ -224,6 +224,69 @@ npm test       # テスト実行
 - [ ] WebAssembly活用
 - [ ] PWA対応
 
+### 9.3 AI統合の将来検討事項
+
+#### Chrome Built-in AI (Gemini Nano) 統合検討
+**実装検討時期**: 将来（2025年後半以降）
+
+**概要**:
+- Chromeに組み込まれたオンデバイスAI（Gemini Nano）の統合
+- APIキー不要、プライバシー保護、オフライン動作可能
+
+**利用可能なAPI**:
+- Prompt API: 汎用的なテキスト生成
+- Summarizer API: テキスト要約
+- Writer API: 文章執筆支援
+- Rewriter API: 文章のリライト
+- Translator API: 翻訳機能
+- Proofreader API: 校正機能
+
+**技術要件**:
+- Chrome 140以降
+- Windows 10/11、macOS 13+、Linux、ChromeOS (Chromebook Plus)
+- 実験的機能フラグの有効化が必要（初期段階）
+
+**メリット**:
+- ユーザーがAPIキーを取得する必要がない
+- オンデバイス処理によるプライバシー保護
+- 無料で利用可能
+- 低レイテンシ（クラウドAPIより高速）
+
+**デメリット/懸念事項**:
+- 実験的機能のため安定性が不明
+- Gemini APIやClaude APIと比較して性能が劣る可能性
+- 対応ブラウザとOSの制限
+- 一般ユーザーがフラグ設定を行う必要がある（初期段階）
+
+**実装時の統合方針**:
+```javascript
+// 3つのAIプロバイダーオプション
+aiProviders: {
+  'gemini-nano': {
+    name: 'Gemini Nano (Chrome Built-in)',
+    requiresApiKey: false,
+    features: ['summarize', 'translate', 'proofread', 'write', 'rewrite']
+  },
+  'gemini': {
+    name: 'Gemini API',
+    requiresApiKey: true,
+    features: ['all']
+  },
+  'claude': {
+    name: 'Claude API',
+    requiresApiKey: true,
+    features: ['all']
+  }
+}
+```
+
+**参考リンク**:
+- Chrome for Developers: https://developer.chrome.com/docs/ai
+- Chrome Built-in AI Challenge 2025: https://googlechromeai2025.devpost.com/
+
+**決定日**: 2025年10月26日
+**ステータス**: 将来実装検討対象（時期尚早と判断）
+
 ## 10. 制約事項
 
 ### 10.1 Chrome拡張の制約
