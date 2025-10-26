@@ -40,30 +40,30 @@ export class AIManager {
                 }
             },
             claude: {
+                'claude-sonnet-4-5-20250929': {
+                    name: 'Claude Sonnet 4.5 (最新・2025年9月版)',
+                    endpoint: 'https://api.anthropic.com/v1/messages',
+                    maxTokens: 8192
+                },
+                'claude-haiku-4-5-20251015': {
+                    name: 'Claude Haiku 4.5 (最新・高速・2025年10月版)',
+                    endpoint: 'https://api.anthropic.com/v1/messages',
+                    maxTokens: 64000
+                },
+                'claude-opus-4-1-20250801': {
+                    name: 'Claude Opus 4.1 (高性能・2025年8月版)',
+                    endpoint: 'https://api.anthropic.com/v1/messages',
+                    maxTokens: 8192
+                },
                 'claude-3-5-sonnet-20241022': {
-                    name: 'Claude 3.5 Sonnet (最新・2024年10月版)',
+                    name: 'Claude 3.5 Sonnet (2024年10月版)',
                     endpoint: 'https://api.anthropic.com/v1/messages',
                     maxTokens: 8192
                 },
                 'claude-3-5-haiku-20241022': {
-                    name: 'Claude 3.5 Haiku (最新・高速・2024年10月版)',
+                    name: 'Claude 3.5 Haiku (高速・2024年10月版)',
                     endpoint: 'https://api.anthropic.com/v1/messages',
                     maxTokens: 8192
-                },
-                'claude-3-opus-20240229': {
-                    name: 'Claude 3 Opus (高性能)',
-                    endpoint: 'https://api.anthropic.com/v1/messages',
-                    maxTokens: 4096
-                },
-                'claude-3-sonnet-20240229': {
-                    name: 'Claude 3 Sonnet',
-                    endpoint: 'https://api.anthropic.com/v1/messages',
-                    maxTokens: 4096
-                },
-                'claude-3-haiku-20240307': {
-                    name: 'Claude 3 Haiku (高速)',
-                    endpoint: 'https://api.anthropic.com/v1/messages',
-                    maxTokens: 4096
                 }
             }
         };
@@ -79,7 +79,7 @@ export class AIManager {
 
             // selectedModelが設定されていない場合や、現在のプロバイダーに対応していない場合はデフォルトを設定
             if (!this.settings.selectedModel || !this.aiModels[this.settings.aiProvider][this.settings.selectedModel]) {
-                this.settings.selectedModel = this.settings.aiProvider === 'gemini' ? 'gemini-2.5-pro' : 'claude-3-5-sonnet-20241022';
+                this.settings.selectedModel = this.settings.aiProvider === 'gemini' ? 'gemini-2.5-pro' : 'claude-sonnet-4-5-20250929';
             }
 
             this.updateAIButton();
@@ -107,7 +107,7 @@ export class AIManager {
                         settings.selectedModel = result.geminiModel || 'gemini-2.5-pro';
                     } else if (!result.geminiApiKey && result.claudeApiKey) {
                         settings.aiProvider = 'claude';
-                        settings.selectedModel = result.claudeModel || 'claude-3-5-sonnet-20241022';
+                        settings.selectedModel = result.claudeModel || 'claude-sonnet-4-5-20250929';
                     } else if (result.geminiApiKey && result.claudeApiKey) {
                         // 両方設定されている場合はGeminiを優先（デフォルト）
                         settings.aiProvider = 'gemini';
@@ -135,7 +135,7 @@ export class AIManager {
 
                 // selectedModelが新しいプロバイダーに対応していない場合はデフォルトを設定
                 if (!this.aiModels[this.settings.aiProvider][this.settings.selectedModel]) {
-                    this.settings.selectedModel = this.settings.aiProvider === 'gemini' ? 'gemini-2.5-pro' : 'claude-3-5-sonnet-20241022';
+                    this.settings.selectedModel = this.settings.aiProvider === 'gemini' ? 'gemini-2.5-pro' : 'claude-sonnet-4-5-20250929';
                 }
             }
 
@@ -177,11 +177,11 @@ export class AIManager {
             'Gemini 2.5 Pro (無料枠あり・推奨)': '2.5 Pro',
             'Gemini 1.5 Flash (無料枠あり・高速)': '1.5 Flash',
             'Gemini 1.5 Pro (無料枠あり)': '1.5 Pro',
-            'Claude 3.5 Sonnet (最新・2024年10月版)': '3.5 Sonnet',
-            'Claude 3.5 Haiku (最新・高速・2024年10月版)': '3.5 Haiku',
-            'Claude 3 Opus (高性能)': '3 Opus',
-            'Claude 3 Sonnet': '3 Sonnet',
-            'Claude 3 Haiku (高速)': '3 Haiku'
+            'Claude Sonnet 4.5 (最新・2025年9月版)': 'Sonnet 4.5',
+            'Claude Haiku 4.5 (最新・高速・2025年10月版)': 'Haiku 4.5',
+            'Claude Opus 4.1 (高性能・2025年8月版)': 'Opus 4.1',
+            'Claude 3.5 Sonnet (2024年10月版)': '3.5 Sonnet',
+            'Claude 3.5 Haiku (高速・2024年10月版)': '3.5 Haiku'
         };
 
         return shortNames[fullName] || fullName;
@@ -197,11 +197,11 @@ export class AIManager {
                 'gemini-1.5-pro': '無料枠あり'
             },
             claude: {
+                'claude-sonnet-4-5-20250929': '$3/$15 per 1M tokens',
+                'claude-haiku-4-5-20251015': '$1/$5 per 1M tokens',
+                'claude-opus-4-1-20250801': '$15/$75 per 1M tokens',
                 'claude-3-5-sonnet-20241022': '$3/$15 per 1M tokens',
-                'claude-3-5-haiku-20241022': '$1/$5 per 1M tokens',
-                'claude-3-opus-20240229': '$15/$75 per 1M tokens',
-                'claude-3-sonnet-20240229': '$3/$15 per 1M tokens',
-                'claude-3-haiku-20240307': '$0.25/$1.25 per 1M tokens'
+                'claude-3-5-haiku-20241022': '$1/$5 per 1M tokens'
             }
         };
 
@@ -290,7 +290,7 @@ export class AIManager {
         // 現在選択されているモデルが現在のプロバイダーにない場合はデフォルトを使用
         const currentSelectedModel = models[this.settings.selectedModel] ?
             this.settings.selectedModel :
-            (provider === 'gemini' ? 'gemini-2.5-pro' : 'claude-3-5-sonnet-20241022');
+            (provider === 'gemini' ? 'gemini-2.5-pro' : 'claude-sonnet-4-5-20250929');
 
         return Object.entries(models).map(([id, model]) =>
             `<option value="${id}" ${currentSelectedModel === id ? 'selected' : ''}>${model.name}</option>`
@@ -318,7 +318,7 @@ export class AIManager {
         if (provider === this.settings.aiProvider && this.settings.selectedModel && models[this.settings.selectedModel]) {
             selectedModel = this.settings.selectedModel;
         } else {
-            selectedModel = provider === 'gemini' ? 'gemini-2.5-pro' : 'claude-3-5-sonnet-20241022';
+            selectedModel = provider === 'gemini' ? 'gemini-2.5-pro' : 'claude-sonnet-4-5-20250929';
         }
 
         modelSelect.value = selectedModel;

@@ -48,18 +48,18 @@ SightEdit/
 
 ### 🤖 AI機能
 - **マルチプロバイダー対応**: Gemini（デフォルト）& Claude
-- **Geminiモデル**:
-  - Gemini 2.0 Flash (実験版) - 最新・無料枠あり
-  - Gemini 2.0 Flash - 無料枠あり
-  - Gemini 2.5 Pro - 無料枠あり・推奨 ⭐
-  - Gemini 1.5 Flash - 無料枠あり・高速
+- **Geminiモデル** (性能順):
+  - Gemini 2.5 Pro - 最も知的、推論能力が高い・無料枠あり ⭐ 推奨
+  - Gemini 2.0 Flash - 高速・低レイテンシ・無料枠あり
+  - Gemini 2.0 Flash (実験版) - 最新実験版・無料枠あり
   - Gemini 1.5 Pro - 無料枠あり
-- **Claudeモデル**:
-  - Claude 3.5 Sonnet (2024年10月版) - 最新
-  - Claude 3.5 Haiku (2024年10月版) - 最新・高速
-  - Claude 3 Opus - 高性能
-  - Claude 3 Sonnet
-  - Claude 3 Haiku - 高速
+  - Gemini 1.5 Flash - 無料枠あり・高速
+- **Claudeモデル** (最新版):
+  - Claude Sonnet 4.5 (2025年9月版) - 最新フラッグシップ ⭐
+  - Claude Haiku 4.5 (2025年10月版) - 最新高速モデル、Sonnet 4並みの性能、1/3のコスト
+  - Claude Opus 4.1 (2025年8月版) - 高性能モデル
+  - Claude 3.5 Sonnet (2024年10月版) - 旧世代
+  - Claude 3.5 Haiku (2024年10月版) - 旧世代・高速
 
 ### 🎯 AI機能一覧
 - 📝 **要約**: テキストの要約生成
