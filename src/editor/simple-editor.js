@@ -691,6 +691,42 @@ class SimpleMarkdownEditor {
     } else {
       console.error('claude-test-btn要素が見つかりません');
     }
+
+    // プロバイダー選択ボタン
+    const providerBtns = document.querySelectorAll('.provider-choice-btn');
+    providerBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const provider = btn.dataset.provider;
+        this.selectProvider(provider);
+      });
+    });
+  }
+
+  selectProvider(provider) {
+    console.log('プロバイダーが選択されました:', provider);
+
+    // すべてのボタンからactiveクラスを削除
+    const allBtns = document.querySelectorAll('.provider-choice-btn');
+    allBtns.forEach(btn => btn.classList.remove('active'));
+
+    // 選択されたボタンにactiveクラスを追加
+    const selectedBtn = document.querySelector(`[data-provider="${provider}"]`);
+    if (selectedBtn) {
+      selectedBtn.classList.add('active');
+    }
+
+    // hidden inputの値を更新
+    const hiddenInput = document.getElementById('default-provider');
+    if (hiddenInput) {
+      hiddenInput.value = provider;
+    }
+
+    // Chrome Storageに保存
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      chrome.storage.sync.set({ aiProvider: provider }, () => {
+        console.log(`AIプロバイダーを${provider}に変更しました`);
+      });
+    }
   }
 
   showSettings() {
@@ -720,7 +756,7 @@ class SimpleMarkdownEditor {
   loadAISettings() {
     // Chrome Storage APIから設定を読み込み
     if (typeof chrome !== 'undefined' && chrome.storage) {
-      chrome.storage.sync.get(['geminiApiKey', 'geminiModel', 'claudeApiKey', 'claudeModel'], (result) => {
+      chrome.storage.sync.get(['geminiApiKey', 'geminiModel', 'claudeApiKey', 'claudeModel', 'aiProvider'], (result) => {
         // Gemini設定を復元
         const geminiKey = document.getElementById('gemini-api-key');
         const geminiModel = document.getElementById('gemini-model');
@@ -732,6 +768,22 @@ class SimpleMarkdownEditor {
         const claudeModel = document.getElementById('claude-model');
         if (claudeKey) claudeKey.value = result.claudeApiKey || '';
         if (claudeModel) claudeModel.value = result.claudeModel || 'claude-3-5-sonnet-20241022';
+
+        // プロバイダー選択ボタンを更新
+        const provider = result.aiProvider || 'gemini';
+        const allBtns = document.querySelectorAll('.provider-choice-btn');
+        allBtns.forEach(btn => btn.classList.remove('active'));
+
+        const selectedBtn = document.querySelector(`[data-provider="${provider}"]`);
+        if (selectedBtn) {
+          selectedBtn.classList.add('active');
+        }
+
+        // hidden inputの値も更新
+        const hiddenInput = document.getElementById('default-provider');
+        if (hiddenInput) {
+          hiddenInput.value = provider;
+        }
       });
     }
   }
@@ -1998,10 +2050,10 @@ class AICommandUI {
     }
   }
 
-  showCommandPanel() {
+  async showCommandPanel() {
     // 選択されたテキストを取得
     this.currentSelectedText = this.getSelectedText();
-    
+
     const modal = document.getElementById('ai-command-modal');
     const preview = document.getElementById('selected-text-preview');
     const content = document.getElementById('selected-text-content');
@@ -2014,7 +2066,49 @@ class AICommandUI {
       this.currentSelectedText = this.editor.getCurrentContent();
     }
 
+    // 現在のAIプロバイダーとモデル情報を表示
+    await this.updateCurrentProviderDisplay();
+
     modal.style.display = 'flex';
+  }
+
+  async updateCurrentProviderDisplay() {
+    try {
+      const providerEl = document.getElementById('ai-command-current-provider');
+      if (!providerEl) return;
+
+      // Chrome Storageから現在の設定を取得
+      const settings = await chrome.storage.sync.get(['aiProvider', 'geminiModel', 'claudeModel']);
+      const provider = settings.aiProvider || 'gemini';
+      const modelId = provider === 'gemini' ? (settings.geminiModel || 'gemini-2.5-pro') : (settings.claudeModel || 'claude-sonnet-4-5-20250929');
+
+      // プロバイダー名とモデル名を取得
+      const providerNames = {
+        'gemini': 'Google Gemini',
+        'claude': 'Anthropic Claude'
+      };
+
+      const modelNames = {
+        'gemini-2.5-pro': 'Gemini 2.5 Pro',
+        'gemini-2.0-flash-exp': 'Gemini 2.0 Flash (実験版)',
+        'gemini-2.0-flash': 'Gemini 2.0 Flash',
+        'gemini-1.5-pro': 'Gemini 1.5 Pro',
+        'gemini-1.5-flash': 'Gemini 1.5 Flash',
+        'claude-sonnet-4-5-20250929': 'Claude Sonnet 4.5',
+        'claude-haiku-4-5-20251015': 'Claude Haiku 4.5',
+        'claude-opus-4-1-20250801': 'Claude Opus 4.1',
+        'claude-3-5-sonnet-20241022': 'Claude 3.5 Sonnet',
+        'claude-3-5-haiku-20241022': 'Claude 3.5 Haiku'
+      };
+
+      const providerName = providerNames[provider] || provider;
+      const modelName = modelNames[modelId] || modelId;
+
+      providerEl.textContent = `（使用中: ${providerName} - ${modelName}）`;
+      providerEl.style.display = 'inline';
+    } catch (error) {
+      console.error('プロバイダー情報の取得に失敗:', error);
+    }
   }
 
   hideCommandPanel() {

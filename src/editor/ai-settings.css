@@ -505,3 +505,74 @@
 .ai-error-footer .btn.primary:hover {
     background: #b91c1c;
 }
+
+/* プロバイダー選択ボタン */
+.provider-selection-group {
+    margin: 20px 0;
+    padding: 20px;
+    background: #f9fafb;
+    border-radius: 12px;
+    border: 2px solid #e5e7eb;
+}
+
+.provider-selection-label {
+    display: block;
+    margin-bottom: 16px;
+    font-size: 16px;
+    color: #1f2937;
+}
+
+.provider-selection-buttons {
+    display: flex;
+    gap: 12px;
+}
+
+.provider-choice-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 20px;
+    background: white;
+    border: 2px solid #d1d5db;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.provider-choice-btn:hover {
+    border-color: #9ca3af;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.provider-choice-btn.active {
+    border-color: #10b981;
+    background: #d1fae5;
+    box-shadow: 0 4px 16px rgba(16, 185, 129, 0.2);
+}
+
+.provider-choice-btn .provider-icon {
+    font-size: 32px;
+}
+
+.provider-choice-btn .provider-name {
+    font-size: 18px;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.provider-choice-btn .provider-badge {
+    font-size: 12px;
+    font-weight: 500;
+    color: #6b7280;
+    background: #f3f4f6;
+    padding: 4px 12px;
+    border-radius: 12px;
+}
+
+.provider-choice-btn.active .provider-badge {
+    background: white;
+    color: #10b981;
+}

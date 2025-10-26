@@ -67,6 +67,16 @@
     font-size: 24px;
 }
 
+.ai-command-current-provider {
+    font-size: 14px;
+    font-weight: 500;
+    color: #10b981;
+    background: #d1fae5;
+    padding: 4px 12px;
+    border-radius: 12px;
+    margin-left: 8px;
+}
+
 .ai-command-close {
     background: none;
     border: none;
