@@ -28,12 +28,53 @@ Markdownファイルを**ダブルクリック**するだけでSightEdit Chrome�
 6. マークダウンエディターでファイル表示
 ```
 
+## 🔨 ビルド方法
+
+### 前提条件
+- **Visual Studio 2022** または **.NET SDK** がインストール済み
+- **OS**: Windows 10/11
+
+### 方法1: Visual Studio でビルド
+1. `SightEditRelay.sln` を Visual Studio で開く
+2. メニューから **ビルド → ソリューションのリビルド**
+3. 出力先: `bin\Release\net48\SightEditRelay.exe`
+
+### 方法2: コマンドラインでビルド
+
+#### PowerShell または コマンドプロンプト で実行:
+
+```powershell
+# 1. プロジェクトディレクトリに移動
+cd "SightEdit用C#中継アプリケーション"
+
+# 2. ビルド実行（Releaseビルド）
+dotnet build SightEditRelay.csproj -c Release
+
+# 3. 出力ファイル確認
+dir bin\Release\net48\SightEditRelay.exe
+```
+
+**実行場所**: リポジトリルートの `SightEdit用C#中継アプリケーション` フォルダ内
+**使用可能なシェル**: PowerShell、コマンドプロンプト、Windows Terminal
+
+**出力先**:
+```
+SightEdit用C#中継アプリケーション\
+└── bin\
+    └── Release\
+        └── net48\
+            └── SightEditRelay.exe  ← これを使用
+```
+
+---
+
 ## 📦 インストール
 
 ### 1. ファイル配置
+ビルド後、以下の構成で配置:
 ```
 C:\Program Files\SightEditRelay\
-├── SightEditRelay.exe
+├── SightEditRelay.exe          (ビルドで生成)
 ├── setup_sendto.bat
 └── uninstall_sightedit.bat
 ```
