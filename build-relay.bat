@@ -23,14 +23,15 @@ if %ERRORLEVEL% NEQ 0 (
 )
 
 echo.
-echo [INFO] Build successful! Copying executable files...
+echo [INFO] Build successful! Copying executable files and dependencies...
 
-:: 実行ファイルを親フォルダにコピー
+:: 実行ファイルと依存DLLを親フォルダにコピー
 copy /Y "bin\Release\net48\SightEditRelay.exe" "..\SightEditRelay.exe" >nul
+copy /Y "bin\Release\net48\*.dll" "..\" >nul
 copy /Y "App.config" "..\SightEditRelay.exe.config" >nul
 
 if exist "..\SightEditRelay.exe" (
-    echo [SUCCESS] SightEditRelay.exe is ready
+    echo [SUCCESS] SightEditRelay.exe and dependencies are ready
     echo Path: %~dp0SightEditRelay.exe
 ) else (
     echo [ERROR] Failed to copy files
