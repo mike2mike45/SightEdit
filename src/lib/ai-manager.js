@@ -453,7 +453,8 @@ export class AIManager {
 
     async callAI(prompt) {
         const provider = this.settings.aiProvider;
-        const loadingElement = this.showLoading();
+        const providerName = provider === 'gemini' ? 'Google Gemini' : 'Anthropic Claude';
+        const loadingElement = this.showLoading(`${providerName}で処理中...`);
 
         try {
             let response;
@@ -466,10 +467,10 @@ export class AIManager {
             }
 
             this.hideLoading(loadingElement);
-            this.showResult(response);
+            this.showResult(response, providerName);
         } catch (error) {
             this.hideLoading(loadingElement);
-            alert(`AIエラー: ${error.message}`);
+            this.showError(error, providerName);
         }
     }
 
@@ -491,17 +492,28 @@ export class AIManager {
             }
         };
 
-        const response = await fetch(`${model.endpoint}?key=${apiKey}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(requestBody)
-        });
+        let response;
+        try {
+            response = await fetch(`${model.endpoint}?key=${apiKey}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(requestBody)
+            });
+        } catch (error) {
+            throw new Error(`接続エラー: Gemini APIに接続できませんでした。ネットワーク接続を確認してください。`);
+        }
 
         if (!response.ok) {
             const errorText = await response.text();
-            throw new Error(`API Error: ${response.status} - ${errorText}`);
+            if (response.status === 401) {
+                throw new Error(`認証エラー: Gemini APIキーが無効です。設定を確認してください。`);
+            } else if (response.status === 429) {
+                throw new Error(`レート制限エラー: Gemini APIの使用量制限に達しました。しばらく待ってから再試行してください。`);
+            } else {
+                throw new Error(`Gemini APIエラー (${response.status}): ${errorText}`);
+            }
         }
 
         const data = await response.json();
@@ -513,7 +525,7 @@ export class AIManager {
             }
         }
 
-        throw new Error('AIからの応答が空です');
+        throw new Error('Gemini APIからの応答が空です');
     }
 
     async callClaude(prompt) {
@@ -529,19 +541,30 @@ export class AIManager {
             }]
         };
 
-        const response = await fetch(model.endpoint, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': apiKey,
-                'anthropic-version': '2023-06-01'
-            },
-            body: JSON.stringify(requestBody)
-        });
+        let response;
+        try {
+            response = await fetch(model.endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-api-key': apiKey,
+                    'anthropic-version': '2023-06-01'
+                },
+                body: JSON.stringify(requestBody)
+            });
+        } catch (error) {
+            throw new Error(`接続エラー: Claude APIに接続できませんでした。ネットワーク接続を確認してください。`);
+        }
 
         if (!response.ok) {
             const errorText = await response.text();
-            throw new Error(`API Error: ${response.status} - ${errorText}`);
+            if (response.status === 401) {
+                throw new Error(`認証エラー: Claude APIキーが無効です。設定を確認してください。`);
+            } else if (response.status === 429) {
+                throw new Error(`レート制限エラー: Claude APIの使用量制限に達しました。しばらく待ってから再試行してください。`);
+            } else {
+                throw new Error(`Claude APIエラー (${response.status}): ${errorText}`);
+            }
         }
 
         const data = await response.json();
@@ -550,10 +573,10 @@ export class AIManager {
             return data.content[0].text;
         }
 
-        throw new Error('AIからの応答が空です');
+        throw new Error('Claude APIからの応答が空です');
     }
 
-    showLoading() {
+    showLoading(message = 'AI処理中...') {
         const existing = document.querySelector('.ai-loading-overlay');
         if (existing) existing.remove();
 
@@ -562,7 +585,7 @@ export class AIManager {
         overlay.innerHTML = `
             <div class="ai-loading-content">
                 <div class="ai-spinner"></div>
-                <p>AI処理中...</p>
+                <p>${message}</p>
             </div>
         `;
         document.body.appendChild(overlay);
@@ -575,7 +598,75 @@ export class AIManager {
         }
     }
 
-    showResult(text) {
+    showError(error, providerName = 'AI') {
+        const existing = document.querySelector('.ai-error-modal');
+        if (existing) existing.remove();
+
+        const modal = document.createElement('div');
+        modal.className = 'ai-error-modal';
+        modal.innerHTML = `
+            <div class="ai-error-panel">
+                <div class="ai-error-header">
+                    <h3>❌ ${providerName} エラー</h3>
+                    <button class="close-btn" data-action="close">×</button>
+                </div>
+                <div class="ai-error-content">
+                    <p class="error-message">${error.message}</p>
+                    <div class="error-actions">
+                        <p class="error-hint">解決方法：</p>
+                        <ul class="error-hints">
+                            ${this.generateErrorHints(error.message)}
+                        </ul>
+                    </div>
+                </div>
+                <div class="ai-error-footer">
+                    <button class="btn secondary" data-action="settings">設定を開く</button>
+                    <button class="btn primary" data-action="close">閉じる</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        // イベントリスナー
+        modal.querySelectorAll('[data-action="close"]').forEach(btn => {
+            btn.addEventListener('click', () => modal.remove());
+        });
+
+        modal.querySelector('[data-action="settings"]').addEventListener('click', () => {
+            modal.remove();
+            this.showSettings();
+        });
+
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.remove();
+            }
+        });
+    }
+
+    generateErrorHints(errorMessage) {
+        const hints = [];
+
+        if (errorMessage.includes('接続エラー')) {
+            hints.push('インターネット接続を確認してください');
+            hints.push('ファイアウォールやプロキシ設定を確認してください');
+        } else if (errorMessage.includes('認証エラー')) {
+            hints.push('APIキーが正しいか確認してください');
+            hints.push('APIキーの有効期限を確認してください');
+            hints.push('設定画面からAPIキーを再入力してください');
+        } else if (errorMessage.includes('レート制限')) {
+            hints.push('しばらく時間をおいてから再試行してください');
+            hints.push('別のAIプロバイダーに切り替えてみてください');
+        } else {
+            hints.push('設定を確認してください');
+            hints.push('しばらく時間をおいてから再試行してください');
+        }
+
+        return hints.map(hint => `<li>${hint}</li>`).join('');
+    }
+
+    showResult(text, providerName = 'AI') {
         const existing = document.querySelector('.ai-result-modal');
         if (existing) existing.remove();
 
@@ -584,7 +675,7 @@ export class AIManager {
         modal.innerHTML = `
             <div class="ai-result-panel">
                 <div class="ai-result-header">
-                    <h3>AI処理結果</h3>
+                    <h3>AI処理結果 (${providerName})</h3>
                     <button class="close-btn" data-action="close">×</button>
                 </div>
                 <div class="ai-result-content"></div>
