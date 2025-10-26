@@ -81,19 +81,6 @@ C:\Program Files\SightEditRelay\
 
 ### 2. セットアップ実行
 
-**方法1: ダブルクリック実行（推奨）**
-```
-📁 C:\Program Files\SightEditRelay\
-  └── setup_sendto.bat  ← ダブルクリック
-```
-
-実行の流れ：
-1. `setup_sendto.bat` をダブルクリック
-2. 管理者権限が必要な場合、UACダイアログが表示
-3. 「はい」をクリックすると自動で管理者権限で再起動
-4. セットアップ完了
-
-**方法2: 右クリックで実行（自動昇格が失敗する場合）**
 1. `setup_sendto.bat` を右クリック
 2. 「管理者として実行」を選択
 

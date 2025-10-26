@@ -10,27 +10,14 @@ echo.
 :: 管理者権限チェック
 net session >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [INFO] 管理者権限が必要です。自動で昇格を試みます...
+    echo [ERROR] 管理者権限が必要です
     echo.
-
-    :: PowerShellで自動昇格
-    powershell -Command "Start-Process '%~f0' -Verb RunAs" >nul 2>&1
-
-    if %errorlevel% neq 0 (
-        echo [ERROR] 自動昇格に失敗しました
-        echo.
-        echo 以下の手順で実行してください：
-        echo 1. このファイルを右クリック
-        echo 2. 「管理者として実行」を選択
-        echo.
-        pause
-        exit /b 1
-    ) else (
-        echo [SUCCESS] 管理者権限で再起動しました
-        echo このウィンドウは閉じて構いません
-        timeout /t 3 >nul
-        exit /b 0
-    )
+    echo 実行方法:
+    echo 1. このファイルを右クリック
+    echo 2. 「管理者として実行」を選択
+    echo.
+    pause
+    exit /b 1
 )
 
 :: Chrome拡張機能IDの設定（App.configから読み取り済み）

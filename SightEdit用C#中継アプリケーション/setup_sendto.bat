@@ -10,27 +10,14 @@ echo.
 REM 管理者権限チェック
 net session >nul 2>&1
 if %errorLevel% neq 0 (
-    echo Administrator privileges required. Attempting auto-elevation...
+    echo [ERROR] Administrator privileges required.
     echo.
-
-    REM PowerShellで自動昇格
-    powershell -Command "Start-Process '%~f0' -Verb RunAs" >nul 2>&1
-
-    if %errorLevel% neq 0 (
-        echo [ERROR] Auto-elevation failed.
-        echo.
-        echo Please follow these steps:
-        echo 1. Right-click this file
-        echo 2. Select "Run as administrator"
-        echo.
-        pause
-        exit /b 1
-    ) else (
-        echo [SUCCESS] Re-launched with administrator privileges
-        echo You can close this window
-        timeout /t 3 >nul
-        exit /b 0
-    )
+    echo How to run:
+    echo 1. Right-click this file
+    echo 2. Select "Run as administrator"
+    echo.
+    pause
+    exit /b 1
 )
 
 REM 実行ファイルの場所を自動検出
