@@ -767,7 +767,7 @@ class SimpleMarkdownEditor {
         const claudeKey = document.getElementById('claude-api-key');
         const claudeModel = document.getElementById('claude-model');
         if (claudeKey) claudeKey.value = result.claudeApiKey || '';
-        if (claudeModel) claudeModel.value = result.claudeModel || 'claude-3-5-sonnet-20241022';
+        if (claudeModel) claudeModel.value = result.claudeModel || 'claude-sonnet-4-5-20250929';
 
         // プロバイダー選択ボタンを更新
         const provider = result.aiProvider || 'gemini';
