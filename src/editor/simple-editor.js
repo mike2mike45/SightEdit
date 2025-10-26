@@ -1048,96 +1048,37 @@ class SimpleMarkdownEditor {
 
   async testConnection(provider) {
     console.log(`${provider}の接続テストを開始...`);
-    
+
     const button = document.getElementById(`${provider}-test-btn`);
     if (!button) {
       console.error(`${provider}-test-btn要素が見つかりません`);
       return;
     }
 
-    console.log('ローディング状態に変更...');
     // ローディング状態に変更
     button.classList.add('loading');
     button.disabled = true;
 
     try {
-      // APIキーフィールドの詳細な検証
-      const apiKeyField = document.getElementById(`${provider}-api-key`);
-      const modelField = document.getElementById(`${provider}-model`);
-      
-      console.log(`${provider}-api-key要素:`, !!apiKeyField);
-      console.log(`${provider}-model要素:`, !!modelField);
-      console.log(`要素の値:`, apiKeyField?.value);
-      console.log(`要素のtypeプロパティ:`, apiKeyField?.type);
-      console.log(`要素の表示状態:`, apiKeyField?.style.display);
-      console.log(`親要素の表示状態:`, apiKeyField?.parentElement?.style.display);
-      
-      // パスワードフィールドの値取得を強制する
-      if (apiKeyField?.type === 'password') {
-        console.log('パスワードフィールドを一時的にtextタイプに変更して値を取得します');
-        const originalType = apiKeyField.type;
-        apiKeyField.type = 'text';
-        const valueAfterTypeChange = apiKeyField.value;
-        apiKeyField.type = originalType;
-        console.log('タイプ変更後の値:', valueAfterTypeChange);
-      }
-      
-      if (!apiKeyField) {
-        console.error(`${provider}-api-key要素が見つかりません`);
-        this.showSettingsMessage('入力フィールドが見つかりません', 'error');
+      // Chrome StorageからAPIキーとモデルを取得
+      if (typeof chrome === 'undefined' || !chrome.storage) {
+        this.showSettingsMessage('Chrome Storage APIが利用できません', 'error');
         return;
       }
-      
-      // APIキーの値を複数の方法で取得を試行
-      let apiKey = apiKeyField.value?.trim();
-      
-      // パスワードフィールドで値が空の場合の対処
-      if (!apiKey && apiKeyField?.type === 'password') {
-        console.log('パスワードフィールドから直接値を取得できません。代替方法を試行...');
-        // フィールドのvalueプロパティを直接読み取り
-        apiKey = apiKeyField.getAttribute('value') || '';
-        console.log('getAttribute()で取得した値:', apiKey);
-        
-        if (!apiKey) {
-          // ChromeのStorage APIから取得を試行
-          if (typeof chrome !== 'undefined' && chrome.storage) {
-            try {
-              const result = await new Promise((resolve) => {
-                chrome.storage.sync.get([`${provider}ApiKey`], resolve);
-              });
-              apiKey = result[`${provider}ApiKey`] || '';
-              console.log('Chrome Storageから取得した値:', apiKey);
-            } catch (error) {
-              console.error('Chrome Storageからの取得エラー:', error);
-            }
-          }
-        }
-      } else {
-        // パスワードフィールドでない場合でも、Chrome Storageから取得を試行
-        if (!apiKey && typeof chrome !== 'undefined' && chrome.storage) {
-          try {
-            const result = await new Promise((resolve) => {
-              chrome.storage.sync.get([`${provider}ApiKey`], resolve);
-            });
-            const storedKey = result[`${provider}ApiKey`] || '';
-            if (storedKey) {
-              apiKey = storedKey;
-              console.log('Chrome Storageから補完取得した値:', apiKey);
-            }
-          } catch (error) {
-            console.error('Chrome Storage補完取得エラー:', error);
-          }
-        }
-      }
-      
-      const model = modelField?.value || '';
-      
-      console.log(`最終的に取得したAPIキー長さ: ${apiKey?.length || 0}, 値の先頭: ${apiKey?.substring(0, 10)}...`);
+
+      const result = await new Promise((resolve) => {
+        chrome.storage.sync.get([`${provider}ApiKey`, `${provider}Model`], resolve);
+      });
+
+      const apiKey = result[`${provider}ApiKey`]?.trim() || '';
+      const model = result[`${provider}Model`] || (provider === 'gemini' ? 'gemini-2.5-pro' : 'claude-sonnet-4-5-20250929');
+
+      console.log(`APIキー: ${apiKey ? apiKey.substring(0, 10) + '...' : '(空)'}`);
       console.log(`モデル: ${model}`);
-      
+
       if (!apiKey || apiKey.length < 10) {
         console.log('APIキーが空または短すぎます');
-        this.showSettingsMessage('有効なAPIキーを入力してください', 'error');
+        this.showSettingsMessage('APIキーを入力してください。設定画面でAPIキーを入力し、保存ボタンを押してください。', 'error');
         return;
       }
 
@@ -1152,11 +1093,13 @@ class SimpleMarkdownEditor {
         testResult = await this.testClaudeConnection(apiKey, model);
       }
       
+      const providerName = provider === 'gemini' ? 'Google Gemini' : 'Anthropic Claude';
+
       if (testResult) {
-        this.showSettingsMessage(`${provider.toUpperCase()}への接続テストに成功しました`, 'success');
+        this.showSettingsMessage(`${providerName}への接続テストに成功しました！✅`, 'success');
         console.log('接続テスト成功');
       } else {
-        this.showSettingsMessage(`${provider.toUpperCase()}への接続テストに失敗しました`, 'error');
+        this.showSettingsMessage(`${providerName}への接続テストに失敗しました。APIキーを確認してください。`, 'error');
         console.log('接続テスト失敗');
       }
 
@@ -2569,13 +2512,18 @@ SimpleMarkdownEditor.prototype.testGeminiConnection = async function(apiKey, mod
     });
 
     console.log('Gemini APIレスポンス状態:', response.status);
-    
+
     if (response.ok) {
       const data = await response.json();
       console.log('Gemini API接続成功:', data);
       return true;
     } else {
-      console.error('Gemini API接続失敗:', response.status, response.statusText);
+      const errorData = await response.json().catch(() => null);
+      console.error('Gemini API接続失敗:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorData
+      });
       return false;
     }
   } catch (error) {
@@ -2605,13 +2553,18 @@ SimpleMarkdownEditor.prototype.testClaudeConnection = async function(apiKey, mod
     });
 
     console.log('Claude APIレスポンス状態:', response.status);
-    
+
     if (response.ok) {
       const data = await response.json();
       console.log('Claude API接続成功:', data);
       return true;
     } else {
-      console.error('Claude API接続失敗:', response.status, response.statusText);
+      const errorData = await response.json().catch(() => null);
+      console.error('Claude API接続失敗:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorData
+      });
       return false;
     }
   } catch (error) {
