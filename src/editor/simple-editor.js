@@ -980,7 +980,7 @@ class SimpleMarkdownEditor {
 
   showSettingsMessage(text, type = 'info') {
     console.log(`設定メッセージを表示: "${text}" (${type})`);
-    
+
     // 既存のメッセージを削除
     const existing = document.querySelector('.settings-message');
     if (existing) {
@@ -988,28 +988,31 @@ class SimpleMarkdownEditor {
       console.log('既存のメッセージを削除しました');
     }
 
-    const messageContainer = document.querySelector('.settings-body');
-    if (!messageContainer) {
-      console.error('.settings-body要素が見つかりません');
-      return;
-    }
-
-    const message = document.createElement('div');
-    message.className = `settings-message ${type}`;
-    message.innerHTML = `
-      <span>${this.getMessageIcon(type)}</span>
-      <span>${text}</span>
+    // トースト通知スタイルで表示
+    const toast = document.createElement('div');
+    toast.className = `settings-toast settings-toast-${type}`;
+    toast.innerHTML = `
+      <span class="toast-icon">${this.getMessageIcon(type)}</span>
+      <span class="toast-text">${text}</span>
     `;
 
-    messageContainer.insertBefore(message, messageContainer.firstChild);
-    console.log('メッセージを挿入しました:', message);
+    document.body.appendChild(toast);
+    console.log('トースト通知を表示しました:', toast);
+
+    // アニメーション表示
+    setTimeout(() => {
+      toast.classList.add('show');
+    }, 10);
 
     // 3秒後に自動削除
     setTimeout(() => {
-      if (message.parentNode) {
-        message.remove();
-        console.log('メッセージを自動削除しました');
-      }
+      toast.classList.remove('show');
+      setTimeout(() => {
+        if (toast.parentNode) {
+          toast.remove();
+          console.log('トースト通知を自動削除しました');
+        }
+      }, 300);
     }, 3000);
   }
 
