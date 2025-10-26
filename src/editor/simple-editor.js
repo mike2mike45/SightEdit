@@ -853,23 +853,42 @@ class SimpleMarkdownEditor {
     const geminiKey = document.getElementById('gemini-api-key')?.value || '';
     const geminiModel = document.getElementById('gemini-model')?.value || 'gemini-2.5-pro';
     const claudeKey = document.getElementById('claude-api-key')?.value || '';
-    const claudeModel = document.getElementById('claude-model')?.value || 'claude-3-5-sonnet-20241022';
+    const claudeModel = document.getElementById('claude-model')?.value || 'claude-sonnet-4-5-20250929';
+
+    console.log('🔍 保存する設定値:');
+    console.log('  Gemini APIキー長さ:', geminiKey.length, geminiKey ? '(' + geminiKey.substring(0, 10) + '...)' : '(空)');
+    console.log('  Gemini モデル:', geminiModel);
+    console.log('  Claude APIキー長さ:', claudeKey.length, claudeKey ? '(' + claudeKey.substring(0, 10) + '...)' : '(空)');
+    console.log('  Claude モデル:', claudeModel);
 
     // Chrome Storage APIに保存
     if (typeof chrome !== 'undefined' && chrome.storage) {
-      chrome.storage.sync.set({
-        geminiApiKey: geminiKey,
-        geminiModel: geminiModel,
-        claudeApiKey: claudeKey,
-        claudeModel: claudeModel
-      }, async () => {
-        this.showAIMessage('設定を保存しました', 'success');
-        
-        // AICommandManagerの設定を再読み込み
-        if (window.aiCommandUI && window.aiCommandUI.commandManager) {
-          await window.aiCommandUI.commandManager.loadSettings();
-        }
+      await new Promise((resolve) => {
+        chrome.storage.sync.set({
+          geminiApiKey: geminiKey,
+          geminiModel: geminiModel,
+          claudeApiKey: claudeKey,
+          claudeModel: claudeModel
+        }, () => {
+          console.log('✅ Chrome Storageへの保存完了');
+
+          // 保存されたことを確認
+          chrome.storage.sync.get(['geminiApiKey', 'claudeApiKey', 'geminiModel', 'claudeModel'], (result) => {
+            console.log('📦 保存確認:');
+            console.log('  Gemini APIキー長さ:', result.geminiApiKey?.length || 0);
+            console.log('  Claude APIキー長さ:', result.claudeApiKey?.length || 0);
+            console.log('  Gemini モデル:', result.geminiModel);
+            console.log('  Claude モデル:', result.claudeModel);
+          });
+
+          resolve();
+        });
       });
+
+      // AICommandManagerの設定を再読み込み
+      if (window.aiCommandUI && window.aiCommandUI.commandManager) {
+        await window.aiCommandUI.commandManager.loadSettings();
+      }
     } else {
       this.showAIMessage('Chrome拡張機能でのみ設定を保存できます', 'error');
     }
