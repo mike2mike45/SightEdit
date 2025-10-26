@@ -700,6 +700,30 @@ class SimpleMarkdownEditor {
         this.selectProvider(provider);
       });
     });
+
+    // モデル選択が変更された時に現在のAI表示を更新
+    const geminiModelSelect = document.getElementById('gemini-model');
+    const claudeModelSelect = document.getElementById('claude-model');
+
+    if (geminiModelSelect) {
+      geminiModelSelect.addEventListener('change', () => {
+        if (typeof chrome !== 'undefined' && chrome.storage) {
+          chrome.storage.sync.set({ geminiModel: geminiModelSelect.value }, () => {
+            this.updateCurrentAIDisplay();
+          });
+        }
+      });
+    }
+
+    if (claudeModelSelect) {
+      claudeModelSelect.addEventListener('change', () => {
+        if (typeof chrome !== 'undefined' && chrome.storage) {
+          chrome.storage.sync.set({ claudeModel: claudeModelSelect.value }, () => {
+            this.updateCurrentAIDisplay();
+          });
+        }
+      });
+    }
   }
 
   selectProvider(provider) {
@@ -710,10 +734,8 @@ class SimpleMarkdownEditor {
     allBtns.forEach(btn => btn.classList.remove('active'));
 
     // 選択されたボタンにactiveクラスを追加
-    const selectedBtn = document.querySelector(`[data-provider="${provider}"]`);
-    if (selectedBtn) {
-      selectedBtn.classList.add('active');
-    }
+    const selectedBtns = document.querySelectorAll(`[data-provider="${provider}"]`);
+    selectedBtns.forEach(btn => btn.classList.add('active'));
 
     // hidden inputの値を更新
     const hiddenInput = document.getElementById('default-provider');
@@ -725,6 +747,43 @@ class SimpleMarkdownEditor {
     if (typeof chrome !== 'undefined' && chrome.storage) {
       chrome.storage.sync.set({ aiProvider: provider }, () => {
         console.log(`AIプロバイダーを${provider}に変更しました`);
+        // 現在のAI表示を更新
+        this.updateCurrentAIDisplay();
+      });
+    }
+  }
+
+  updateCurrentAIDisplay() {
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      chrome.storage.sync.get(['aiProvider', 'geminiModel', 'claudeModel'], (result) => {
+        const provider = result.aiProvider || 'gemini';
+        const modelId = provider === 'gemini' ? (result.geminiModel || 'gemini-2.5-pro') : (result.claudeModel || 'claude-sonnet-4-5-20250929');
+
+        const providerNames = {
+          'gemini': 'Google Gemini',
+          'claude': 'Anthropic Claude'
+        };
+
+        const modelNames = {
+          'gemini-2.5-pro': 'Gemini 2.5 Pro',
+          'gemini-2.0-flash-exp': 'Gemini 2.0 Flash (実験版)',
+          'gemini-2.0-flash': 'Gemini 2.0 Flash',
+          'gemini-1.5-pro': 'Gemini 1.5 Pro',
+          'gemini-1.5-flash': 'Gemini 1.5 Flash',
+          'claude-sonnet-4-5-20250929': 'Claude Sonnet 4.5',
+          'claude-haiku-4-5-20251015': 'Claude Haiku 4.5',
+          'claude-opus-4-1-20250801': 'Claude Opus 4.1',
+          'claude-3-5-sonnet-20241022': 'Claude 3.5 Sonnet',
+          'claude-3-5-haiku-20241022': 'Claude 3.5 Haiku'
+        };
+
+        const providerName = providerNames[provider] || provider;
+        const modelName = modelNames[modelId] || modelId;
+
+        const currentAIName = document.getElementById('current-ai-name');
+        if (currentAIName) {
+          currentAIName.textContent = `${providerName} - ${modelName}`;
+        }
       });
     }
   }
@@ -774,16 +833,17 @@ class SimpleMarkdownEditor {
         const allBtns = document.querySelectorAll('.provider-choice-btn');
         allBtns.forEach(btn => btn.classList.remove('active'));
 
-        const selectedBtn = document.querySelector(`[data-provider="${provider}"]`);
-        if (selectedBtn) {
-          selectedBtn.classList.add('active');
-        }
+        const selectedBtns = document.querySelectorAll(`[data-provider="${provider}"]`);
+        selectedBtns.forEach(btn => btn.classList.add('active'));
 
         // hidden inputの値も更新
         const hiddenInput = document.getElementById('default-provider');
         if (hiddenInput) {
           hiddenInput.value = provider;
         }
+
+        // 現在のAI表示を更新
+        this.updateCurrentAIDisplay();
       });
     }
   }

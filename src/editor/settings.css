@@ -456,3 +456,115 @@
         min-width: 120px;
     }
 }
+
+/* 現在使用中のAI表示 */
+.current-ai-display {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 20px;
+    margin-bottom: 24px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.current-ai-icon {
+    font-size: 40px;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.1);
+    }
+}
+
+.current-ai-info {
+    flex: 1;
+}
+
+.current-ai-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.8);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+}
+
+.current-ai-name {
+    font-size: 20px;
+    font-weight: 700;
+    color: white;
+}
+
+/* プロバイダー選択セクション */
+.provider-selection-section {
+    margin-bottom: 32px;
+}
+
+.provider-selection-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 16px;
+}
+
+.provider-selection-section .provider-selection-buttons {
+    display: flex;
+    gap: 12px;
+}
+
+.provider-selection-section .provider-choice-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 20px;
+    background: white;
+    border: 2px solid #d1d5db;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.provider-selection-section .provider-choice-btn:hover {
+    border-color: #9ca3af;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.provider-selection-section .provider-choice-btn.active {
+    border-color: #10b981;
+    background: #d1fae5;
+    box-shadow: 0 4px 16px rgba(16, 185, 129, 0.2);
+}
+
+.provider-selection-section .provider-icon {
+    font-size: 32px;
+}
+
+.provider-selection-section .provider-name {
+    font-size: 18px;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.provider-selection-section .provider-badge {
+    font-size: 12px;
+    font-weight: 500;
+    color: #6b7280;
+    background: #f3f4f6;
+    padding: 4px 12px;
+    border-radius: 12px;
+}
+
+.provider-selection-section .provider-choice-btn.active .provider-badge {
+    background: white;
+    color: #10b981;
+}

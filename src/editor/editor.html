@@ -1082,7 +1082,33 @@
         <!-- AI設定タブ -->
         <div id="ai-tab" class="settings-tab-content active">
           <h4>AI設定</h4>
-          
+
+          <!-- 現在使用中のAI表示 -->
+          <div class="current-ai-display" id="current-ai-display">
+            <div class="current-ai-icon">🤖</div>
+            <div class="current-ai-info">
+              <div class="current-ai-label">現在使用中</div>
+              <div class="current-ai-name" id="current-ai-name">Google Gemini - Gemini 2.5 Pro</div>
+            </div>
+          </div>
+
+          <!-- プロバイダー選択 -->
+          <div class="provider-selection-section">
+            <h5 class="provider-selection-title">🎯 使用するAIプロバイダーを選択</h5>
+            <div class="provider-selection-buttons">
+              <button type="button" class="provider-choice-btn" data-provider="gemini" id="provider-btn-gemini-tab">
+                <span class="provider-icon">🧠</span>
+                <span class="provider-name">Gemini</span>
+                <span class="provider-badge">Google</span>
+              </button>
+              <button type="button" class="provider-choice-btn" data-provider="claude" id="provider-btn-claude-tab">
+                <span class="provider-icon">🤖</span>
+                <span class="provider-name">Claude</span>
+                <span class="provider-badge">Anthropic</span>
+              </button>
+            </div>
+          </div>
+
           <!-- プロバイダータブ -->
           <div class="ai-provider-tabs">
             <button class="ai-provider-tab active" data-provider="gemini">
