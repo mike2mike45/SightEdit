@@ -41,30 +41,24 @@ Markdownファイルを**ダブルクリック**するだけでSightEdit Chrome�
 
 ### 方法2: コマンドラインでビルド
 
-#### PowerShell または コマンドプロンプト で実行:
+**実行場所**: リポジトリルート
+**使用シェル**: PowerShell、コマンドプロンプト、Windows Terminal
 
 ```powershell
-# 1. プロジェクトディレクトリに移動
-cd "SightEdit用C#中継アプリケーション"
-
-# 2. ビルド実行（Releaseビルド）
-dotnet build SightEditRelay.csproj -c Release
-
-# 3. 出力ファイル確認
-dir bin\Release\net48\SightEditRelay.exe
+# リポジトリルートで実行
+.\build-relay.bat
 ```
 
-**実行場所**: リポジトリルートの `SightEdit用C#中継アプリケーション` フォルダ内
-**使用可能なシェル**: PowerShell、コマンドプロンプト、Windows Terminal
+**出力ファイル**:
+```
+SightEdit\
+└── SightEditRelay.exe  ← リポジトリルートに生成
+```
 
-**出力先**:
-```
-SightEdit用C#中継アプリケーション\
-└── bin\
-    └── Release\
-        └── net48\
-            └── SightEditRelay.exe  ← これを使用
-```
+**重要**:
+- ✅ 最新版は**コマンドプロンプト画面を表示しません**
+- ✅ バックグラウンドで動作し、システムトレイアイコンのみ表示
+- ⚠️ コマンドプロンプトが開く場合は古いビルドです → 再ビルドしてください
 
 ---
 
