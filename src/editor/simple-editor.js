@@ -450,14 +450,14 @@ class SimpleMarkdownEditor {
   setupToolbar() {
     // 基本的なMarkdown記法ボタンの設定
     const toolbarButtons = {
-      bold: () => this.wrapText('**', '**'),
-      italic: () => this.wrapText('*', '*'),
-      strike: () => this.wrapText('~~', '~~'),
-      code: () => this.wrapText('`', '`'),
+      bold: () => this.wrapText('**', '**', 'strong'),
+      italic: () => this.wrapText('*', '*', 'em'),
+      strike: () => this.wrapText('~~', '~~', 'del'),
+      code: () => this.wrapText('`', '`', 'code'),
       bulletList: () => this.insertAtLineStart('- '),
       orderedList: () => this.insertNumberedList(),
       blockquote: () => this.insertAtLineStart('> '),
-      codeBlock: () => this.wrapText('```\n', '\n```'),
+      codeBlock: () => this.wrapText('```\n', '\n```', 'pre'),
       horizontalRule: () => this.insertText('\n---\n'),
       link: () => this.insertLink(),
       image: () => this.insertImage(),
@@ -1092,83 +1092,187 @@ class SimpleMarkdownEditor {
     }
   }
 
-  wrapText(before, after) {
-    const content = document.getElementById('wysiwyg-content');
-    const selection = window.getSelection();
-
-    if (selection.rangeCount > 0) {
-      const range = selection.getRangeAt(0);
-      const selectedText = range.toString();
+  wrapText(before, after, htmlTag = null) {
+    if (this.isSourceMode) {
+      // ソースモード: textareaにMarkdown記号を挿入
+      const sourceEditor = document.getElementById('source-editor');
+      const start = sourceEditor.selectionStart;
+      const end = sourceEditor.selectionEnd;
+      const selectedText = sourceEditor.value.substring(start, end);
       const wrappedText = before + selectedText + after;
 
-      range.deleteContents();
-      range.insertNode(document.createTextNode(wrappedText));
+      sourceEditor.value =
+        sourceEditor.value.substring(0, start) +
+        wrappedText +
+        sourceEditor.value.substring(end);
 
       // カーソル位置を調整
-      range.setStart(range.endContainer, range.endOffset);
-      range.collapse(true);
-      selection.removeAllRanges();
-      selection.addRange(range);
+      const newCursorPos = start + before.length + selectedText.length;
+      sourceEditor.selectionStart = newCursorPos;
+      sourceEditor.selectionEnd = newCursorPos;
+      sourceEditor.focus();
+    } else {
+      // WYSIWYGモード: HTMLタグを使用
+      const content = document.getElementById('wysiwyg-content');
+      const selection = window.getSelection();
+
+      if (selection.rangeCount > 0 && htmlTag) {
+        const range = selection.getRangeAt(0);
+        const selectedText = range.toString();
+
+        // HTMLタグを作成して選択範囲を囲む
+        const element = document.createElement(htmlTag);
+        element.textContent = selectedText;
+
+        range.deleteContents();
+        range.insertNode(element);
+
+        // カーソルを要素の後ろに配置
+        range.setStartAfter(element);
+        range.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+
+      content.focus();
     }
 
-    content.focus();
     this.updateWordCount();
   }
 
   insertAtLineStart(prefix) {
-    const content = document.getElementById('wysiwyg-content');
-    const selection = window.getSelection();
-
-    if (selection.rangeCount > 0) {
-      const text = content.textContent;
-      const cursorPos = this.getCaretPosition(content);
+    if (this.isSourceMode) {
+      // ソースモード: textareaに挿入
+      const sourceEditor = document.getElementById('source-editor');
+      const cursorPos = sourceEditor.selectionStart;
+      const text = sourceEditor.value;
       const lineStart = text.lastIndexOf('\n', cursorPos - 1) + 1;
 
       // プレフィックスを挿入
       const beforeText = text.substring(0, lineStart);
       const afterText = text.substring(lineStart);
-      content.textContent = beforeText + prefix + afterText;
+      sourceEditor.value = beforeText + prefix + afterText;
 
       // カーソル位置を調整
-      this.setCaretPosition(content, lineStart + prefix.length);
+      sourceEditor.selectionStart = lineStart + prefix.length;
+      sourceEditor.selectionEnd = lineStart + prefix.length;
+      sourceEditor.focus();
+    } else {
+      // WYSIWYGモード: カーソル位置にテキストを挿入
+      const content = document.getElementById('wysiwyg-content');
+      const selection = window.getSelection();
+
+      if (selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+
+        // 現在の行の先頭に移動
+        let node = range.startContainer;
+        while (node && node !== content) {
+          if (node.previousSibling) {
+            node = node.previousSibling;
+            while (node.lastChild) {
+              node = node.lastChild;
+            }
+          } else {
+            node = node.parentNode;
+          }
+          if (node && node.nodeType === Node.TEXT_NODE && node.textContent.includes('\n')) {
+            const lastNewline = node.textContent.lastIndexOf('\n');
+            range.setStart(node, lastNewline + 1);
+            break;
+          }
+          if (node === content) {
+            range.setStart(content, 0);
+            break;
+          }
+        }
+
+        // プレフィックスを挿入
+        const textNode = document.createTextNode(prefix);
+        range.insertNode(textNode);
+        range.setStartAfter(textNode);
+        range.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+
+      content.focus();
     }
 
-    content.focus();
     this.updateWordCount();
   }
 
   insertNumberedList() {
-    const content = document.getElementById('wysiwyg-content');
-    const text = content.textContent;
-    const cursorPos = this.getCaretPosition(content);
+    if (this.isSourceMode) {
+      const sourceEditor = document.getElementById('source-editor');
+      const text = sourceEditor.value;
+      const cursorPos = sourceEditor.selectionStart;
 
-    // 前の行の番号を確認
-    const lines = text.substring(0, cursorPos).split('\n');
-    let nextNumber = 1;
+      // 前の行の番号を確認
+      const lines = text.substring(0, cursorPos).split('\n');
+      let nextNumber = 1;
 
-    if (lines.length > 1) {
-      const prevLine = lines[lines.length - 2];
-      const match = prevLine.match(/^(\d+)\./);
-      if (match) {
-        nextNumber = parseInt(match[1]) + 1;
+      if (lines.length > 1) {
+        const prevLine = lines[lines.length - 2];
+        const match = prevLine.match(/^(\d+)\./);
+        if (match) {
+          nextNumber = parseInt(match[1]) + 1;
+        }
       }
-    }
 
-    this.insertAtLineStart(`${nextNumber}. `);
+      this.insertAtLineStart(`${nextNumber}. `);
+    } else {
+      const content = document.getElementById('wysiwyg-content');
+      const text = content.textContent;
+      const cursorPos = this.getCaretPosition(content);
+
+      // 前の行の番号を確認
+      const lines = text.substring(0, cursorPos).split('\n');
+      let nextNumber = 1;
+
+      if (lines.length > 1) {
+        const prevLine = lines[lines.length - 2];
+        const match = prevLine.match(/^(\d+)\./);
+        if (match) {
+          nextNumber = parseInt(match[1]) + 1;
+        }
+      }
+
+      this.insertAtLineStart(`${nextNumber}. `);
+    }
   }
 
   insertText(text) {
-    const content = document.getElementById('wysiwyg-content');
-    const selection = window.getSelection();
+    if (this.isSourceMode) {
+      // ソースモード: textareaに挿入
+      const sourceEditor = document.getElementById('source-editor');
+      const start = sourceEditor.selectionStart;
+      const end = sourceEditor.selectionEnd;
 
-    if (selection.rangeCount > 0) {
-      const range = selection.getRangeAt(0);
-      range.deleteContents();
-      range.insertNode(document.createTextNode(text));
-      range.collapse(false);
+      sourceEditor.value =
+        sourceEditor.value.substring(0, start) +
+        text +
+        sourceEditor.value.substring(end);
+
+      // カーソル位置を調整
+      sourceEditor.selectionStart = start + text.length;
+      sourceEditor.selectionEnd = start + text.length;
+      sourceEditor.focus();
+    } else {
+      // WYSIWYGモード
+      const content = document.getElementById('wysiwyg-content');
+      const selection = window.getSelection();
+
+      if (selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        range.deleteContents();
+        range.insertNode(document.createTextNode(text));
+        range.collapse(false);
+      }
+
+      content.focus();
     }
 
-    content.focus();
     this.updateWordCount();
   }
 
@@ -1177,7 +1281,31 @@ class SimpleMarkdownEditor {
     const text = prompt('リンクテキストを入力してください:', 'リンク');
 
     if (url && text) {
-      this.insertText(`[${text}](${url})`);
+      if (this.isSourceMode) {
+        this.insertText(`[${text}](${url})`);
+      } else {
+        // WYSIWYGモード: <a>タグを挿入
+        const content = document.getElementById('wysiwyg-content');
+        const selection = window.getSelection();
+
+        if (selection.rangeCount > 0) {
+          const range = selection.getRangeAt(0);
+          const link = document.createElement('a');
+          link.href = url;
+          link.textContent = text;
+          link.className = 'editable-link';
+
+          range.deleteContents();
+          range.insertNode(link);
+          range.setStartAfter(link);
+          range.collapse(true);
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }
+
+        content.focus();
+        this.updateWordCount();
+      }
     }
   }
 
@@ -1186,7 +1314,31 @@ class SimpleMarkdownEditor {
     const alt = prompt('画像の説明を入力してください:', '画像');
 
     if (url && alt) {
-      this.insertText(`![${alt}](${url})`);
+      if (this.isSourceMode) {
+        this.insertText(`![${alt}](${url})`);
+      } else {
+        // WYSIWYGモード: <img>タグを挿入
+        const content = document.getElementById('wysiwyg-content');
+        const selection = window.getSelection();
+
+        if (selection.rangeCount > 0) {
+          const range = selection.getRangeAt(0);
+          const img = document.createElement('img');
+          img.src = url;
+          img.alt = alt;
+          img.className = 'editable-image';
+
+          range.deleteContents();
+          range.insertNode(img);
+          range.setStartAfter(img);
+          range.collapse(true);
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }
+
+        content.focus();
+        this.updateWordCount();
+      }
     }
   }
 
