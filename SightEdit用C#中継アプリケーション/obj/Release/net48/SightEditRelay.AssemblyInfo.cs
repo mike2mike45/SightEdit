@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("SightEditRelay")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+2e1ef18d9ffa2a57ba6ba550a6247b25ea1ee93f")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+b77d13499fa01b5857ec26335990392ae78a29c3")]
 [assembly: System.Reflection.AssemblyProductAttribute("SightEditRelay")]
 [assembly: System.Reflection.AssemblyTitleAttribute("SightEdit Relay")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
