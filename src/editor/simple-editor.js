@@ -12,17 +12,76 @@ import { VersionIntegration } from './version-integration.js';
 // ローカル履歴機能をインポート
 import { LocalHistoryIntegration } from './local-history-integration.js';
 
+// CommonMark準拠のMarkdownパーサーをインポート
+import { marked } from 'marked';
+import TurndownService from 'turndown';
+
 class SimpleMarkdownEditor {
   constructor() {
     this.currentFileName = null;
     this.isSourceMode = false;
     this.versionIntegration = null;
     this.localHistoryIntegration = null;
+
+    // CommonMark準拠のmarkedを設定
+    marked.setOptions({
+      gfm: true, // GitHub Flavored Markdown
+      breaks: false, // 改行をbrタグに変換しない（CommonMark準拠）
+      pedantic: false, // CommonMarkモード
+      smartLists: true,
+      smartypants: false
+    });
+
+    // Turndownサービスを初期化（HTML→Markdown変換）
+    this.turndownService = new TurndownService({
+      headingStyle: 'atx', // ATX形式の見出し（# ## ###）
+      hr: '---',
+      bulletListMarker: '-',
+      codeBlockStyle: 'fenced',
+      fence: '```',
+      emDelimiter: '*',
+      strongDelimiter: '**',
+      linkStyle: 'inlined'
+    });
+
     this.init();
   }
 
-  // MarkdownテキストをHTMLに変換
+  // MarkdownテキストをHTMLに変換（CommonMark準拠）
   markdownToHtml(markdown) {
+    if (!markdown) return '';
+
+    try {
+      // markedライブラリでCommonMark準拠のHTML変換
+      let html = marked.parse(markdown);
+
+      // カスタムクラスの追加（既存の機能を維持）
+      html = html.replace(/<img\s+([^>]*?)>/g, (match, attrs) => {
+        // 画像にクリック可能なクラスを追加
+        if (!attrs.includes('class=')) {
+          return `<img ${attrs} class="editable-image" style="max-width: 100%; height: auto; cursor: pointer; display: inline-block; border-radius: 4px;">`;
+        }
+        return match;
+      });
+
+      html = html.replace(/<a\s+([^>]*?)>([^<]*)<\/a>/g, (match, attrs, text) => {
+        // リンクに編集可能なクラスを追加
+        if (!attrs.includes('class=')) {
+          return `<a ${attrs} class="editable-link">${text}</a>`;
+        }
+        return match;
+      });
+
+      return html;
+    } catch (error) {
+      console.error('Markdown parsing error:', error);
+      // エラー時は元のMarkdownをそのまま返す
+      return `<pre>${markdown}</pre>`;
+    }
+  }
+
+  // 旧バージョンの互換性のため、以下のヘルパーメソッドは残しておく
+  markdownToHtmlLegacy(markdown) {
     if (!markdown) return '';
 
     let html = markdown;
@@ -280,84 +339,19 @@ class SimpleMarkdownEditor {
       .replace(/(\/\*[\s\S]*?\*\/)/g, '<span class="comment">$1</span>');
   }
 
-  // HTMLをMarkdownに変換
+  // HTMLをMarkdownに変換（CommonMark準拠）
   htmlToMarkdown(html) {
     if (!html) return '';
 
-    let markdown = html;
-
-    // 1. コードブロック（先に処理）
-    markdown = markdown.replace(/<pre><code[^>]*>([\s\S]*?)<\/code><\/pre>/g, (match, code) => {
-      return '```\n' + code.trim() + '\n```';
-    });
-
-    // 2. インラインコード
-    markdown = markdown.replace(/<code[^>]*>(.*?)<\/code>/g, '`$1`');
-
-    // 3. 見出し
-    markdown = markdown.replace(/<h1[^>]*>(.*?)<\/h1>/g, '# $1');
-    markdown = markdown.replace(/<h2[^>]*>(.*?)<\/h2>/g, '## $1');
-    markdown = markdown.replace(/<h3[^>]*>(.*?)<\/h3>/g, '### $1');
-    markdown = markdown.replace(/<h4[^>]*>(.*?)<\/h4>/g, '#### $1');
-    markdown = markdown.replace(/<h5[^>]*>(.*?)<\/h5>/g, '##### $1');
-    markdown = markdown.replace(/<h6[^>]*>(.*?)<\/h6>/g, '###### $1');
-
-    // 4. 太字・斜体
-    markdown = markdown.replace(/<strong[^>]*><em[^>]*>(.*?)<\/em><\/strong>/g, '***$1***');
-    markdown = markdown.replace(/<em[^>]*><strong[^>]*>(.*?)<\/strong><\/em>/g, '***$1***');
-    markdown = markdown.replace(/<strong[^>]*>(.*?)<\/strong>/g, '**$1**');
-    markdown = markdown.replace(/<b[^>]*>(.*?)<\/b>/g, '**$1**');
-    markdown = markdown.replace(/<em[^>]*>(.*?)<\/em>/g, '*$1*');
-    markdown = markdown.replace(/<i[^>]*>(.*?)<\/i>/g, '*$1*');
-
-    // 5. 取り消し線
-    markdown = markdown.replace(/<del[^>]*>(.*?)<\/del>/g, '~~$1~~');
-    markdown = markdown.replace(/<s[^>]*>(.*?)<\/s>/g, '~~$1~~');
-
-    // 6. リンク
-    markdown = markdown.replace(/<a[^>]*href=["']([^"']*)["'][^>]*>(.*?)<\/a>/g, '[$2]($1)');
-
-    // 7. 画像
-    markdown = markdown.replace(/<img[^>]*src=["']([^"']*)["'][^>]*alt=["']([^"']*)["'][^>]*>/g, '![$2]($1)');
-    markdown = markdown.replace(/<img[^>]*alt=["']([^"']*)["'][^>]*src=["']([^"']*)["'][^>]*>/g, '![$1]($2)');
-    markdown = markdown.replace(/<img[^>]*src=["']([^"']*)["'][^>]*>/g, '![]($1)');
-
-    // 8. リスト
-    markdown = markdown.replace(/<ul[^>]*>([\s\S]*?)<\/ul>/g, (match, content) => {
-      return content.replace(/<li[^>]*>(.*?)<\/li>/g, '* $1\n').trim();
-    });
-    markdown = markdown.replace(/<ol[^>]*>([\s\S]*?)<\/ol>/g, (match, content) => {
-      let counter = 1;
-      return content.replace(/<li[^>]*>(.*?)<\/li>/g, (match, captured) => `${counter++}. ${captured}\n`).trim();
-    });
-
-    // 9. 引用
-    markdown = markdown.replace(/<blockquote[^>]*>(.*?)<\/blockquote>/g, '> $1');
-
-    // 10. 水平線
-    markdown = markdown.replace(/<hr[^>]*>/g, '---');
-
-    // 11. 段落
-    markdown = markdown.replace(/<p[^>]*>(.*?)<\/p>/g, '$1\n\n');
-
-    // 12. 改行
-    markdown = markdown.replace(/<br[^>]*>/g, '\n');
-
-    // 13. 残りのHTMLタグを除去
-    markdown = markdown.replace(/<[^>]*>/g, '');
-
-    // 14. 重複する改行を整理
-    markdown = markdown.replace(/\n{3,}/g, '\n\n');
-
-    // 15. HTML entities をデコード
-    markdown = markdown
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'");
-
-    return markdown.trim();
+    try {
+      // turndownライブラリでCommonMark準拠のMarkdown変換
+      const markdown = this.turndownService.turndown(html);
+      return markdown.trim();
+    } catch (error) {
+      console.error('HTML to Markdown conversion error:', error);
+      // エラー時は元のHTMLからタグを除去して返す
+      return html.replace(/<[^>]*>/g, '').trim();
+    }
   }
 
   init() {
