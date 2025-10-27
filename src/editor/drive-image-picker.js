@@ -389,11 +389,16 @@ export class DriveImagePicker {
      * モーダルを開く
      */
     async open() {
+        console.log('[DEBUG] DriveImagePicker.open() called');
+        console.log('[DEBUG] this.isOpen:', this.isOpen);
+        console.log('[DEBUG] this.modal:', this.modal);
+
         if (this.isOpen) return;
 
         this.isOpen = true;
         this.modal.classList.remove('hidden');
         this.selectedImage = null;
+        console.log('[DEBUG] Modal should be visible now');
 
         // 画像を読み込み
         await this.loadImages();
@@ -412,9 +417,11 @@ export class DriveImagePicker {
      * Google Driveから画像一覧を読み込み
      */
     async loadImages() {
+        console.log('[DEBUG] loadImages() called');
         const loadingEl = this.modal.querySelector('#drive-picker-loading');
         const errorEl = this.modal.querySelector('#drive-picker-error');
         const gridEl = this.modal.querySelector('#drive-picker-grid');
+        console.log('[DEBUG] Loading elements:', { loadingEl, errorEl, gridEl });
 
         // 表示状態をリセット
         loadingEl.classList.remove('hidden');
@@ -422,8 +429,11 @@ export class DriveImagePicker {
         gridEl.classList.add('hidden');
 
         try {
+            console.log('[DEBUG] Fetching images from API...');
             const response = await fetch('http://localhost:8080/api/drive/images?max=100');
+            console.log('[DEBUG] API response:', response);
             const data = await response.json();
+            console.log('[DEBUG] API data:', data);
 
             if (!data.success) {
                 throw new Error(data.error || 'Failed to load images');
@@ -558,9 +568,13 @@ export class DriveImagePicker {
 let pickerInstance = null;
 
 export function getDriveImagePicker() {
+    console.log('[DEBUG] getDriveImagePicker() called');
+    console.log('[DEBUG] pickerInstance exists:', !!pickerInstance);
     if (!pickerInstance) {
+        console.log('[DEBUG] Creating new DriveImagePicker instance');
         pickerInstance = new DriveImagePicker();
         pickerInstance.initialize();
+        console.log('[DEBUG] DriveImagePicker initialized');
     }
     return pickerInstance;
 }

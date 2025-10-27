@@ -1354,10 +1354,13 @@ class SimpleMarkdownEditor {
   }
 
   insertImage() {
+    console.log('[DEBUG] insertImage() called');
     // Google Driveピッカーを開く
     const picker = getDriveImagePicker();
+    console.log('[DEBUG] picker instance:', picker);
 
     picker.onSelect((imageData) => {
+      console.log('[DEBUG] Image selected:', imageData);
       const url = imageData.url;
       const alt = imageData.fileName;
 
@@ -1392,7 +1395,9 @@ class SimpleMarkdownEditor {
       }
     });
 
+    console.log('[DEBUG] Calling picker.open()');
     picker.open();
+    console.log('[DEBUG] picker.open() completed');
   }
 
   insertTable() {
