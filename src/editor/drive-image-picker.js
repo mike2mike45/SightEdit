@@ -1,6 +1,9 @@
 /**
  * Google Drive画像ピッカーUI
+ * chrome.identity APIを使用してGoogle Driveから直接画像を取得
  */
+
+import { getGoogleDriveAPI } from '../lib/google-drive-api.js';
 
 export class DriveImagePicker {
     constructor() {
@@ -9,6 +12,7 @@ export class DriveImagePicker {
         this.images = [];
         this.onSelectCallback = null;
         this.selectedImage = null;
+        this.driveAPI = getGoogleDriveAPI();
     }
 
     /**
@@ -429,17 +433,10 @@ export class DriveImagePicker {
         gridEl.classList.add('hidden');
 
         try {
-            console.log('[DEBUG] Fetching images from API...');
-            const response = await fetch('http://localhost:8080/api/drive/images?max=100');
-            console.log('[DEBUG] API response:', response);
-            const data = await response.json();
-            console.log('[DEBUG] API data:', data);
-
-            if (!data.success) {
-                throw new Error(data.error || 'Failed to load images');
-            }
-
-            this.images = data.images;
+            console.log('[DEBUG] Fetching images from Google Drive...');
+            // chrome.identity APIを使ってGoogle Driveから直接取得
+            this.images = await this.driveAPI.getImages(100);
+            console.log('[DEBUG] Retrieved images:', this.images.length);
 
             // 画像グリッドを表示
             this.renderImageGrid();
@@ -531,18 +528,13 @@ export class DriveImagePicker {
         if (!this.selectedImage) return;
 
         try {
-            // 画像の公開URLを取得
-            const response = await fetch(`http://localhost:8080/api/drive/images/${this.selectedImage.file_id}/url`);
-            const data = await response.json();
-
-            if (!data.success) {
-                throw new Error(data.error || 'Failed to get image URL');
-            }
+            // chrome.identity APIを使って画像の公開URLを取得
+            const url = await this.driveAPI.getImageUrl(this.selectedImage.file_id);
 
             // コールバックを呼び出し
             if (this.onSelectCallback) {
                 this.onSelectCallback({
-                    url: data.url,
+                    url: url,
                     fileName: this.selectedImage.file_name,
                     fileId: this.selectedImage.file_id
                 });

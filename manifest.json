@@ -5,13 +5,22 @@
   "description": "Visual Markdown Editor with External File Support",
 
   "permissions": [
-    "storage"
+    "storage",
+    "identity"
   ],
 
   "host_permissions": [
     "http://localhost:*/*",
-    "http://127.0.0.1:*/*"
+    "http://127.0.0.1:*/*",
+    "https://www.googleapis.com/*"
   ],
+
+  "oauth2": {
+    "client_id": "YOUR_CLIENT_ID.apps.googleusercontent.com",
+    "scopes": [
+      "https://www.googleapis.com/auth/drive.readonly"
+    ]
+  },
 
   "background": {
     "service_worker": "background.js"
