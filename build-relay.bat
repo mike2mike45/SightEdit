@@ -23,11 +23,16 @@ if %ERRORLEVEL% NEQ 0 (
 )
 
 echo.
-echo [INFO] Build successful! Copying executable files...
+echo [INFO] Build successful! Copying executable files and dependencies...
 
-:: 実行ファイルを親フォルダにコピー
-copy /Y "bin\Release\net48\SightEditRelay.exe" "..\SightEditRelay.exe" >nul
+:: 実行ファイルと全ての依存DLLを親フォルダにコピー
+copy /Y "bin\Release\net48\*.exe" ".." >nul
+copy /Y "bin\Release\net48\*.dll" ".." >nul
+copy /Y "bin\Release\net48\*.config" ".." >nul
 copy /Y "App.config" "..\SightEditRelay.exe.config" >nul
+
+echo [INFO] Copied dependencies:
+dir /B "..\*.dll" | findstr /I "Newtonsoft Google"
 
 if exist "..\SightEditRelay.exe" (
     echo [SUCCESS] SightEditRelay.exe is ready
