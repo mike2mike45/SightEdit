@@ -1087,6 +1087,8 @@ class SimpleMarkdownEditor {
   }
 
   wrapText(before, after, htmlTag = null) {
+    console.log('[wrapText] Mode:', this.isSourceMode ? 'Source' : 'WYSIWYG', 'htmlTag:', htmlTag);
+
     if (this.isSourceMode) {
       // ソースモード: textareaにMarkdown記号を挿入
       const sourceEditor = document.getElementById('source-editor');
@@ -1110,13 +1112,19 @@ class SimpleMarkdownEditor {
       const content = document.getElementById('wysiwyg-content');
       const selection = window.getSelection();
 
+      console.log('[wrapText] WYSIWYG - selection.rangeCount:', selection.rangeCount, 'htmlTag:', htmlTag);
+
       if (selection.rangeCount > 0 && htmlTag) {
         const range = selection.getRangeAt(0);
         const selectedText = range.toString();
 
+        console.log('[wrapText] Selected text:', selectedText);
+
         // HTMLタグを作成して選択範囲を囲む
         const element = document.createElement(htmlTag);
         element.textContent = selectedText;
+
+        console.log('[wrapText] Created element:', element.outerHTML);
 
         range.deleteContents();
         range.insertNode(element);
@@ -1126,6 +1134,10 @@ class SimpleMarkdownEditor {
         range.collapse(true);
         selection.removeAllRanges();
         selection.addRange(range);
+
+        console.log('[wrapText] Successfully inserted HTML element');
+      } else {
+        console.warn('[wrapText] Cannot insert HTML - rangeCount:', selection.rangeCount, 'htmlTag:', htmlTag);
       }
 
       content.focus();
