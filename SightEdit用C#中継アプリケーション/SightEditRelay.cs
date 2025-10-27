@@ -218,6 +218,14 @@ namespace SightEditRelay
                 {
                     HandleRestoreRequest(request, response).Wait();
                 }
+                else if (path == "/api/drive/images")
+                {
+                    HandleDriveImagesRequest(request, response).Wait();
+                }
+                else if (path.StartsWith("/api/drive/images/") && path.EndsWith("/url"))
+                {
+                    HandleDriveImageUrlRequest(request, response).Wait();
+                }
                 else
                 {
                     // 404エラー
@@ -389,6 +397,69 @@ namespace SightEditRelay
             catch (Exception ex)
             {
                 _logger.LogError($"バージョン復元リクエスト処理エラー: {ex.Message}");
+                SendJsonResponse(response, 500, new { success = false, error = ex.Message });
+            }
+        }
+
+        private static async Task HandleDriveImagesRequest(HttpListenerRequest request, HttpListenerResponse response)
+        {
+            try
+            {
+                if (_driveService == null)
+                {
+                    SendJsonResponse(response, 400, new { success = false, error = "Google Drive APIが無効です" });
+                    return;
+                }
+
+                // クエリパラメータから最大件数を取得
+                int maxResults = 50;
+                var maxParam = request.QueryString["max"];
+                if (!string.IsNullOrEmpty(maxParam))
+                {
+                    int.TryParse(maxParam, out maxResults);
+                }
+
+                var images = await _driveService.GetImagesAsync(maxResults);
+
+                SendJsonResponse(response, 200, new
+                {
+                    success = true,
+                    images
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"画像一覧リクエスト処理エラー: {ex.Message}");
+                SendJsonResponse(response, 500, new { success = false, error = ex.Message });
+            }
+        }
+
+        private static async Task HandleDriveImageUrlRequest(HttpListenerRequest request, HttpListenerResponse response)
+        {
+            try
+            {
+                if (_driveService == null)
+                {
+                    SendJsonResponse(response, 400, new { success = false, error = "Google Drive APIが無効です" });
+                    return;
+                }
+
+                // URLからファイルIDを抽出: /api/drive/images/{file_id}/url
+                var pathSegments = request.Url.AbsolutePath.Split('/');
+                var fileId = pathSegments[4];
+
+                var imageUrl = await _driveService.GetImagePublicUrlAsync(fileId);
+
+                SendJsonResponse(response, 200, new
+                {
+                    success = true,
+                    file_id = fileId,
+                    url = imageUrl
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"画像URL取得リクエスト処理エラー: {ex.Message}");
                 SendJsonResponse(response, 500, new { success = false, error = ex.Message });
             }
         }

@@ -15,11 +15,10 @@ import { VersionIntegration } from './version-integration.js';
 // ローカル履歴機能をインポート
 import { LocalHistoryIntegration } from './local-history-integration.js';
 
-<<<<<<< HEAD
 // CommonMark準拠のMarkdownパーサーをインポート
 import { marked } from 'marked';
 import TurndownService from 'turndown';
-=======
+
 // AI チャット機能をインポート
 import { ChatStorage } from '../lib/chat-storage.js';
 import { AIChatManager } from '../lib/ai-chat-manager.js';
@@ -38,7 +37,9 @@ import { StructuredGenerationModal } from './structured-generation-modal.js';
 
 // Export/Import機能をインポート
 import { ExportImportManager } from '../lib/export-import-manager.js';
->>>>>>> origin/main
+
+// Google Drive画像ピッカーをインポート
+import { getDriveImagePicker } from './drive-image-picker.js';
 
 class SimpleMarkdownEditor {
   constructor() {
@@ -1353,36 +1354,45 @@ class SimpleMarkdownEditor {
   }
 
   insertImage() {
-    const url = prompt('画像URLを入力してください:');
-    const alt = prompt('画像の説明を入力してください:', '画像');
+    // Google Driveピッカーを開く
+    const picker = getDriveImagePicker();
 
-    if (url && alt) {
-      if (this.isSourceMode) {
-        this.insertText(`![${alt}](${url})`);
-      } else {
-        // WYSIWYGモード: <img>タグを挿入
-        const content = document.getElementById('wysiwyg-content');
-        const selection = window.getSelection();
+    picker.onSelect((imageData) => {
+      const url = imageData.url;
+      const alt = imageData.fileName;
 
-        if (selection.rangeCount > 0) {
-          const range = selection.getRangeAt(0);
-          const img = document.createElement('img');
-          img.src = url;
-          img.alt = alt;
-          img.className = 'editable-image';
+      if (url && alt) {
+        if (this.isSourceMode) {
+          this.insertText(`![${alt}](${url})`);
+        } else {
+          // WYSIWYGモード: <img>タグを挿入
+          const content = document.getElementById('wysiwyg-content');
+          const selection = window.getSelection();
 
-          range.deleteContents();
-          range.insertNode(img);
-          range.setStartAfter(img);
-          range.collapse(true);
-          selection.removeAllRanges();
-          selection.addRange(range);
+          if (selection.rangeCount > 0) {
+            const range = selection.getRangeAt(0);
+            const img = document.createElement('img');
+            img.src = url;
+            img.alt = alt;
+            img.className = 'editable-image';
+            img.style.maxWidth = '100%';
+            img.style.height = 'auto';
+
+            range.deleteContents();
+            range.insertNode(img);
+            range.setStartAfter(img);
+            range.collapse(true);
+            selection.removeAllRanges();
+            selection.addRange(range);
+          }
+
+          content.focus();
+          this.updateWordCount();
         }
-
-        content.focus();
-        this.updateWordCount();
       }
-    }
+    });
+
+    picker.open();
   }
 
   insertTable() {

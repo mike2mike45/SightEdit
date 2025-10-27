@@ -337,6 +337,72 @@ namespace SightEditRelay
                 return false;
             }
         }
+
+        /// <summary>
+        /// Google Driveから画像ファイル一覧を取得
+        /// </summary>
+        public async Task<List<DriveImageInfo>> GetImagesAsync(int maxResults = 50)
+        {
+            try
+            {
+                var images = new List<DriveImageInfo>();
+
+                // 画像ファイルを検索（MIMEタイプで絞り込み）
+                var request = _driveService.Files.List();
+                request.Q = "(mimeType='image/png' or mimeType='image/jpeg' or mimeType='image/jpg' or mimeType='image/gif' or mimeType='image/webp') and trashed=false";
+                request.Fields = "files(id, name, mimeType, thumbnailLink, webContentLink, size, createdTime, modifiedTime)";
+                request.OrderBy = "modifiedTime desc";
+                request.PageSize = maxResults;
+
+                var fileList = await request.ExecuteAsync();
+
+                foreach (var file in fileList.Files)
+                {
+                    images.Add(new DriveImageInfo
+                    {
+                        FileId = file.Id,
+                        FileName = file.Name,
+                        MimeType = file.MimeType,
+                        ThumbnailLink = file.ThumbnailLink,
+                        DownloadLink = file.WebContentLink,
+                        FileSize = file.Size ?? 0,
+                        CreatedTime = file.CreatedTimeDateTimeOffset?.DateTime ?? DateTime.Now,
+                        ModifiedTime = file.ModifiedTimeDateTimeOffset?.DateTime ?? DateTime.Now
+                    });
+                }
+
+                _logger.LogInfo($"画像ファイル一覧取得: {images.Count}件");
+                return images;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"画像ファイル一覧取得エラー: {ex.Message}");
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Google Drive画像の公開URLを取得
+        /// </summary>
+        public async Task<string> GetImagePublicUrlAsync(string fileId)
+        {
+            try
+            {
+                // ファイルの詳細情報を取得
+                var request = _driveService.Files.Get(fileId);
+                request.Fields = "webContentLink, webViewLink";
+                var file = await request.ExecuteAsync();
+
+                // WebContentLinkを返す（直接画像URLとして使える）
+                _logger.LogInfo($"画像URL取得: {fileId}");
+                return file.WebContentLink;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"画像URL取得エラー: {ex.Message}");
+                throw;
+            }
+        }
     }
 
     /// <summary>
@@ -364,5 +430,35 @@ namespace SightEditRelay
 
         [JsonProperty("google_drive_url")]
         public string GoogleDriveUrl { get; set; }
+    }
+
+    /// <summary>
+    /// Google Drive画像ファイル情報
+    /// </summary>
+    public class DriveImageInfo
+    {
+        [JsonProperty("file_id")]
+        public string FileId { get; set; }
+
+        [JsonProperty("file_name")]
+        public string FileName { get; set; }
+
+        [JsonProperty("mime_type")]
+        public string MimeType { get; set; }
+
+        [JsonProperty("thumbnail_link")]
+        public string ThumbnailLink { get; set; }
+
+        [JsonProperty("download_link")]
+        public string DownloadLink { get; set; }
+
+        [JsonProperty("file_size")]
+        public long FileSize { get; set; }
+
+        [JsonProperty("created_time")]
+        public DateTime CreatedTime { get; set; }
+
+        [JsonProperty("modified_time")]
+        public DateTime ModifiedTime { get; set; }
     }
 }
