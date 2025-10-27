@@ -418,7 +418,7 @@ class SimpleMarkdownEditor {
     const editorElement = document.getElementById('editor');
     if (editorElement) {
       // WYSIWYGエディターの代わりにcontentEditableを使用
-      editorElement.innerHTML = '<div contenteditable="true" class="wysiwyg-editor-content" id="wysiwyg-content"></div>';
+      editorElement.innerHTML = '<div contenteditable="true" class="ProseMirror" id="wysiwyg-content"></div>';
 
       const content = document.getElementById('wysiwyg-content');
       content.addEventListener('input', () => {
@@ -480,8 +480,33 @@ class SimpleMarkdownEditor {
           // 段落は何もしない
         } else if (value) {
           const level = parseInt(value);
-          const prefix = '#'.repeat(level) + ' ';
-          this.insertAtLineStart(prefix);
+          if (this.isSourceMode) {
+            // ソースモード: Markdown記号を挿入
+            const prefix = '#'.repeat(level) + ' ';
+            this.insertAtLineStart(prefix);
+          } else {
+            // WYSIWYGモード: HTMLタグを挿入
+            const content = document.getElementById('wysiwyg-content');
+            const selection = window.getSelection();
+
+            if (selection.rangeCount > 0) {
+              const range = selection.getRangeAt(0);
+              const selectedText = range.toString() || '見出し';
+
+              const heading = document.createElement(`h${level}`);
+              heading.textContent = selectedText;
+
+              range.deleteContents();
+              range.insertNode(heading);
+              range.setStartAfter(heading);
+              range.collapse(true);
+              selection.removeAllRanges();
+              selection.addRange(range);
+            }
+
+            content.focus();
+            this.updateWordCount();
+          }
         }
         e.target.value = ''; // 選択後にリセット
       });
@@ -1087,8 +1112,6 @@ class SimpleMarkdownEditor {
   }
 
   wrapText(before, after, htmlTag = null) {
-    console.log('[wrapText] Mode:', this.isSourceMode ? 'Source' : 'WYSIWYG', 'htmlTag:', htmlTag);
-
     if (this.isSourceMode) {
       // ソースモード: textareaにMarkdown記号を挿入
       const sourceEditor = document.getElementById('source-editor');
@@ -1112,19 +1135,13 @@ class SimpleMarkdownEditor {
       const content = document.getElementById('wysiwyg-content');
       const selection = window.getSelection();
 
-      console.log('[wrapText] WYSIWYG - selection.rangeCount:', selection.rangeCount, 'htmlTag:', htmlTag);
-
       if (selection.rangeCount > 0 && htmlTag) {
         const range = selection.getRangeAt(0);
         const selectedText = range.toString();
 
-        console.log('[wrapText] Selected text:', selectedText);
-
         // HTMLタグを作成して選択範囲を囲む
         const element = document.createElement(htmlTag);
         element.textContent = selectedText;
-
-        console.log('[wrapText] Created element:', element.outerHTML);
 
         range.deleteContents();
         range.insertNode(element);
@@ -1134,10 +1151,6 @@ class SimpleMarkdownEditor {
         range.collapse(true);
         selection.removeAllRanges();
         selection.addRange(range);
-
-        console.log('[wrapText] Successfully inserted HTML element');
-      } else {
-        console.warn('[wrapText] Cannot insert HTML - rangeCount:', selection.rangeCount, 'htmlTag:', htmlTag);
       }
 
       content.focus();
@@ -1349,8 +1362,51 @@ class SimpleMarkdownEditor {
   }
 
   insertTable() {
-    const tableMarkdown = `\n| ヘッダー1 | ヘッダー2 | ヘッダー3 |\n|-----------|-----------|-----------|\n| セル1     | セル2     | セル3     |\n| セル4     | セル5     | セル6     |\n`;
-    this.insertText(tableMarkdown);
+    if (this.isSourceMode) {
+      const tableMarkdown = `\n| ヘッダー1 | ヘッダー2 | ヘッダー3 |\n|-----------|-----------|-----------|\n| セル1     | セル2     | セル3     |\n| セル4     | セル5     | セル6     |\n`;
+      this.insertText(tableMarkdown);
+    } else {
+      // WYSIWYGモード: HTMLテーブルを挿入
+      const content = document.getElementById('wysiwyg-content');
+      const selection = window.getSelection();
+
+      if (selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+
+        const table = document.createElement('table');
+        table.innerHTML = `
+          <thead>
+            <tr>
+              <th>ヘッダー1</th>
+              <th>ヘッダー2</th>
+              <th>ヘッダー3</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>セル1</td>
+              <td>セル2</td>
+              <td>セル3</td>
+            </tr>
+            <tr>
+              <td>セル4</td>
+              <td>セル5</td>
+              <td>セル6</td>
+            </tr>
+          </tbody>
+        `;
+
+        range.deleteContents();
+        range.insertNode(table);
+        range.setStartAfter(table);
+        range.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+
+      content.focus();
+      this.updateWordCount();
+    }
   }
 
   toggleEditMode() {
