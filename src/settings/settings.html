@@ -382,7 +382,7 @@
                     <input type="radio" name="provider" value="claude" id="provider-claude">
                     <label for="provider-claude" style="flex: 1; cursor: pointer;">
                         <strong>Anthropic Claude</strong><br>
-                        <small>高品質な応答・従量課金</small>
+                        <small>Artifacts対応・認証不要</small>
                     </label>
                 </div>
             </div>
@@ -436,37 +436,18 @@
 
                 <!-- Claude用フォーム -->
                 <div id="claude-form" class="provider-form" style="display: none;">
-                    <div class="info-box">
-                        <p><strong>Claude APIキーの取得方法:</strong></p>
-                        <ul>
-                            <li>Anthropic Consoleにアクセス</li>
-                            <li>「Create Key」をクリック</li>
-                            <li>APIキーをコピーして下記に貼り付け</li>
-                        </ul>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="claude-api-key">Claude APIキー *</label>
-                        <input
-                            type="password"
-                            id="claude-api-key"
-                            placeholder="sk-ant-...で始まるAPIキー"
-                        >
-                        <small>
-                            <a href="https://console.anthropic.com/account/keys" target="_blank">
-                                Anthropic Consoleで取得 →
-                            </a>
-                        </small>
+                    <div class="info-box" style="background: #e8f5e9; border-left-color: #4caf50;">
+                        <p><strong>✨ Claude Artifacts対応</strong></p>
+                        <p style="margin-top: 8px; font-size: 14px;">
+                            Claude Sonnet 4は、Claude.aiのArtifacts機能との互換性を持ち、<strong>認証なしで使用できます</strong>。
+                            APIキーの入力は不要です。
+                        </p>
                     </div>
 
                     <div class="form-group">
                         <label for="claude-model">モデル</label>
                         <select id="claude-model">
-                            <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet（推奨）</option>
-                            <option value="claude-3-5-haiku-20241022">Claude 3.5 Haiku（高速）</option>
-                            <option value="claude-3-opus-20240229">Claude 3 Opus（高性能）</option>
-                            <option value="claude-3-sonnet-20240229">Claude 3 Sonnet</option>
-                            <option value="claude-3-haiku-20240307">Claude 3 Haiku</option>
+                            <option value="claude-sonnet-4-20250514" selected>Claude Sonnet 4 (Artifacts対応)</option>
                         </select>
                     </div>
                 </div>

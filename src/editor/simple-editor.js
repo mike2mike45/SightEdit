@@ -6,15 +6,39 @@ import './ai-command-panel.css';
 import './export-menu.css';
 import './ai-settings.css';
 import './settings.css';
+import './chat-panel.css';
+import './prompt-library.css';
+import './structured-generation.css';
 
 // バージョン管理機能をインポート
 import { VersionIntegration } from './version-integration.js';
 // ローカル履歴機能をインポート
 import { LocalHistoryIntegration } from './local-history-integration.js';
 
+<<<<<<< HEAD
 // CommonMark準拠のMarkdownパーサーをインポート
 import { marked } from 'marked';
 import TurndownService from 'turndown';
+=======
+// AI チャット機能をインポート
+import { ChatStorage } from '../lib/chat-storage.js';
+import { AIChatManager } from '../lib/ai-chat-manager.js';
+import { ChatPanel } from './chat-panel.js';
+
+// プロンプト管理機能をインポート
+import { getPromptManager } from '../lib/prompt-manager.js';
+import { PromptLibrary } from './prompt-library.js';
+
+// スタイル制御機能をインポート
+import { getStyleController } from '../lib/style-controller.js';
+
+// 構造化生成機能をインポート
+import { getStructuredGenerator } from '../lib/structured-generator.js';
+import { StructuredGenerationModal } from './structured-generation-modal.js';
+
+// Export/Import機能をインポート
+import { ExportImportManager } from '../lib/export-import-manager.js';
+>>>>>>> origin/main
 
 class SimpleMarkdownEditor {
   constructor() {
@@ -2591,21 +2615,149 @@ class ExportUI {
 // グローバルにUI機能を初期化
 let aiCommandUI = null;
 let exportUI = null;
+let chatPanel = null;
+let chatManager = null;
 
 // エディター初期化後に機能を追加
 document.addEventListener('DOMContentLoaded', () => {
   const editor = new SimpleMarkdownEditor();
-  
+
+  // グローバルアクセス用
+  window.editorManager = editor;
+
   // 機能の初期化
-  setTimeout(() => {
+  setTimeout(async () => {
     aiCommandUI = new AICommandUI(editor);
     exportUI = new ExportUI(editor);
-    
+
     // グローバルアクセス用
     window.aiCommandUI = aiCommandUI;
     window.exportUI = exportUI;
+
+    // AICommandManager を aiManager として公開（AICommandManager は AIManager を拡張）
+    if (aiCommandUI.commandManager) {
+      window.aiManager = aiCommandUI.commandManager;
+    }
+
+    // AI チャット機能の初期化
+    await initChatFeature(editor);
+
+    // キーボードショートカットの設定
+    setupKeyboardShortcuts();
   }, 100);
 });
+
+// AI チャット機能の初期化
+async function initChatFeature(editor) {
+  try {
+    // ChatStorage の初期化
+    const chatStorage = new ChatStorage();
+    await chatStorage.initDB();
+    console.log('ChatStorage initialized');
+
+    // PromptManager の初期化
+    const promptManager = getPromptManager();
+    await promptManager.init();
+    console.log('PromptManager initialized');
+
+    // PromptLibrary の初期化
+    const promptLibrary = new PromptLibrary(promptManager);
+
+    // StyleController の初期化
+    const styleController = getStyleController();
+    await styleController.init();
+    console.log('StyleController initialized');
+
+    // StructuredGenerator の初期化
+    const structuredGenerator = getStructuredGenerator();
+    console.log('StructuredGenerator initialized');
+
+    // AIChatManager の初期化（aiManagerが設定されるまで待つ）
+    const waitForAIManager = setInterval(() => {
+      if (window.aiManager) {
+        clearInterval(waitForAIManager);
+
+        chatManager = new AIChatManager(window.aiManager, promptManager, chatStorage);
+
+        // StructuredGenerationModal の初期化
+        const structuredGenerationModal = new StructuredGenerationModal(structuredGenerator, chatManager);
+
+        // ExportImportManager の初期化
+        const exportImportManager = new ExportImportManager();
+
+        // ChatPanel の初期化（structuredGenerator, structuredGenerationModal, exportImportManagerを追加）
+        chatPanel = new ChatPanel(chatManager, promptManager, promptLibrary, styleController, structuredGenerator, structuredGenerationModal, exportImportManager);
+        chatPanel.render();
+
+        // グローバルアクセス用
+        window.chatPanel = chatPanel;
+        window.chatManager = chatManager;
+        window.chatStorage = chatStorage;
+        window.promptManager = promptManager;
+        window.promptLibrary = promptLibrary;
+        window.styleController = styleController;
+        window.structuredGenerator = structuredGenerator;
+        window.structuredGenerationModal = structuredGenerationModal;
+        window.exportImportManager = exportImportManager;
+
+        // チャットトグルボタンのイベントリスナー
+        const chatToggleBtn = document.getElementById('chat-toggle-btn');
+        if (chatToggleBtn) {
+          chatToggleBtn.addEventListener('click', () => {
+            chatPanel.toggle();
+          });
+        }
+
+        console.log('Chat feature initialized');
+      }
+    }, 50);
+
+    // タイムアウト（5秒後）
+    setTimeout(() => {
+      clearInterval(waitForAIManager);
+      if (!window.aiManager) {
+        console.error('AIManager not available after timeout');
+      }
+    }, 5000);
+
+  } catch (error) {
+    console.error('Failed to initialize chat feature:', error);
+  }
+}
+
+// キーボードショートカットの設定
+function setupKeyboardShortcuts() {
+  document.addEventListener('keydown', (e) => {
+    // Ctrl+K: チャットパネルのトグル
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      e.preventDefault();
+      if (chatPanel) {
+        chatPanel.toggle();
+      }
+    }
+
+    // Ctrl+L: 会話クリア
+    if ((e.ctrlKey || e.metaKey) && e.key === 'l') {
+      e.preventDefault();
+      if (chatPanel && chatPanel.isVisible) {
+        if (confirm('会話をクリアしますか？')) {
+          chatPanel.clearMessages();
+          if (chatManager) {
+            chatManager.currentSession = null;
+          }
+        }
+      }
+    }
+
+    // Ctrl+P: プロンプトライブラリ
+    if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+      e.preventDefault();
+      if (chatPanel && chatPanel.isVisible) {
+        chatPanel.showPromptLibrary();
+      }
+    }
+  });
+}
 
 // API接続テスト関数をSimpleMarkdownEditorクラスに追加
 SimpleMarkdownEditor.prototype.testGeminiConnection = async function(apiKey, model) {

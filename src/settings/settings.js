@@ -45,10 +45,7 @@ async function loadExistingSettings() {
                     document.getElementById('gemini-model').value = result.geminiModel;
                 }
 
-                // Claude設定
-                if (result.claudeApiKey) {
-                    document.getElementById('claude-api-key').value = result.claudeApiKey;
-                }
+                // Claude設定（認証不要）
                 if (result.claudeModel) {
                     document.getElementById('claude-model').value = result.claudeModel;
                 }
@@ -226,15 +223,8 @@ async function validateStep3() {
                 return false;
             }
         } else if (selectedProvider === 'claude') {
-            const apiKey = document.getElementById('claude-api-key').value.trim();
-            if (!apiKey) {
-                showError('Claude APIキーを入力してください');
-                return false;
-            }
-            if (!apiKey.startsWith('sk-ant-')) {
-                showError('有効なClaude APIキーを入力してください（sk-ant-で始まる必要があります）');
-                return false;
-            }
+            // Claudeは認証不要（Artifacts対応）
+            // バリデーション不要
         }
     }
 
@@ -253,7 +243,7 @@ async function saveSettings() {
             settings.geminiApiKey = document.getElementById('gemini-api-key').value.trim();
             settings.geminiModel = document.getElementById('gemini-model').value;
         } else if (selectedProvider === 'claude') {
-            settings.claudeApiKey = document.getElementById('claude-api-key').value.trim();
+            // Claudeは認証不要（APIキーなし）
             settings.claudeModel = document.getElementById('claude-model').value;
         }
     }

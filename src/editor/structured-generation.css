@@ -1,0 +1,579 @@
+/* ========================================
+   Structured Generation Modal
+   ======================================== */
+
+.structured-gen-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.structured-gen-modal .modal-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+}
+
+.structured-gen-modal .modal-container {
+    position: relative;
+    width: 90%;
+    max-width: 900px;
+    max-height: 85vh;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    display: flex;
+    flex-direction: column;
+    z-index: 1;
+    overflow: hidden;
+}
+
+.structured-gen-modal .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 24px 28px;
+    border-bottom: 1px solid #e0e0e0;
+    flex-shrink: 0;
+}
+
+.structured-gen-modal .modal-header h3 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.structured-gen-modal .close-modal {
+    background: transparent;
+    border: none;
+    font-size: 28px;
+    color: #666;
+    cursor: pointer;
+    padding: 0;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.structured-gen-modal .close-modal:hover {
+    background: #f0f0f0;
+    color: #333;
+}
+
+.structured-gen-modal .modal-content {
+    padding: 28px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+/* ========================================
+   Template Selection
+   ======================================== */
+
+.template-selection h4 {
+    margin: 0 0 24px 0;
+    font-size: 18px;
+    color: #333;
+}
+
+.template-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 20px;
+}
+
+.template-card {
+    padding: 24px;
+    border: 2px solid #e0e0e0;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s;
+    text-align: center;
+}
+
+.template-card:hover {
+    border-color: #667eea;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+    transform: translateY(-2px);
+}
+
+.template-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+}
+
+.template-card h5 {
+    margin: 0 0 8px 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+}
+
+.template-card p {
+    margin: 0 0 12px 0;
+    font-size: 13px;
+    color: #666;
+    line-height: 1.5;
+}
+
+.template-meta {
+    font-size: 12px;
+    color: #999;
+}
+
+/* ========================================
+   Variable Input Step
+   ======================================== */
+
+.variable-input-step .step-header,
+.generation-mode-step .step-header,
+.section-generation-step .step-header {
+    margin-bottom: 24px;
+}
+
+.variable-input-step .step-header h4,
+.generation-mode-step .step-header h4,
+.section-generation-step .step-header h4 {
+    margin: 0;
+    font-size: 18px;
+    color: #333;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.back-btn {
+    padding: 8px 16px;
+    background: #f0f0f0;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    margin-bottom: 12px;
+    transition: background 0.2s;
+}
+
+.back-btn:hover {
+    background: #e0e0e0;
+}
+
+.variable-form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.form-label {
+    font-weight: 500;
+    font-size: 14px;
+    margin-bottom: 8px;
+    color: #333;
+}
+
+.form-control {
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: inherit;
+    transition: border-color 0.2s;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.step-footer {
+    margin-top: 28px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+.btn-secondary,
+.btn-primary {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-secondary {
+    background: #f0f0f0;
+    color: #333;
+}
+
+.btn-secondary:hover {
+    background: #e0e0e0;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+/* ========================================
+   Generation Mode Selection
+   ======================================== */
+
+.mode-selection {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 24px;
+}
+
+.mode-card {
+    padding: 28px;
+    border: 2px solid #e0e0e0;
+    border-radius: 12px;
+    text-align: center;
+}
+
+.mode-icon {
+    font-size: 56px;
+    margin-bottom: 16px;
+}
+
+.mode-card h5 {
+    margin: 0 0 12px 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: #333;
+}
+
+.mode-card p {
+    margin: 0 0 20px 0;
+    font-size: 14px;
+    color: #666;
+    line-height: 1.6;
+}
+
+.select-mode-btn {
+    width: 100%;
+    padding: 12px;
+}
+
+/* ========================================
+   Section Generation
+   ======================================== */
+
+.progress {
+    margin-top: 12px;
+}
+
+.progress span {
+    display: block;
+    font-size: 13px;
+    color: #666;
+    margin-bottom: 8px;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 8px;
+    background: #e0e0e0;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    transition: width 0.3s;
+}
+
+.section-list {
+    margin-bottom: 32px;
+}
+
+.section-list h5,
+.generated-sections h5 {
+    margin: 0 0 16px 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+}
+
+.section-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    transition: all 0.2s;
+}
+
+.section-item:hover {
+    border-color: #667eea;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.section-info h6 {
+    margin: 0 0 4px 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: #333;
+}
+
+.section-info p {
+    margin: 0;
+    font-size: 13px;
+    color: #666;
+}
+
+.generate-section-btn {
+    padding: 10px 20px;
+}
+
+.generated-sections {
+    padding-top: 24px;
+    border-top: 1px solid #e0e0e0;
+}
+
+.empty-message {
+    color: #999;
+    font-style: italic;
+    font-size: 14px;
+}
+
+.completed-section {
+    padding: 16px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    margin-bottom: 8px;
+}
+
+.section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.section-header span {
+    font-weight: 500;
+    color: #333;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-link {
+    padding: 6px 12px;
+    background: transparent;
+    border: none;
+    color: #667eea;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.btn-link:hover {
+    background: rgba(102, 126, 234, 0.1);
+    border-radius: 4px;
+}
+
+.view-section-btn {
+    padding: 6px 12px;
+}
+
+/* ========================================
+   Completion Screen
+   ======================================== */
+
+.completion-screen {
+    text-align: center;
+    padding: 40px 20px;
+}
+
+.completion-icon {
+    font-size: 80px;
+    margin-bottom: 24px;
+}
+
+.completion-screen h4 {
+    margin: 0 0 12px 0;
+    font-size: 24px;
+    font-weight: 600;
+    color: #333;
+}
+
+.completion-screen > p {
+    margin: 0 0 32px 0;
+    font-size: 16px;
+    color: #666;
+}
+
+.completion-stats {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    margin-bottom: 32px;
+}
+
+.stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.stat-value {
+    font-size: 36px;
+    font-weight: 700;
+    color: #667eea;
+}
+
+.stat-label {
+    font-size: 14px;
+    color: #666;
+    margin-top: 4px;
+}
+
+.completion-actions {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+}
+
+/* ========================================
+   Section View Modal
+   ======================================== */
+
+.section-view-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10001;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.section-view-modal .modal-container {
+    max-width: 700px;
+}
+
+.section-content {
+    white-space: pre-wrap;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #333;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.modal-footer {
+    padding: 16px 24px;
+    border-top: 1px solid #e0e0e0;
+    display: flex;
+    justify-content: flex-end;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .structured-gen-modal .modal-container {
+        background: #2c2c2c;
+        color: #e0e0e0;
+    }
+
+    .structured-gen-modal .modal-header {
+        border-bottom-color: #444;
+    }
+
+    .structured-gen-modal .close-modal {
+        color: #aaa;
+    }
+
+    .structured-gen-modal .close-modal:hover {
+        background: #3c3c3c;
+        color: #e0e0e0;
+    }
+
+    .template-selection h4,
+    .template-card h5,
+    .section-info h6 {
+        color: #e0e0e0;
+    }
+
+    .template-card {
+        border-color: #444;
+        background: #1c1c1c;
+    }
+
+    .template-card:hover {
+        border-color: #8b9dc3;
+        background: #2c2c2c;
+    }
+
+    .template-card p,
+    .section-info p {
+        color: #aaa;
+    }
+
+    .form-control {
+        background: #1c1c1c;
+        border-color: #444;
+        color: #e0e0e0;
+    }
+
+    .form-control:focus {
+        border-color: #8b9dc3;
+    }
+
+    .btn-secondary {
+        background: #3c3c3c;
+        color: #e0e0e0;
+    }
+
+    .btn-secondary:hover {
+        background: #4c4c4c;
+    }
+
+    .completed-section {
+        background: #1c1c1c;
+    }
+
+    .section-content {
+        background: #1c1c1c;
+        color: #e0e0e0;
+    }
+}

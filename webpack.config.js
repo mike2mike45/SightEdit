@@ -7,7 +7,8 @@ module.exports = {
   entry: {
     background: './src/background/background.js',
     popup: './src/popup/popup.js',
-    editor: './src/editor/simple-editor.js'
+    editor: './src/editor/simple-editor.js',
+    settings: './src/settings/settings.js'
   },
   output: {
     path: path.resolve(__dirname, 'dist'),
@@ -42,6 +43,12 @@ module.exports = {
       template: './src/editor/editor.html',
       filename: 'editor.html',
       chunks: ['editor'],
+      inject: 'body'
+    }),
+    new HtmlWebpackPlugin({
+      template: './src/settings/settings.html',
+      filename: 'settings.html',
+      chunks: ['settings'],
       inject: 'body'
     }),
     new CopyWebpackPlugin({

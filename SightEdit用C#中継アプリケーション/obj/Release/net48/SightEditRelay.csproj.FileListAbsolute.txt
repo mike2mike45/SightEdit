@@ -15,3 +15,4 @@ C:\Users\mscat\OneDrive\ドキュメント\GitHub\SightEdit\SightEdit用C#中継
 C:\Users\mscat\OneDrive\ドキュメント\GitHub\SightEdit\SightEdit用C#中継アプリケーション\obj\Release\net48\SightEdi.1C53357E.Up2Date
 C:\Users\mscat\OneDrive\ドキュメント\GitHub\SightEdit\SightEdit用C#中継アプリケーション\obj\Release\net48\SightEditRelay.exe
 C:\Users\mscat\OneDrive\ドキュメント\GitHub\SightEdit\SightEdit用C#中継アプリケーション\obj\Release\net48\SightEditRelay.pdb
+C:\Users\mscat\OneDrive\ドキュメント\GitHub\SightEdit\SightEdit用C#中継アプリケーション\obj\Release\net48\SightEditRelay.exe.config
