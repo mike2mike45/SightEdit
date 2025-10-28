@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "SightEdit Markdown Editor v2",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Visual Markdown Editor with External File Support",
 
   "permissions": [
