@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "SightEdit Markdown Editor v2",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Visual Markdown Editor with External File Support",
 
   "permissions": [
@@ -16,7 +16,7 @@
   ],
 
   "oauth2": {
-    "client_id": "260879732198-2iel5qgjgfsen4uaimu4sjf0iv26qhhe.apps.googleusercontent.com",
+    "client_id": "340936057095-fos853gfrj1hcn6jrdi0motfs8rnh1sv.apps.googleusercontent.com",
     "scopes": [
       "https://www.googleapis.com/auth/drive"
     ]
