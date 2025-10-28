@@ -40,7 +40,7 @@ export class DriveImagePicker {
                     <div class="header-left">
                         <h3>📁 Google Drive画像を選択</h3>
                         <div class="account-info" id="account-info">
-                            <span class="account-email" id="account-email">読み込み中...</span>
+                            <span class="account-email" id="account-email"></span>
                             <button class="btn-switch-account" id="btn-switch-account" title="アカウント切り替え">🔄</button>
                         </div>
                     </div>
@@ -699,20 +699,39 @@ export class DriveImagePicker {
      * アカウント切り替え
      */
     async switchAccount() {
-        const confirmed = confirm('アカウントを切り替えますか？\n現在のセッションからログアウトします。');
+        const confirmed = confirm('アカウントを切り替えますか？\n新しいアカウントでログインします。');
         if (!confirmed) return;
 
         try {
             // トークンを削除
             await this.driveAPI.logout();
 
-            // モーダルを閉じて再度開く（新しいアカウント選択を促す）
-            this.close();
-            alert('ログアウトしました。次回、画像を選択する際に新しいアカウントでログインできます。');
+            // ローディング表示
+            const loadingEl = this.modal.querySelector('#drive-picker-loading');
+            const gridEl = this.modal.querySelector('#drive-picker-grid');
+            const errorEl = this.modal.querySelector('#drive-picker-error');
+
+            gridEl.classList.add('hidden');
+            errorEl.classList.add('hidden');
+            loadingEl.classList.remove('hidden');
+
+            // 新しいアカウントでログイン（interactive=trueでアカウント選択画面を表示）
+            await this.loadInitialData();
+
+            console.log('[DEBUG] Account switched successfully');
 
         } catch (error) {
             console.error('Failed to switch account:', error);
-            alert('アカウント切り替えに失敗しました: ' + error.message);
+
+            // エラー表示
+            const loadingEl = this.modal.querySelector('#drive-picker-loading');
+            const errorEl = this.modal.querySelector('#drive-picker-error');
+
+            loadingEl.classList.add('hidden');
+            errorEl.classList.remove('hidden');
+
+            const errorMessage = errorEl.querySelector('.error-message');
+            errorMessage.textContent = `アカウント切り替えに失敗しました: ${error.message}`;
         }
     }
 
