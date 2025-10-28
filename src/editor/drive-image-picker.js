@@ -528,30 +528,80 @@ export class DriveImagePicker {
         if (!this.selectedImage) return;
 
         try {
-            // chrome.identity APIを使って画像データをBlobとして取得
-            console.log('[DEBUG] Downloading image blob...');
-            const blob = await this.driveAPI.getImageBlob(this.selectedImage.file_id);
+            console.log('[DEBUG] Getting file metadata...');
+            const metadata = await this.driveAPI.getFileMetadata(this.selectedImage.file_id);
 
-            // Blob URLを作成
-            const url = URL.createObjectURL(blob);
-            console.log('[DEBUG] Created blob URL:', url);
+            // webContentLinkがあるかチェック
+            if (metadata.webContentLink) {
+                console.log('[DEBUG] File has webContentLink:', metadata.webContentLink);
 
-            // コールバックを呼び出し
-            if (this.onSelectCallback) {
-                this.onSelectCallback({
-                    url: url,
-                    fileName: this.selectedImage.file_name,
-                    fileId: this.selectedImage.file_id,
-                    isBlob: true  // Blob URLであることを示す
-                });
+                // URLにアクセスできるかテスト
+                try {
+                    const testResponse = await fetch(metadata.webContentLink, { method: 'HEAD' });
+
+                    if (testResponse.ok) {
+                        // アクセス可能 - 公開URLを使用
+                        console.log('[DEBUG] File is publicly accessible');
+                        this.returnImageUrl(metadata.webContentLink);
+                        return;
+                    }
+                } catch (e) {
+                    console.log('[DEBUG] File is not publicly accessible');
+                }
             }
 
-            this.close();
+            // ファイルが非公開 - ユーザーに公開するか確認
+            const makePublic = confirm(
+                `「${this.selectedImage.file_name}」は非公開ファイルです。\n\n` +
+                `Markdownファイルに埋め込むには、このファイルを公開設定にする必要があります。\n` +
+                `（リンクを知っている全員が閲覧可能になります）\n\n` +
+                `公開設定にしますか？`
+            );
+
+            if (!makePublic) {
+                console.log('[DEBUG] User declined to make file public');
+                return;
+            }
+
+            // 権限を更新
+            console.log('[DEBUG] Updating file permissions...');
+            const success = await this.driveAPI.updateFilePermissions(this.selectedImage.file_id);
+
+            if (!success) {
+                alert('ファイルの公開設定に失敗しました。');
+                return;
+            }
+
+            // 再度メタデータを取得してwebContentLinkを確認
+            console.log('[DEBUG] Getting updated metadata...');
+            const updatedMetadata = await this.driveAPI.getFileMetadata(this.selectedImage.file_id);
+
+            if (updatedMetadata.webContentLink) {
+                console.log('[DEBUG] File is now public, using webContentLink');
+                this.returnImageUrl(updatedMetadata.webContentLink);
+            } else {
+                throw new Error('公開設定後もwebContentLinkが取得できませんでした');
+            }
 
         } catch (error) {
             console.error('Failed to get image:', error);
             alert(`画像の取得に失敗しました: ${error.message}`);
         }
+    }
+
+    /**
+     * 画像URLを返す（コールバック呼び出し）
+     */
+    returnImageUrl(url) {
+        if (this.onSelectCallback) {
+            this.onSelectCallback({
+                url: url,
+                fileName: this.selectedImage.file_name,
+                fileId: this.selectedImage.file_id,
+                isBlob: false  // 公開URLを使用
+            });
+        }
+        this.close();
     }
 
     /**

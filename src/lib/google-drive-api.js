@@ -162,6 +162,75 @@ export class GoogleDriveAPI {
     }
 
     /**
+     * ファイルのメタデータを取得（webContentLink付き）
+     * @param {string} fileId - ファイルID
+     * @returns {Promise<Object>} ファイルメタデータ
+     */
+    async getFileMetadata(fileId) {
+        try {
+            const token = await this.auth.getToken(false);
+
+            const params = new URLSearchParams({
+                fields: 'id, name, mimeType, webContentLink'
+            });
+
+            const response = await fetch(`${DRIVE_API_BASE}/files/${fileId}?${params}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`API error: ${response.status} ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            console.log(`[GoogleDriveAPI] Got metadata for file: ${fileId}`);
+
+            return data;
+
+        } catch (error) {
+            console.error('[GoogleDriveAPI] Failed to get file metadata:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * ファイルの共有権限を更新（公開設定）
+     * @param {string} fileId - ファイルID
+     * @returns {Promise<boolean>} 成功/失敗
+     */
+    async updateFilePermissions(fileId) {
+        try {
+            const token = await this.auth.getToken(false);
+
+            const response = await fetch(`${DRIVE_API_BASE}/files/${fileId}/permissions`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    role: 'reader',
+                    type: 'anyone'
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`API error: ${response.status} ${response.statusText}`);
+            }
+
+            console.log(`[GoogleDriveAPI] Updated permissions for file: ${fileId}`);
+            return true;
+
+        } catch (error) {
+            console.error('[GoogleDriveAPI] Failed to update permissions:', error);
+            return false;
+        }
+    }
+
+    /**
      * ログアウト
      */
     async logout() {
