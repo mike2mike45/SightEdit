@@ -14,21 +14,30 @@ export class ChromeIdentityAuth {
      * @returns {Promise<string>} アクセストークン
      */
     async getToken(interactive = true) {
+        // デバッグ: manifest.jsonの内容を確認
+        const manifest = chrome.runtime.getManifest();
+        console.log('[DEBUG] Manifest oauth2 config:', manifest.oauth2);
+        console.log('[DEBUG] Client ID being used:', manifest.oauth2?.client_id);
+        console.log('[DEBUG] Interactive mode:', interactive);
+
         return new Promise((resolve, reject) => {
             chrome.identity.getAuthToken({ interactive }, (token) => {
                 if (chrome.runtime.lastError) {
+                    console.error('[DEBUG] Auth error details:', chrome.runtime.lastError);
                     console.error('Auth error:', chrome.runtime.lastError);
                     reject(new Error(chrome.runtime.lastError.message));
                     return;
                 }
 
                 if (!token) {
+                    console.error('[DEBUG] No token received from chrome.identity.getAuthToken');
                     reject(new Error('No token received'));
                     return;
                 }
 
                 this.token = token;
                 console.log('[ChromeIdentityAuth] Token obtained');
+                console.log('[DEBUG] Token length:', token.length);
                 resolve(token);
             });
         });
