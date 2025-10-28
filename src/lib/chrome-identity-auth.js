@@ -64,6 +64,28 @@ export class ChromeIdentityAuth {
     }
 
     /**
+     * すべてのキャッシュされた認証トークンをクリア
+     * 古いクライアントIDのトークンも含めてすべて削除
+     */
+    async clearAllCachedTokens() {
+        console.log('[ChromeIdentityAuth] Clearing all cached tokens...');
+
+        return new Promise((resolve, reject) => {
+            chrome.identity.clearAllCachedAuthTokens(() => {
+                if (chrome.runtime.lastError) {
+                    console.error('[ChromeIdentityAuth] Failed to clear tokens:', chrome.runtime.lastError);
+                    reject(new Error(chrome.runtime.lastError.message));
+                    return;
+                }
+
+                this.token = null;
+                console.log('[ChromeIdentityAuth] All cached tokens cleared successfully');
+                resolve();
+            });
+        });
+    }
+
+    /**
      * 認証済みかチェック
      */
     isAuthenticated() {

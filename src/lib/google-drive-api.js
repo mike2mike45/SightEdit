@@ -389,7 +389,8 @@ export class GoogleDriveAPI {
      * ログアウト
      */
     async logout() {
-        await this.auth.removeToken();
+        // すべてのキャッシュされたトークンをクリア（古いクライアントIDのトークンも削除）
+        await this.auth.clearAllCachedTokens();
     }
 }
 

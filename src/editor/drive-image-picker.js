@@ -525,6 +525,19 @@ export class DriveImagePicker {
         this.selectedImage = null;
         console.log('[DEBUG] Modal should be visible now');
 
+        // 一時的な対策：初回のみ、すべてのキャッシュされたトークンをクリア
+        // 古いクライアントIDのトークンを削除するため
+        if (!this._tokensClearedOnce) {
+            console.log('[DEBUG] Clearing all cached tokens (first time only)...');
+            try {
+                await this.driveAPI.logout();
+                this._tokensClearedOnce = true;
+                console.log('[DEBUG] All tokens cleared successfully');
+            } catch (error) {
+                console.error('[DEBUG] Failed to clear tokens:', error);
+            }
+        }
+
         // 初期データを読み込み（ユーザー情報、フォルダ、画像）
         await this.loadInitialData();
     }
