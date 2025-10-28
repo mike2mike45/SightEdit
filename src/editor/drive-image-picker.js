@@ -13,6 +13,9 @@ export class DriveImagePicker {
         this.onSelectCallback = null;
         this.selectedImage = null;
         this.driveAPI = getGoogleDriveAPI();
+        this.folders = [];
+        this.selectedFolderId = null;  // null = All files
+        this.currentUserEmail = null;
     }
 
     /**
@@ -34,8 +37,20 @@ export class DriveImagePicker {
             <div class="drive-picker-overlay"></div>
             <div class="drive-picker-content">
                 <div class="drive-picker-header">
-                    <h3>📁 Google Drive画像を選択</h3>
+                    <div class="header-left">
+                        <h3>📁 Google Drive画像を選択</h3>
+                        <div class="account-info" id="account-info">
+                            <span class="account-email" id="account-email">読み込み中...</span>
+                            <button class="btn-switch-account" id="btn-switch-account" title="アカウント切り替え">🔄</button>
+                        </div>
+                    </div>
                     <button class="drive-picker-close-btn" title="閉じる">×</button>
+                </div>
+                <div class="drive-picker-toolbar">
+                    <label for="folder-select">📂 フォルダ:</label>
+                    <select id="folder-select" class="folder-select">
+                        <option value="">すべての画像</option>
+                    </select>
                 </div>
                 <div class="drive-picker-body">
                     <div class="drive-picker-loading" id="drive-picker-loading">
@@ -132,10 +147,16 @@ export class DriveImagePicker {
             .drive-picker-header {
                 display: flex;
                 justify-content: space-between;
-                align-items: center;
+                align-items: flex-start;
                 padding: 20px 24px;
                 border-bottom: 1px solid #e0e0e0;
                 background: #f8f9fa;
+            }
+
+            .header-left {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
             }
 
             .drive-picker-header h3 {
@@ -143,6 +164,72 @@ export class DriveImagePicker {
                 font-size: 20px;
                 font-weight: 600;
                 color: #333;
+            }
+
+            .account-info {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                font-size: 13px;
+                color: #666;
+            }
+
+            .account-email {
+                padding: 4px 8px;
+                background: #fff;
+                border: 1px solid #e0e0e0;
+                border-radius: 4px;
+            }
+
+            .btn-switch-account {
+                padding: 4px 8px;
+                background: #fff;
+                border: 1px solid #e0e0e0;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 14px;
+                transition: all 0.2s;
+            }
+
+            .btn-switch-account:hover {
+                background: #f0f0f0;
+                border-color: #4285f4;
+            }
+
+            .drive-picker-toolbar {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 12px 24px;
+                background: #fff;
+                border-bottom: 1px solid #e0e0e0;
+            }
+
+            .drive-picker-toolbar label {
+                font-size: 14px;
+                color: #666;
+                font-weight: 500;
+            }
+
+            .folder-select {
+                flex: 1;
+                padding: 8px 12px;
+                border: 1px solid #e0e0e0;
+                border-radius: 6px;
+                font-size: 14px;
+                background: #fff;
+                cursor: pointer;
+                transition: border-color 0.2s;
+            }
+
+            .folder-select:hover {
+                border-color: #4285f4;
+            }
+
+            .folder-select:focus {
+                outline: none;
+                border-color: #4285f4;
+                box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.1);
             }
 
             .drive-picker-close-btn {
@@ -379,7 +466,15 @@ export class DriveImagePicker {
 
         // 再試行ボタン
         const retryBtn = this.modal.querySelector('.retry-btn');
-        retryBtn.addEventListener('click', () => this.loadImages());
+        retryBtn.addEventListener('click', () => this.loadInitialData());
+
+        // アカウント切り替えボタン
+        const switchAccountBtn = this.modal.querySelector('#btn-switch-account');
+        switchAccountBtn.addEventListener('click', () => this.switchAccount());
+
+        // フォルダ選択
+        const folderSelect = this.modal.querySelector('#folder-select');
+        folderSelect.addEventListener('change', (e) => this.onFolderChange(e.target.value));
 
         // ESCキーで閉じる
         document.addEventListener('keydown', (e) => {
@@ -404,8 +499,8 @@ export class DriveImagePicker {
         this.selectedImage = null;
         console.log('[DEBUG] Modal should be visible now');
 
-        // 画像を読み込み
-        await this.loadImages();
+        // 初期データを読み込み（ユーザー情報、フォルダ、画像）
+        await this.loadInitialData();
     }
 
     /**
@@ -418,14 +513,12 @@ export class DriveImagePicker {
     }
 
     /**
-     * Google Driveから画像一覧を読み込み
+     * 初期データを読み込み（ユーザー情報、フォルダ、画像）
      */
-    async loadImages() {
-        console.log('[DEBUG] loadImages() called');
+    async loadInitialData() {
         const loadingEl = this.modal.querySelector('#drive-picker-loading');
         const errorEl = this.modal.querySelector('#drive-picker-error');
         const gridEl = this.modal.querySelector('#drive-picker-grid');
-        console.log('[DEBUG] Loading elements:', { loadingEl, errorEl, gridEl });
 
         // 表示状態をリセット
         loadingEl.classList.remove('hidden');
@@ -433,25 +526,152 @@ export class DriveImagePicker {
         gridEl.classList.add('hidden');
 
         try {
-            console.log('[DEBUG] Fetching images from Google Drive...');
-            // chrome.identity APIを使ってGoogle Driveから直接取得
-            this.images = await this.driveAPI.getImages(100);
-            console.log('[DEBUG] Retrieved images:', this.images.length);
+            // ユーザー情報を取得
+            await this.loadUserInfo();
 
-            // 画像グリッドを表示
-            this.renderImageGrid();
+            // フォルダ一覧を取得
+            await this.loadFolders();
+
+            // 画像一覧を取得
+            await this.loadImages();
 
             loadingEl.classList.add('hidden');
             gridEl.classList.remove('hidden');
 
         } catch (error) {
-            console.error('Failed to load images from Google Drive:', error);
+            console.error('Failed to load initial data:', error);
 
             loadingEl.classList.add('hidden');
             errorEl.classList.remove('hidden');
 
             const errorMessage = errorEl.querySelector('.error-message');
             errorMessage.textContent = `エラー: ${error.message}`;
+        }
+    }
+
+    /**
+     * ユーザー情報を取得して表示
+     */
+    async loadUserInfo() {
+        try {
+            const userInfo = await this.driveAPI.getUserInfo();
+            this.currentUserEmail = userInfo.emailAddress;
+
+            const emailEl = this.modal.querySelector('#account-email');
+            emailEl.textContent = this.currentUserEmail;
+
+            console.log('[DEBUG] User email:', this.currentUserEmail);
+        } catch (error) {
+            console.error('Failed to load user info:', error);
+            const emailEl = this.modal.querySelector('#account-email');
+            emailEl.textContent = 'エラー';
+        }
+    }
+
+    /**
+     * フォルダ一覧を取得
+     */
+    async loadFolders() {
+        try {
+            this.folders = await this.driveAPI.getFolders();
+            console.log('[DEBUG] Retrieved folders:', this.folders.length);
+
+            // フォルダ選択ドロップダウンを更新
+            const folderSelect = this.modal.querySelector('#folder-select');
+
+            // 既存のオプションをクリア（デフォルトオプション以外）
+            while (folderSelect.options.length > 1) {
+                folderSelect.remove(1);
+            }
+
+            // フォルダオプションを追加
+            this.folders.forEach(folder => {
+                const option = document.createElement('option');
+                option.value = folder.id;
+                option.textContent = folder.name;
+                folderSelect.appendChild(option);
+            });
+
+        } catch (error) {
+            console.error('Failed to load folders:', error);
+            // フォルダ読み込みエラーは無視して続行
+        }
+    }
+
+    /**
+     * Google Driveから画像一覧を読み込み
+     */
+    async loadImages() {
+        console.log('[DEBUG] loadImages() called, folderId:', this.selectedFolderId);
+
+        try {
+            // chrome.identity APIを使ってGoogle Driveから直接取得
+            this.images = await this.driveAPI.getImages(100, this.selectedFolderId);
+            console.log('[DEBUG] Retrieved images:', this.images.length);
+
+            // 画像グリッドを表示
+            this.renderImageGrid();
+
+        } catch (error) {
+            console.error('Failed to load images from Google Drive:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * アカウント切り替え
+     */
+    async switchAccount() {
+        const confirmed = confirm('アカウントを切り替えますか？\n現在のセッションからログアウトします。');
+        if (!confirmed) return;
+
+        try {
+            // トークンを削除
+            await this.driveAPI.logout();
+
+            // モーダルを閉じて再度開く（新しいアカウント選択を促す）
+            this.close();
+            alert('ログアウトしました。次回、画像を選択する際に新しいアカウントでログインできます。');
+
+        } catch (error) {
+            console.error('Failed to switch account:', error);
+            alert('アカウント切り替えに失敗しました: ' + error.message);
+        }
+    }
+
+    /**
+     * フォルダ選択時の処理
+     */
+    async onFolderChange(folderId) {
+        console.log('[DEBUG] Folder changed:', folderId);
+
+        this.selectedFolderId = folderId || null;  // 空文字列をnullに変換
+
+        // 選択を解除
+        this.selectedImage = null;
+        const selectBtn = this.modal.querySelector('#btn-select');
+        selectBtn.disabled = true;
+        const selectedNameEl = this.modal.querySelector('#selected-image-name');
+        selectedNameEl.textContent = '画像を選択してください';
+
+        // ローディング表示
+        const loadingEl = this.modal.querySelector('#drive-picker-loading');
+        const gridEl = this.modal.querySelector('#drive-picker-grid');
+
+        gridEl.classList.add('hidden');
+        loadingEl.classList.remove('hidden');
+
+        try {
+            // 画像を再読み込み
+            await this.loadImages();
+
+            loadingEl.classList.add('hidden');
+            gridEl.classList.remove('hidden');
+
+        } catch (error) {
+            console.error('Failed to reload images:', error);
+            alert('画像の読み込みに失敗しました: ' + error.message);
+            loadingEl.classList.add('hidden');
         }
     }
 

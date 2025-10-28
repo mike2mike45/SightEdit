@@ -13,17 +13,97 @@ export class GoogleDriveAPI {
     }
 
     /**
+     * ユーザー情報を取得
+     * @returns {Promise<Object>} ユーザー情報
+     */
+    async getUserInfo() {
+        try {
+            const token = await this.auth.getToken(false);
+
+            const response = await fetch(`${DRIVE_API_BASE}/about?fields=user`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`API error: ${response.status} ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            console.log('[GoogleDriveAPI] Retrieved user info:', data.user.emailAddress);
+
+            return data.user;
+
+        } catch (error) {
+            console.error('[GoogleDriveAPI] Failed to get user info:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * フォルダ一覧を取得
+     * @returns {Promise<Array>} フォルダ情報の配列
+     */
+    async getFolders() {
+        try {
+            const token = await this.auth.getToken(false);
+
+            const query = "mimeType='application/vnd.google-apps.folder' and trashed=false";
+            const params = new URLSearchParams({
+                q: query,
+                fields: 'files(id, name)',
+                orderBy: 'name',
+                pageSize: '100'
+            });
+
+            const response = await fetch(`${DRIVE_API_BASE}/files?${params}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`API error: ${response.status} ${response.statusText}`);
+            }
+
+            const data = await response.json();
+
+            const folders = data.files.map(file => ({
+                id: file.id,
+                name: file.name
+            }));
+
+            console.log(`[GoogleDriveAPI] Retrieved ${folders.length} folders`);
+            return folders;
+
+        } catch (error) {
+            console.error('[GoogleDriveAPI] Failed to get folders:', error);
+            throw error;
+        }
+    }
+
+    /**
      * 画像ファイル一覧を取得
      * @param {number} maxResults - 最大取得件数
+     * @param {string|null} folderId - フォルダID（null=すべて）
      * @returns {Promise<Array>} 画像ファイル情報の配列
      */
-    async getImages(maxResults = 50) {
+    async getImages(maxResults = 50, folderId = null) {
         try {
             // トークンを取得
             const token = await this.auth.getToken(true);
 
             // 画像ファイルを検索
-            const query = "(mimeType='image/png' or mimeType='image/jpeg' or mimeType='image/jpg' or mimeType='image/gif' or mimeType='image/webp') and trashed=false";
+            let query = "(mimeType='image/png' or mimeType='image/jpeg' or mimeType='image/jpg' or mimeType='image/gif' or mimeType='image/webp') and trashed=false";
+
+            // フォルダIDが指定されている場合、フィルタを追加
+            if (folderId) {
+                query += ` and '${folderId}' in parents`;
+            }
+
             const params = new URLSearchParams({
                 q: query,
                 fields: 'files(id, name, mimeType, thumbnailLink, webContentLink, size, createdTime, modifiedTime)',
@@ -56,7 +136,7 @@ export class GoogleDriveAPI {
                 modified_time: file.modifiedTime
             }));
 
-            console.log(`[GoogleDriveAPI] Retrieved ${images.length} images`);
+            console.log(`[GoogleDriveAPI] Retrieved ${images.length} images${folderId ? ' from folder ' + folderId : ''}`);
             return images;
 
         } catch (error) {
