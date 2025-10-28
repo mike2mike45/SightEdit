@@ -9,12 +9,12 @@ export class DriveImagePicker {
     constructor() {
         this.isOpen = false;
         this.modal = null;
-        this.images = [];
+        this.items = [];  // フォルダと画像の両方を含む
         this.onSelectCallback = null;
         this.selectedImage = null;
         this.driveAPI = getGoogleDriveAPI();
-        this.folders = [];
-        this.selectedFolderId = null;  // null = All files
+        this.currentFolderId = null;  // null = ルート（マイドライブ）
+        this.folderPath = [];  // パンくずリスト用: [{id: null, name: 'マイドライブ'}]
         this.currentUserEmail = null;
     }
 
@@ -47,22 +47,21 @@ export class DriveImagePicker {
                     <button class="drive-picker-close-btn" title="閉じる">×</button>
                 </div>
                 <div class="drive-picker-toolbar">
-                    <label for="folder-select">📂 フォルダ:</label>
-                    <select id="folder-select" class="folder-select">
-                        <option value="">すべての画像</option>
-                    </select>
+                    <div class="breadcrumb" id="breadcrumb">
+                        <span class="breadcrumb-item">📂 マイドライブ</span>
+                    </div>
                 </div>
                 <div class="drive-picker-body">
                     <div class="drive-picker-loading" id="drive-picker-loading">
                         <div class="spinner"></div>
-                        <p>画像を読み込み中...</p>
+                        <p>読み込み中...</p>
                     </div>
                     <div class="drive-picker-error hidden" id="drive-picker-error">
                         <p class="error-message"></p>
                         <button class="retry-btn">再試行</button>
                     </div>
                     <div class="drive-picker-grid hidden" id="drive-picker-grid">
-                        <!-- 画像グリッドがここに表示される -->
+                        <!-- フォルダと画像がここに表示される -->
                     </div>
                 </div>
                 <div class="drive-picker-footer">
@@ -199,37 +198,41 @@ export class DriveImagePicker {
             .drive-picker-toolbar {
                 display: flex;
                 align-items: center;
-                gap: 12px;
                 padding: 12px 24px;
                 background: #fff;
                 border-bottom: 1px solid #e0e0e0;
+                min-height: 48px;
             }
 
-            .drive-picker-toolbar label {
+            .breadcrumb {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                flex-wrap: wrap;
                 font-size: 14px;
+            }
+
+            .breadcrumb-item {
+                display: flex;
+                align-items: center;
                 color: #666;
-                font-weight: 500;
+                cursor: default;
             }
 
-            .folder-select {
-                flex: 1;
-                padding: 8px 12px;
-                border: 1px solid #e0e0e0;
-                border-radius: 6px;
-                font-size: 14px;
-                background: #fff;
+            .breadcrumb-item.clickable {
+                color: #4285f4;
                 cursor: pointer;
-                transition: border-color 0.2s;
+                transition: all 0.2s;
             }
 
-            .folder-select:hover {
-                border-color: #4285f4;
+            .breadcrumb-item.clickable:hover {
+                color: #3367d6;
+                text-decoration: underline;
             }
 
-            .folder-select:focus {
-                outline: none;
-                border-color: #4285f4;
-                box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.1);
+            .breadcrumb-separator {
+                color: #999;
+                margin: 0 4px;
             }
 
             .drive-picker-close-btn {
@@ -327,7 +330,7 @@ export class DriveImagePicker {
                 display: none;
             }
 
-            .drive-image-item {
+            .drive-item {
                 position: relative;
                 aspect-ratio: 1;
                 border: 2px solid transparent;
@@ -336,26 +339,42 @@ export class DriveImagePicker {
                 cursor: pointer;
                 transition: all 0.2s;
                 background: #f5f5f5;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
             }
 
-            .drive-image-item:hover {
+            .drive-item:hover {
                 border-color: #4285f4;
                 transform: translateY(-2px);
                 box-shadow: 0 4px 12px rgba(66, 133, 244, 0.2);
             }
 
-            .drive-image-item.selected {
+            .drive-item.selected {
                 border-color: #4285f4;
                 box-shadow: 0 4px 16px rgba(66, 133, 244, 0.3);
             }
 
-            .drive-image-item img {
+            .drive-item.folder {
+                background: #fff;
+            }
+
+            .drive-item.folder .folder-icon {
+                font-size: 48px;
+                margin-bottom: 8px;
+            }
+
+            .drive-item.image img {
                 width: 100%;
                 height: 100%;
                 object-fit: cover;
+                position: absolute;
+                top: 0;
+                left: 0;
             }
 
-            .drive-image-item .image-name {
+            .drive-item .item-name {
                 position: absolute;
                 bottom: 0;
                 left: 0;
@@ -367,9 +386,19 @@ export class DriveImagePicker {
                 white-space: nowrap;
                 overflow: hidden;
                 text-overflow: ellipsis;
+                z-index: 1;
             }
 
-            .drive-image-item .selected-check {
+            .drive-item.folder .item-name {
+                position: static;
+                background: none;
+                color: #333;
+                padding: 0;
+                margin-top: 8px;
+                text-align: center;
+            }
+
+            .drive-item .selected-check {
                 position: absolute;
                 top: 8px;
                 right: 8px;
@@ -382,9 +411,10 @@ export class DriveImagePicker {
                 justify-content: center;
                 color: white;
                 font-size: 14px;
+                z-index: 2;
             }
 
-            .drive-image-item.selected .selected-check {
+            .drive-item.selected .selected-check {
                 display: flex;
             }
 
@@ -472,10 +502,6 @@ export class DriveImagePicker {
         const switchAccountBtn = this.modal.querySelector('#btn-switch-account');
         switchAccountBtn.addEventListener('click', () => this.switchAccount());
 
-        // フォルダ選択
-        const folderSelect = this.modal.querySelector('#folder-select');
-        folderSelect.addEventListener('change', (e) => this.onFolderChange(e.target.value));
-
         // ESCキーで閉じる
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && this.isOpen) {
@@ -513,7 +539,7 @@ export class DriveImagePicker {
     }
 
     /**
-     * 初期データを読み込み（ユーザー情報、フォルダ、画像）
+     * 初期データを読み込み（ユーザー情報とルートフォルダ）
      */
     async loadInitialData() {
         const loadingEl = this.modal.querySelector('#drive-picker-loading');
@@ -529,11 +555,13 @@ export class DriveImagePicker {
             // ユーザー情報を取得
             await this.loadUserInfo();
 
-            // フォルダ一覧を取得
-            await this.loadFolders();
+            // ルートフォルダ（マイドライブ）を表示
+            this.currentFolderId = null;
+            this.folderPath = [{ id: null, name: 'マイドライブ' }];
+            this.updateBreadcrumb();
 
-            // 画像一覧を取得
-            await this.loadImages();
+            // フォルダと画像を取得
+            await this.loadFolderContents(this.currentFolderId);
 
             loadingEl.classList.add('hidden');
             gridEl.classList.remove('hidden');
@@ -569,53 +597,102 @@ export class DriveImagePicker {
     }
 
     /**
-     * フォルダ一覧を取得
+     * フォルダの内容を読み込み（フォルダと画像の両方）
      */
-    async loadFolders() {
+    async loadFolderContents(folderId) {
+        console.log('[DEBUG] loadFolderContents() called, folderId:', folderId);
+
         try {
-            this.folders = await this.driveAPI.getFolders();
-            console.log('[DEBUG] Retrieved folders:', this.folders.length);
+            // フォルダと画像を取得
+            this.items = await this.driveAPI.getFolderContents(folderId);
+            console.log('[DEBUG] Retrieved items:', this.items.length);
 
-            // フォルダ選択ドロップダウンを更新
-            const folderSelect = this.modal.querySelector('#folder-select');
-
-            // 既存のオプションをクリア（デフォルトオプション以外）
-            while (folderSelect.options.length > 1) {
-                folderSelect.remove(1);
-            }
-
-            // フォルダオプションを追加
-            this.folders.forEach(folder => {
-                const option = document.createElement('option');
-                option.value = folder.id;
-                option.textContent = folder.name;
-                folderSelect.appendChild(option);
-            });
+            // グリッドを表示
+            this.renderGrid();
 
         } catch (error) {
-            console.error('Failed to load folders:', error);
-            // フォルダ読み込みエラーは無視して続行
+            console.error('Failed to load folder contents:', error);
+            throw error;
         }
     }
 
     /**
-     * Google Driveから画像一覧を読み込み
+     * パンくずリストを更新
      */
-    async loadImages() {
-        console.log('[DEBUG] loadImages() called, folderId:', this.selectedFolderId);
+    updateBreadcrumb() {
+        const breadcrumbEl = this.modal.querySelector('#breadcrumb');
+        breadcrumbEl.innerHTML = '';
+
+        this.folderPath.forEach((folder, index) => {
+            // パンくずアイテム
+            const item = document.createElement('span');
+            item.className = 'breadcrumb-item';
+
+            // 最後のアイテム以外はクリック可能
+            if (index < this.folderPath.length - 1) {
+                item.classList.add('clickable');
+                item.addEventListener('click', () => this.navigateToFolder(folder.id, index));
+            }
+
+            item.textContent = index === 0 ? `📂 ${folder.name}` : folder.name;
+            breadcrumbEl.appendChild(item);
+
+            // セパレーター（最後以外）
+            if (index < this.folderPath.length - 1) {
+                const separator = document.createElement('span');
+                separator.className = 'breadcrumb-separator';
+                separator.textContent = '›';
+                breadcrumbEl.appendChild(separator);
+            }
+        });
+    }
+
+    /**
+     * フォルダに移動
+     */
+    async navigateToFolder(folderId, pathIndex = null) {
+        console.log('[DEBUG] Navigating to folder:', folderId);
+
+        // ローディング表示
+        const loadingEl = this.modal.querySelector('#drive-picker-loading');
+        const gridEl = this.modal.querySelector('#drive-picker-grid');
+        gridEl.classList.add('hidden');
+        loadingEl.classList.remove('hidden');
 
         try {
-            // chrome.identity APIを使ってGoogle Driveから直接取得
-            this.images = await this.driveAPI.getImages(100, this.selectedFolderId);
-            console.log('[DEBUG] Retrieved images:', this.images.length);
+            // パンくずリストを更新
+            if (pathIndex !== null) {
+                // パンくずからクリックした場合、そこまで戻る
+                this.folderPath = this.folderPath.slice(0, pathIndex + 1);
+            }
 
-            // 画像グリッドを表示
-            this.renderImageGrid();
+            this.currentFolderId = folderId;
+            this.updateBreadcrumb();
+
+            // フォルダ内容を読み込み
+            await this.loadFolderContents(folderId);
+
+            loadingEl.classList.add('hidden');
+            gridEl.classList.remove('hidden');
 
         } catch (error) {
-            console.error('Failed to load images from Google Drive:', error);
-            throw error;
+            console.error('Failed to navigate to folder:', error);
+            alert('フォルダの読み込みに失敗しました: ' + error.message);
+            loadingEl.classList.add('hidden');
         }
+    }
+
+    /**
+     * フォルダを開く（ダブルクリック時）
+     */
+    async openFolder(folder) {
+        console.log('[DEBUG] Opening folder:', folder.name);
+
+        // フォルダパスに追加
+        this.folderPath.push({ id: folder.id, name: folder.name });
+
+        // フォルダに移動
+        await this.navigateToFolder(folder.id);
     }
 
     /**
@@ -640,56 +717,42 @@ export class DriveImagePicker {
     }
 
     /**
-     * フォルダ選択時の処理
+     * グリッドを描画（フォルダと画像）
      */
-    async onFolderChange(folderId) {
-        console.log('[DEBUG] Folder changed:', folderId);
-
-        this.selectedFolderId = folderId || null;  // 空文字列をnullに変換
-
-        // 選択を解除
-        this.selectedImage = null;
-        const selectBtn = this.modal.querySelector('#btn-select');
-        selectBtn.disabled = true;
-        const selectedNameEl = this.modal.querySelector('#selected-image-name');
-        selectedNameEl.textContent = '画像を選択してください';
-
-        // ローディング表示
-        const loadingEl = this.modal.querySelector('#drive-picker-loading');
-        const gridEl = this.modal.querySelector('#drive-picker-grid');
-
-        gridEl.classList.add('hidden');
-        loadingEl.classList.remove('hidden');
-
-        try {
-            // 画像を再読み込み
-            await this.loadImages();
-
-            loadingEl.classList.add('hidden');
-            gridEl.classList.remove('hidden');
-
-        } catch (error) {
-            console.error('Failed to reload images:', error);
-            alert('画像の読み込みに失敗しました: ' + error.message);
-            loadingEl.classList.add('hidden');
-        }
-    }
-
-    /**
-     * 画像グリッドを描画
-     */
-    renderImageGrid() {
+    renderGrid() {
         const gridEl = this.modal.querySelector('#drive-picker-grid');
         gridEl.innerHTML = '';
 
-        if (this.images.length === 0) {
-            gridEl.innerHTML = '<p style="text-align: center; color: #666;">画像ファイルが見つかりませんでした</p>';
+        if (this.items.length === 0) {
+            gridEl.innerHTML = '<p style="text-align: center; color: #666;">フォルダも画像も見つかりませんでした</p>';
             return;
         }
 
-        this.images.forEach(image => {
+        // フォルダと画像を分けてソート（フォルダが先）
+        const folders = this.items.filter(item => item.type === 'folder');
+        const images = this.items.filter(item => item.type === 'image');
+
+        // フォルダを描画
+        folders.forEach(folder => {
             const itemEl = document.createElement('div');
-            itemEl.className = 'drive-image-item';
+            itemEl.className = 'drive-item folder';
+            itemEl.dataset.folderId = folder.id;
+
+            itemEl.innerHTML = `
+                <div class="folder-icon">📁</div>
+                <div class="item-name">${folder.name}</div>
+            `;
+
+            // ダブルクリックでフォルダを開く
+            itemEl.addEventListener('dblclick', () => this.openFolder(folder));
+
+            gridEl.appendChild(itemEl);
+        });
+
+        // 画像を描画
+        images.forEach(image => {
+            const itemEl = document.createElement('div');
+            itemEl.className = 'drive-item image';
             itemEl.dataset.fileId = image.file_id;
 
             // サムネイルまたはアイコンを表示
@@ -697,11 +760,11 @@ export class DriveImagePicker {
 
             itemEl.innerHTML = `
                 <img src="${thumbnailUrl}" alt="${image.file_name}" loading="lazy">
-                <div class="image-name">${image.file_name}</div>
+                <div class="item-name">${image.file_name}</div>
                 <div class="selected-check">✓</div>
             `;
 
-            // クリックイベント
+            // シングルクリックで選択
             itemEl.addEventListener('click', () => this.selectImageItem(image, itemEl));
 
             gridEl.appendChild(itemEl);
@@ -726,7 +789,7 @@ export class DriveImagePicker {
      */
     selectImageItem(image, itemEl) {
         // 他の選択を解除
-        const allItems = this.modal.querySelectorAll('.drive-image-item');
+        const allItems = this.modal.querySelectorAll('.drive-item');
         allItems.forEach(item => item.classList.remove('selected'));
 
         // 選択状態にする

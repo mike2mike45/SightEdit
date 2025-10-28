@@ -43,7 +43,7 @@ export class GoogleDriveAPI {
     }
 
     /**
-     * フォルダ一覧を取得
+     * フォルダ一覧を取得（非推奨：getFolderContentsを使用）
      * @returns {Promise<Array>} フォルダ情報の配列
      */
     async getFolders() {
@@ -81,6 +81,80 @@ export class GoogleDriveAPI {
 
         } catch (error) {
             console.error('[GoogleDriveAPI] Failed to get folders:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * フォルダの内容を取得（フォルダと画像の両方）
+     * @param {string|null} folderId - フォルダID（null=ルート）
+     * @returns {Promise<Array>} フォルダと画像のアイテム配列
+     */
+    async getFolderContents(folderId = null) {
+        try {
+            const token = await this.auth.getToken(false);
+
+            // フォルダと画像の両方を検索
+            let query = "trashed=false and (mimeType='application/vnd.google-apps.folder' or mimeType='image/png' or mimeType='image/jpeg' or mimeType='image/jpg' or mimeType='image/gif' or mimeType='image/webp')";
+
+            // フォルダIDが指定されている場合、フィルタを追加
+            if (folderId) {
+                query += ` and '${folderId}' in parents`;
+            } else {
+                // ルートフォルダの場合（親がマイドライブ）
+                query += " and 'root' in parents";
+            }
+
+            const params = new URLSearchParams({
+                q: query,
+                fields: 'files(id, name, mimeType, thumbnailLink, webContentLink, size, createdTime, modifiedTime)',
+                orderBy: 'folder,name',
+                pageSize: '1000'
+            });
+
+            const response = await fetch(`${DRIVE_API_BASE}/files?${params}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`API error: ${response.status} ${response.statusText}`);
+            }
+
+            const data = await response.json();
+
+            // レスポンスを整形
+            const items = data.files.map(file => {
+                if (file.mimeType === 'application/vnd.google-apps.folder') {
+                    // フォルダ
+                    return {
+                        type: 'folder',
+                        id: file.id,
+                        name: file.name
+                    };
+                } else {
+                    // 画像
+                    return {
+                        type: 'image',
+                        file_id: file.id,
+                        file_name: file.name,
+                        mime_type: file.mimeType,
+                        thumbnail_link: file.thumbnailLink,
+                        download_link: file.webContentLink,
+                        file_size: parseInt(file.size) || 0,
+                        created_time: file.createdTime,
+                        modified_time: file.modifiedTime
+                    };
+                }
+            });
+
+            console.log(`[GoogleDriveAPI] Retrieved ${items.length} items from folder ${folderId || 'root'}`);
+            return items;
+
+        } catch (error) {
+            console.error('[GoogleDriveAPI] Failed to get folder contents:', error);
             throw error;
         }
     }
