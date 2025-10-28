@@ -528,23 +528,29 @@ export class DriveImagePicker {
         if (!this.selectedImage) return;
 
         try {
-            // chrome.identity APIを使って画像の公開URLを取得
-            const url = await this.driveAPI.getImageUrl(this.selectedImage.file_id);
+            // chrome.identity APIを使って画像データをBlobとして取得
+            console.log('[DEBUG] Downloading image blob...');
+            const blob = await this.driveAPI.getImageBlob(this.selectedImage.file_id);
+
+            // Blob URLを作成
+            const url = URL.createObjectURL(blob);
+            console.log('[DEBUG] Created blob URL:', url);
 
             // コールバックを呼び出し
             if (this.onSelectCallback) {
                 this.onSelectCallback({
                     url: url,
                     fileName: this.selectedImage.file_name,
-                    fileId: this.selectedImage.file_id
+                    fileId: this.selectedImage.file_id,
+                    isBlob: true  // Blob URLであることを示す
                 });
             }
 
             this.close();
 
         } catch (error) {
-            console.error('Failed to get image URL:', error);
-            alert(`画像URLの取得に失敗しました: ${error.message}`);
+            console.error('Failed to get image:', error);
+            alert(`画像の取得に失敗しました: ${error.message}`);
         }
     }
 

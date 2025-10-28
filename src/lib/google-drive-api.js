@@ -66,7 +66,7 @@ export class GoogleDriveAPI {
     }
 
     /**
-     * 画像の公開URLを取得
+     * 画像の公開URLを取得（非推奨：公開ファイルのみ）
      * @param {string} fileId - ファイルID
      * @returns {Promise<string>} 画像URL
      */
@@ -96,6 +96,37 @@ export class GoogleDriveAPI {
 
         } catch (error) {
             console.error('[GoogleDriveAPI] Failed to get image URL:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * 画像をBlobとして取得（推奨：非公開ファイルでも動作）
+     * @param {string} fileId - ファイルID
+     * @returns {Promise<Blob>} 画像データ
+     */
+    async getImageBlob(fileId) {
+        try {
+            const token = await this.auth.getToken(false);
+
+            // alt=mediaで画像データを直接取得
+            const response = await fetch(`${DRIVE_API_BASE}/files/${fileId}?alt=media`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`API error: ${response.status} ${response.statusText}`);
+            }
+
+            const blob = await response.blob();
+            console.log(`[GoogleDriveAPI] Downloaded image blob: ${fileId}, size: ${blob.size} bytes`);
+
+            return blob;
+
+        } catch (error) {
+            console.error('[GoogleDriveAPI] Failed to get image blob:', error);
             throw error;
         }
     }
