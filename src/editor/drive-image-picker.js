@@ -1051,27 +1051,30 @@ export class DriveImagePicker {
             // 画像読み込みテストを実行
             let testResult = '';
             let isPublic = false;
-            let imageUrl = null;
+            const fileId = this.selectedImage.file_id;
+            const displayUrl = `https://drive.google.com/uc?id=${fileId}`;
 
-            // webContentLinkがあるかチェック
+            // webContentLinkがあるかチェック（公開設定されているか）
             if (metadata.webContentLink) {
                 console.log('[DEBUG] File has webContentLink:', metadata.webContentLink);
+                console.log('[DEBUG] Display URL:', displayUrl);
 
-                // URLにアクセスできるかテスト
+                // 画像が読み込めるかテスト（<img>タグを使用してCORSエラーを回避）
                 try {
-                    const testResponse = await fetch(metadata.webContentLink, { method: 'HEAD' });
+                    const canLoad = await this.testImageLoad(displayUrl);
 
-                    if (testResponse.ok) {
+                    if (canLoad) {
                         // アクセス可能 - 公開URLを使用
                         console.log('[DEBUG] File is publicly accessible');
                         isPublic = true;
-                        imageUrl = metadata.webContentLink;
                         testResult = `✅ 全公開（リンクを知っている全員が閲覧可能）\n\n` +
                                    `この画像は公開設定されており、Markdownに直接埋め込むことができます。\n\n` +
-                                   `画像URL: ${metadata.webContentLink}`;
+                                   `画像URL: ${displayUrl}`;
+                    } else {
+                        console.log('[DEBUG] File is not publicly accessible');
                     }
                 } catch (e) {
-                    console.log('[DEBUG] File is not publicly accessible');
+                    console.log('[DEBUG] Image load test failed:', e);
                 }
             }
 
@@ -1145,6 +1148,36 @@ export class DriveImagePicker {
                 null
             );
         }
+    }
+
+    /**
+     * 画像が読み込めるかテスト（CORSエラーを回避するため<img>タグを使用）
+     * @param {string} url - テストする画像URL
+     * @returns {Promise<boolean>} 読み込み可能かどうか
+     */
+    testImageLoad(url) {
+        return new Promise((resolve) => {
+            const img = new Image();
+            const timeout = setTimeout(() => {
+                console.log('[DEBUG] Image load test timed out');
+                img.src = ''; // 読み込みをキャンセル
+                resolve(false);
+            }, 5000); // 5秒でタイムアウト
+
+            img.onload = () => {
+                clearTimeout(timeout);
+                console.log('[DEBUG] Image loaded successfully');
+                resolve(true);
+            };
+
+            img.onerror = () => {
+                clearTimeout(timeout);
+                console.log('[DEBUG] Image failed to load');
+                resolve(false);
+            };
+
+            img.src = url;
+        });
     }
 
     /**
