@@ -1052,12 +1052,13 @@ export class DriveImagePicker {
             let testResult = '';
             let isPublic = false;
             const fileId = this.selectedImage.file_id;
-            const displayUrl = `https://drive.google.com/uc?id=${fileId}`;
+            // Google User Content URL（最も互換性が高い）
+            const displayUrl = `https://lh3.googleusercontent.com/d/${fileId}`;
 
             // webContentLinkがあるかチェック（公開設定されているか）
             if (metadata.webContentLink) {
                 console.log('[DEBUG] File has webContentLink:', metadata.webContentLink);
-                console.log('[DEBUG] Display URL:', displayUrl);
+                console.log('[DEBUG] Display URL (googleusercontent):', displayUrl);
 
                 // 画像が読み込めるかテスト（<img>タグを使用してCORSエラーを回避）
                 try {
@@ -1065,13 +1066,13 @@ export class DriveImagePicker {
 
                     if (canLoad) {
                         // アクセス可能 - 公開URLを使用
-                        console.log('[DEBUG] File is publicly accessible');
+                        console.log('[DEBUG] File is publicly accessible via googleusercontent');
                         isPublic = true;
                         testResult = `✅ 全公開（リンクを知っている全員が閲覧可能）\n\n` +
                                    `この画像は公開設定されており、Markdownに直接埋め込むことができます。\n\n` +
                                    `画像URL: ${displayUrl}`;
                     } else {
-                        console.log('[DEBUG] File is not publicly accessible');
+                        console.log('[DEBUG] File is not publicly accessible via googleusercontent');
                     }
                 } catch (e) {
                     console.log('[DEBUG] Image load test failed:', e);
@@ -1188,10 +1189,12 @@ export class DriveImagePicker {
             // Google DriveのwebContentLinkは &export=download がついているため、
             // 画像表示用のURLに変換する
             const fileId = this.selectedImage.file_id;
-            const displayUrl = `https://drive.google.com/uc?id=${fileId}`;
+
+            // Google User Content URL（最も互換性が高い）
+            const displayUrl = `https://lh3.googleusercontent.com/d/${fileId}`;
 
             console.log('[DEBUG] Original URL:', url);
-            console.log('[DEBUG] Display URL:', displayUrl);
+            console.log('[DEBUG] Display URL (googleusercontent):', displayUrl);
 
             this.onSelectCallback({
                 url: displayUrl,
