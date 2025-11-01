@@ -891,13 +891,13 @@ export class DriveImagePicker {
                 return;
             }
 
-            // 選択状態にする
-            this.selectedItem = {
-                id: fileId,
-                name: fileInfo.name,
+            // 選択状態にする（selectedImageフォーマットに合わせる）
+            this.selectedImage = {
+                file_id: fileId,
+                file_name: fileInfo.name,
                 type: 'image',
-                thumbnailLink: fileInfo.thumbnailLink,
-                mimeType: fileInfo.mimeType
+                thumbnail_link: fileInfo.thumbnailLink,
+                mime_type: fileInfo.mimeType
             };
 
             // 選択された画像名を更新
@@ -911,12 +911,7 @@ export class DriveImagePicker {
             // 入力フィールドをクリア
             inputEl.value = '';
 
-            await this.showConfirmDialog(
-                'Success / 成功',
-                `画像が選択されました / Image selected: ${fileInfo.name}`,
-                'OK',
-                null
-            );
+            console.log('[DEBUG] Image selected from URL:', fileInfo.name);
 
         } catch (error) {
             console.error('Failed to load from URL:', error);
@@ -1053,6 +1048,11 @@ export class DriveImagePicker {
             console.log('[DEBUG] Getting file metadata...');
             const metadata = await this.driveAPI.getFileMetadata(this.selectedImage.file_id);
 
+            // 画像読み込みテストを実行
+            let testResult = '';
+            let isPublic = false;
+            let imageUrl = null;
+
             // webContentLinkがあるかチェック
             if (metadata.webContentLink) {
                 console.log('[DEBUG] File has webContentLink:', metadata.webContentLink);
@@ -1064,33 +1064,55 @@ export class DriveImagePicker {
                     if (testResponse.ok) {
                         // アクセス可能 - 公開URLを使用
                         console.log('[DEBUG] File is publicly accessible');
-                        this.returnImageUrl(metadata.webContentLink);
-                        return;
+                        isPublic = true;
+                        imageUrl = metadata.webContentLink;
+                        testResult = `✅ 全公開（リンクを知っている全員が閲覧可能）\n\n` +
+                                   `この画像は公開設定されており、Markdownに直接埋め込むことができます。\n\n` +
+                                   `画像URL: ${metadata.webContentLink}`;
                     }
                 } catch (e) {
                     console.log('[DEBUG] File is not publicly accessible');
                 }
             }
 
-            // ファイルが非公開 - ユーザーに公開するか確認
-            const makePublic = confirm(
-                `「${this.selectedImage.file_name}」は非公開ファイルです。\n\n` +
-                `Markdownファイルに埋め込むには、このファイルを公開設定にする必要があります。\n` +
-                `（リンクを知っている全員が閲覧可能になります）\n\n` +
-                `公開設定にしますか？`
+            if (!isPublic) {
+                // 限定公開（非公開）
+                testResult = `⚠️ 限定公開（自分のみ閲覧可能）\n\n` +
+                           `この画像は現在限定公開設定です。Markdownファイルに埋め込むには、` +
+                           `「リンクを知っている全員」に公開する必要があります。\n\n` +
+                           `公開設定に変更しますか？`;
+            }
+
+            // テスト結果を表示
+            const proceed = await this.showConfirmDialog(
+                '画像読み込みテスト結果 / Image Load Test Result',
+                testResult,
+                isPublic ? '挿入する / Insert' : '公開して挿入 / Make Public & Insert',
+                'キャンセル / Cancel'
             );
 
-            if (!makePublic) {
-                console.log('[DEBUG] User declined to make file public');
+            if (!proceed) {
+                console.log('[DEBUG] User cancelled');
                 return;
             }
 
-            // 権限を更新
-            console.log('[DEBUG] Updating file permissions...');
+            if (isPublic) {
+                // すでに公開されている - そのまま挿入
+                this.returnImageUrl(imageUrl);
+                return;
+            }
+
+            // 非公開 - 公開設定に変更
+            console.log('[DEBUG] Updating file permissions to public...');
             const success = await this.driveAPI.updateFilePermissions(this.selectedImage.file_id);
 
             if (!success) {
-                alert('ファイルの公開設定に失敗しました。');
+                await this.showConfirmDialog(
+                    'Error / エラー',
+                    'ファイルの公開設定に失敗しました / Failed to make file public',
+                    'OK',
+                    null
+                );
                 return;
             }
 
@@ -1100,6 +1122,15 @@ export class DriveImagePicker {
 
             if (updatedMetadata.webContentLink) {
                 console.log('[DEBUG] File is now public, using webContentLink');
+
+                // 成功メッセージを表示
+                await this.showConfirmDialog(
+                    'Success / 成功',
+                    `✅ ファイルを公開設定に変更しました\n\n画像URL: ${updatedMetadata.webContentLink}`,
+                    'OK',
+                    null
+                );
+
                 this.returnImageUrl(updatedMetadata.webContentLink);
             } else {
                 throw new Error('公開設定後もwebContentLinkが取得できませんでした');
@@ -1107,7 +1138,12 @@ export class DriveImagePicker {
 
         } catch (error) {
             console.error('Failed to get image:', error);
-            alert(`画像の取得に失敗しました: ${error.message}`);
+            await this.showConfirmDialog(
+                'Error / エラー',
+                `画像の取得に失敗しました / Failed to get image: ${error.message}`,
+                'OK',
+                null
+            );
         }
     }
 
