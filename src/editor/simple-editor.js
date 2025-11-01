@@ -48,6 +48,11 @@ class SimpleMarkdownEditor {
     this.versionIntegration = null;
     this.localHistoryIntegration = null;
 
+    // Undo/Redo履歴スタック
+    this.undoStack = [];
+    this.redoStack = [];
+    this.maxHistorySize = 100; // 最大履歴数
+
     // CommonMark準拠のmarkedを設定
     marked.setOptions({
       gfm: true, // GitHub Flavored Markdown
@@ -446,8 +451,50 @@ class SimpleMarkdownEditor {
       editorElement.innerHTML = '<div contenteditable="true" class="ProseMirror" id="wysiwyg-content"></div>';
 
       const content = document.getElementById('wysiwyg-content');
+
+      // 入力時の処理：履歴記録＋文字数更新
       content.addEventListener('input', () => {
+        this.saveToHistory();
         this.updateWordCount();
+      });
+
+      // 貼り付け時の処理
+      content.addEventListener('paste', (e) => {
+        e.preventDefault();
+
+        // クリップボードからテキストを取得
+        const text = e.clipboardData.getData('text/plain');
+
+        // 選択範囲に挿入
+        const selection = window.getSelection();
+        if (selection.rangeCount > 0) {
+          const range = selection.getRangeAt(0);
+          range.deleteContents();
+
+          // テキストノードとして挿入（HTMLとしてではなくプレーンテキストとして）
+          const textNode = document.createTextNode(text);
+          range.insertNode(textNode);
+
+          // カーソルを挿入したテキストの後ろに移動
+          range.setStartAfter(textNode);
+          range.collapse(true);
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }
+
+        this.saveToHistory();
+        this.updateWordCount();
+      });
+
+      // Ctrl+Z / Ctrl+Shift+Z のキーボードショートカット
+      content.addEventListener('keydown', (e) => {
+        if (e.ctrlKey && !e.shiftKey && e.key === 'z') {
+          e.preventDefault();
+          this.undo();
+        } else if (e.ctrlKey && e.shiftKey && e.key === 'z') {
+          e.preventDefault();
+          this.redo();
+        }
       });
 
       // リンク・画像編集機能
@@ -481,8 +528,8 @@ class SimpleMarkdownEditor {
       link: () => this.insertLink(),
       image: () => this.insertImage(),
       table: () => this.insertTable(),
-      undo: () => document.execCommand('undo'),
-      redo: () => document.execCommand('redo')
+      undo: () => this.undo(),
+      redo: () => this.redo()
     };
 
     // ツールバーボタンのイベントリスナーを設定
@@ -1852,6 +1899,28 @@ class SimpleMarkdownEditor {
   }
 
   setupEventListeners() {
+    // ソースエディタのイベントリスナー
+    const sourceEditor = document.getElementById('source-editor');
+    if (sourceEditor) {
+      // 入力時の処理：履歴記録＋文字数更新
+      ['input', 'change', 'keyup', 'paste'].forEach(eventType => {
+        sourceEditor.addEventListener(eventType, () => {
+          this.saveToHistory();
+        });
+      });
+
+      // Ctrl+Z / Ctrl+Shift+Z のキーボードショートカット
+      sourceEditor.addEventListener('keydown', (e) => {
+        if (e.ctrlKey && !e.shiftKey && e.key === 'z') {
+          e.preventDefault();
+          this.undo();
+        } else if (e.ctrlKey && e.shiftKey && e.key === 'z') {
+          e.preventDefault();
+          this.redo();
+        }
+      });
+    }
+
     // キーボードショートカット
     document.addEventListener('keydown', (e) => {
       if ((e.ctrlKey || e.metaKey)) {
@@ -2841,6 +2910,131 @@ SimpleMarkdownEditor.prototype.testClaudeConnection = async function(apiKey, mod
   } catch (error) {
     console.error('Claude API接続エラー:', error);
     return false;
+  }
+};
+
+// Undo/Redo履歴管理メソッド
+SimpleMarkdownEditor.prototype.saveToHistory = function() {
+  if (this.isSourceMode) {
+    // ソースモード：テキストエリアの内容を保存
+    const textarea = document.getElementById('source-editor');
+    if (!textarea) return;
+
+    const content = textarea.value;
+
+    // 最後の履歴と同じ内容なら保存しない
+    if (this.undoStack.length > 0 && this.undoStack[this.undoStack.length - 1] === content) {
+      return;
+    }
+
+    // 履歴スタックに保存
+    this.undoStack.push(content);
+
+    // 最大履歴数を超えたら古いものを削除
+    if (this.undoStack.length > this.maxHistorySize) {
+      this.undoStack.shift();
+    }
+
+    // 新しい変更が加わったらredoスタックをクリア
+    this.redoStack = [];
+  } else {
+    // WYSIWYGモード：HTMLコンテンツを保存
+    const content = document.getElementById('wysiwyg-content');
+    if (!content) return;
+
+    const html = content.innerHTML;
+
+    // 最後の履歴と同じ内容なら保存しない
+    if (this.undoStack.length > 0 && this.undoStack[this.undoStack.length - 1] === html) {
+      return;
+    }
+
+    // 履歴スタックに保存
+    this.undoStack.push(html);
+
+    // 最大履歴数を超えたら古いものを削除
+    if (this.undoStack.length > this.maxHistorySize) {
+      this.undoStack.shift();
+    }
+
+    // 新しい変更が加わったらredoスタックをクリア
+    this.redoStack = [];
+  }
+};
+
+SimpleMarkdownEditor.prototype.undo = function() {
+  if (this.undoStack.length <= 1) {
+    console.log('これ以上元に戻せません');
+    return;
+  }
+
+  if (this.isSourceMode) {
+    // ソースモード
+    const textarea = document.getElementById('source-editor');
+    if (!textarea) return;
+
+    // 現在の状態をredoスタックに保存
+    const currentContent = textarea.value;
+    this.redoStack.push(currentContent);
+
+    // undoスタックから1つ前の状態を復元
+    this.undoStack.pop(); // 現在の状態を削除
+    const previousContent = this.undoStack[this.undoStack.length - 1];
+    textarea.value = previousContent;
+
+    this.updateWordCount();
+  } else {
+    // WYSIWYGモード
+    const content = document.getElementById('wysiwyg-content');
+    if (!content) return;
+
+    // 現在の状態をredoスタックに保存
+    const currentHtml = content.innerHTML;
+    this.redoStack.push(currentHtml);
+
+    // undoスタックから1つ前の状態を復元
+    this.undoStack.pop(); // 現在の状態を削除
+    const previousHtml = this.undoStack[this.undoStack.length - 1];
+    content.innerHTML = previousHtml;
+
+    this.updateWordCount();
+  }
+};
+
+SimpleMarkdownEditor.prototype.redo = function() {
+  if (this.redoStack.length === 0) {
+    console.log('これ以上やり直せません');
+    return;
+  }
+
+  if (this.isSourceMode) {
+    // ソースモード
+    const textarea = document.getElementById('source-editor');
+    if (!textarea) return;
+
+    // 現在の状態をundoスタックに保存
+    const currentContent = textarea.value;
+    this.undoStack.push(currentContent);
+
+    // redoスタックから次の状態を復元
+    const nextContent = this.redoStack.pop();
+    textarea.value = nextContent;
+
+    this.updateWordCount();
+  } else {
+    // WYSIWYGモード
+    const content = document.getElementById('wysiwyg-content');
+    if (!content) return;
+
+    // 現在の状態をundoスタックに保存
+    const currentHtml = content.innerHTML;
+    this.undoStack.push(currentHtml);
+
+    // redoスタックから次の状態を復元
+    const nextHtml = this.redoStack.pop();
+    content.innerHTML = nextHtml;
+
+    this.updateWordCount();
   }
 };
 
