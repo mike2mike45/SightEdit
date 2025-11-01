@@ -555,7 +555,11 @@ export class DriveImagePicker {
 
         // アカウント切り替えボタン
         const switchAccountBtn = this.modal.querySelector('#btn-switch-account');
-        switchAccountBtn.addEventListener('click', () => this.switchAccount());
+        console.log('[DEBUG] Switch account button found:', switchAccountBtn);
+        switchAccountBtn.addEventListener('click', () => {
+            console.log('[DEBUG] Switch account button clicked!');
+            this.switchAccount();
+        });
 
         // ESCキーで閉じる
         document.addEventListener('keydown', (e) => {
@@ -758,9 +762,12 @@ export class DriveImagePicker {
      * 直接Googleのアカウント選択画面を表示
      */
     async switchAccount() {
+        console.log('[DEBUG] switchAccount() called');
         try {
+            console.log('[DEBUG] Starting logout...');
             // トークンを削除
             await this.driveAPI.logout();
+            console.log('[DEBUG] Logout completed');
 
             const gridEl = this.modal.querySelector('#drive-picker-grid');
             const errorEl = this.modal.querySelector('#drive-picker-error');
@@ -768,13 +775,14 @@ export class DriveImagePicker {
             gridEl.classList.add('hidden');
             errorEl.classList.add('hidden');
 
+            console.log('[DEBUG] Calling loadInitialData() to show Google account picker...');
             // Googleのアカウント選択画面を表示（interactive=trueで自動的に表示される）
             await this.loadInitialData();
 
             console.log('[DEBUG] Account switched successfully');
 
         } catch (error) {
-            console.error('Failed to switch account:', error);
+            console.error('[DEBUG] Failed to switch account:', error);
 
             const gridEl = this.modal.querySelector('#drive-picker-grid');
             const errorEl = this.modal.querySelector('#drive-picker-error');

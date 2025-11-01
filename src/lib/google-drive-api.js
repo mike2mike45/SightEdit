@@ -18,8 +18,10 @@ export class GoogleDriveAPI {
      */
     async getUserInfo() {
         try {
+            console.log('[GoogleDriveAPI] Getting user info with interactive=true...');
             // 一時的にinteractive=trueに変更（新しいクライアントIDで再認証）
             const token = await this.auth.getToken(true);
+            console.log('[GoogleDriveAPI] Token received:', token ? 'YES' : 'NO');
 
             const response = await fetch(`${DRIVE_API_BASE}/about?fields=user`, {
                 headers: {
