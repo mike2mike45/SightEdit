@@ -1152,8 +1152,16 @@ export class DriveImagePicker {
      */
     returnImageUrl(url) {
         if (this.onSelectCallback) {
+            // Google DriveのwebContentLinkは &export=download がついているため、
+            // 画像表示用のURLに変換する
+            const fileId = this.selectedImage.file_id;
+            const displayUrl = `https://drive.google.com/uc?id=${fileId}`;
+
+            console.log('[DEBUG] Original URL:', url);
+            console.log('[DEBUG] Display URL:', displayUrl);
+
             this.onSelectCallback({
-                url: url,
+                url: displayUrl,
                 fileName: this.selectedImage.file_name,
                 fileId: this.selectedImage.file_id,
                 isBlob: false  // 公開URLを使用
