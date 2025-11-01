@@ -41,10 +41,20 @@ export class DriveImagePicker {
                         <h3>📁 Google Drive画像を選択</h3>
                         <div class="account-info" id="account-info">
                             <span class="account-email" id="account-email"></span>
-                            <button class="btn-switch-account" id="btn-switch-account" title="アカウント切り替え">🔄</button>
                         </div>
                     </div>
                     <button class="drive-picker-close-btn" title="閉じる">×</button>
+                </div>
+                <div class="url-input-section">
+                    <input
+                        type="text"
+                        id="drive-url-input"
+                        class="drive-url-input"
+                        placeholder="Google DriveのURLを直接入力 / Enter Google Drive URL directly"
+                    />
+                    <button id="load-from-url-btn" class="load-from-url-btn" title="URLから読み込み / Load from URL">
+                        🔗 読み込み
+                    </button>
                 </div>
                 <div class="drive-picker-toolbar">
                     <div class="breadcrumb" id="breadcrumb">
@@ -176,19 +186,48 @@ export class DriveImagePicker {
                 border-radius: 4px;
             }
 
-            .btn-switch-account {
-                padding: 4px 8px;
-                background: #fff;
-                border: 1px solid #e0e0e0;
-                border-radius: 4px;
-                cursor: pointer;
-                font-size: 14px;
-                transition: all 0.2s;
+            .url-input-section {
+                display: flex;
+                gap: 8px;
+                padding: 12px 16px;
+                background: #f8f9fa;
+                border-bottom: 1px solid #e0e0e0;
             }
 
-            .btn-switch-account:hover {
-                background: #f0f0f0;
+            .drive-url-input {
+                flex: 1;
+                padding: 8px 12px;
+                border: 1px solid #d0d0d0;
+                border-radius: 4px;
+                font-size: 13px;
+                outline: none;
+                transition: border-color 0.2s;
+            }
+
+            .drive-url-input:focus {
                 border-color: #4285f4;
+                box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.1);
+            }
+
+            .load-from-url-btn {
+                padding: 8px 16px;
+                background: #4285f4;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 13px;
+                font-weight: 500;
+                transition: background-color 0.2s;
+                white-space: nowrap;
+            }
+
+            .load-from-url-btn:hover {
+                background: #3367d6;
+            }
+
+            .load-from-url-btn:active {
+                background: #2b56c4;
             }
 
             .drive-picker-toolbar {
@@ -553,13 +592,9 @@ export class DriveImagePicker {
         const retryBtn = this.modal.querySelector('.retry-btn');
         retryBtn.addEventListener('click', () => this.loadInitialData());
 
-        // アカウント切り替えボタン
-        const switchAccountBtn = this.modal.querySelector('#btn-switch-account');
-        console.log('[DEBUG] Switch account button found:', switchAccountBtn);
-        switchAccountBtn.addEventListener('click', () => {
-            console.log('[DEBUG] Switch account button clicked!');
-            this.switchAccount();
-        });
+        // URL入力からの読み込みボタン
+        const loadFromUrlBtn = this.modal.querySelector('#load-from-url-btn');
+        loadFromUrlBtn.addEventListener('click', () => this.loadFromUrl());
 
         // ESCキーで閉じる
         document.addEventListener('keydown', (e) => {
@@ -758,54 +793,6 @@ export class DriveImagePicker {
     }
 
     /**
-     * アカウント切り替え
-     * 直接Googleのアカウント選択画面を表示
-     */
-    async switchAccount() {
-        console.log('[DEBUG] switchAccount() called');
-        try {
-            console.log('[DEBUG] Starting logout...');
-            // トークンを削除
-            await this.driveAPI.logout();
-            console.log('[DEBUG] Logout completed');
-
-            const gridEl = this.modal.querySelector('#drive-picker-grid');
-            const errorEl = this.modal.querySelector('#drive-picker-error');
-
-            gridEl.classList.add('hidden');
-            errorEl.classList.add('hidden');
-
-            console.log('[DEBUG] Showing Google account selection screen...');
-            // Googleのアカウント選択画面を強制的に表示
-            const userInfo = await this.driveAPI.getUserInfoWithAccountSelection();
-            console.log('[DEBUG] User selected:', userInfo.emailAddress);
-
-            // アカウント情報を更新
-            const emailEl = this.modal.querySelector('#account-email');
-            if (emailEl) {
-                emailEl.textContent = userInfo.emailAddress;
-            }
-
-            // ルートフォルダのコンテンツをロード
-            await this.loadFolderContents(null);
-
-            console.log('[DEBUG] Account switched successfully');
-
-        } catch (error) {
-            console.error('[DEBUG] Failed to switch account:', error);
-
-            const gridEl = this.modal.querySelector('#drive-picker-grid');
-            const errorEl = this.modal.querySelector('#drive-picker-error');
-
-            gridEl.classList.add('hidden');
-            errorEl.classList.remove('hidden');
-
-            const errorMessage = errorEl.querySelector('.error-message');
-            errorMessage.textContent = `アカウント切り替えに失敗しました / Failed to switch account: ${error.message}`;
-        }
-    }
-
-    /**
      * カスタム確認ダイアログを表示（日本語・英語対応）
      */
     showConfirmDialog(title, message, confirmText, cancelText) {
@@ -854,6 +841,126 @@ export class DriveImagePicker {
                 resolve(false);
             });
         });
+    }
+
+    /**
+     * URLからファイルIDを抽出して読み込み
+     */
+    async loadFromUrl() {
+        const inputEl = this.modal.querySelector('#drive-url-input');
+        const url = inputEl.value.trim();
+
+        if (!url) {
+            await this.showConfirmDialog(
+                'Error / エラー',
+                'URLを入力してください / Please enter a URL',
+                'OK',
+                null
+            );
+            return;
+        }
+
+        try {
+            // Google DriveのURLからファイルIDを抽出
+            const fileId = this.extractFileIdFromUrl(url);
+
+            if (!fileId) {
+                await this.showConfirmDialog(
+                    'Error / エラー',
+                    '有効なGoogle Drive URLではありません / Invalid Google Drive URL',
+                    'OK',
+                    null
+                );
+                return;
+            }
+
+            console.log('[DEBUG] Extracted file ID:', fileId);
+
+            // ファイル情報を取得
+            const fileInfo = await this.driveAPI.getFileMetadata(fileId);
+            console.log('[DEBUG] File info:', fileInfo);
+
+            // 画像ファイルかチェック
+            if (!fileInfo.mimeType.startsWith('image/')) {
+                await this.showConfirmDialog(
+                    'Error / エラー',
+                    'このファイルは画像ではありません / This file is not an image',
+                    'OK',
+                    null
+                );
+                return;
+            }
+
+            // 選択状態にする
+            this.selectedItem = {
+                id: fileId,
+                name: fileInfo.name,
+                type: 'image',
+                thumbnailLink: fileInfo.thumbnailLink,
+                mimeType: fileInfo.mimeType
+            };
+
+            // プレビューを更新
+            const previewEl = this.modal.querySelector('#selected-image-preview');
+            const nameEl = this.modal.querySelector('#selected-image-name');
+
+            if (fileInfo.thumbnailLink) {
+                previewEl.src = fileInfo.thumbnailLink;
+                previewEl.classList.remove('hidden');
+            } else {
+                previewEl.classList.add('hidden');
+            }
+            nameEl.textContent = fileInfo.name;
+
+            // 選択ボタンを有効化
+            const selectBtn = this.modal.querySelector('.btn-select');
+            selectBtn.disabled = false;
+
+            // 入力フィールドをクリア
+            inputEl.value = '';
+
+            await this.showConfirmDialog(
+                'Success / 成功',
+                `画像が選択されました / Image selected: ${fileInfo.name}`,
+                'OK',
+                null
+            );
+
+        } catch (error) {
+            console.error('Failed to load from URL:', error);
+            await this.showConfirmDialog(
+                'Error / エラー',
+                `URLからの読み込みに失敗しました / Failed to load from URL: ${error.message}`,
+                'OK',
+                null
+            );
+        }
+    }
+
+    /**
+     * Google DriveのURLからファイルIDを抽出
+     * @param {string} url - Google Drive URL
+     * @returns {string|null} ファイルID
+     */
+    extractFileIdFromUrl(url) {
+        // パターン1: https://drive.google.com/file/d/{fileId}/view
+        let match = url.match(/\/file\/d\/([^\/]+)/);
+        if (match) return match[1];
+
+        // パターン2: https://drive.google.com/open?id={fileId}
+        match = url.match(/[?&]id=([^&]+)/);
+        if (match) return match[1];
+
+        // パターン3: https://drive.google.com/uc?id={fileId}
+        match = url.match(/\/uc\?id=([^&]+)/);
+        if (match) return match[1];
+
+        // パターン4: ファイルIDそのもの
+        if (/^[a-zA-Z0-9_-]{25,}$/.test(url)) {
+            return url;
+        }
+
+        return null;
     }
 
     /**

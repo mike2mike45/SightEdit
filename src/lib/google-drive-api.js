@@ -46,39 +46,6 @@ export class GoogleDriveAPI {
     }
 
     /**
-     * アカウント選択画面を表示してユーザー情報を取得
-     * @returns {Promise<Object>} ユーザー情報
-     */
-    async getUserInfoWithAccountSelection() {
-        try {
-            console.log('[GoogleDriveAPI] Getting user info with account selection...');
-            // アカウント選択画面を強制的に表示
-            const token = await this.auth.getTokenWithAccountSelection();
-            console.log('[GoogleDriveAPI] Token received via account selection:', token ? 'YES' : 'NO');
-
-            const response = await fetch(`${DRIVE_API_BASE}/about?fields=user`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (!response.ok) {
-                throw new Error(`API error: ${response.status} ${response.statusText}`);
-            }
-
-            const data = await response.json();
-            console.log('[GoogleDriveAPI] Retrieved user info via account selection:', data.user.emailAddress);
-
-            return data.user;
-
-        } catch (error) {
-            console.error('[GoogleDriveAPI] Failed to get user info with account selection:', error);
-            throw error;
-        }
-    }
-
-    /**
      * フォルダ一覧を取得（非推奨：getFolderContentsを使用）
      * @returns {Promise<Array>} フォルダ情報の配列
      */
@@ -286,6 +253,41 @@ export class GoogleDriveAPI {
 
         } catch (error) {
             console.error('[GoogleDriveAPI] Failed to get image URL:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * ファイルのメタデータを取得
+     * @param {string} fileId - ファイルID
+     * @returns {Promise<Object>} ファイルメタデータ
+     */
+    async getFileMetadata(fileId) {
+        try {
+            const token = await this.auth.getToken(false);
+
+            const params = new URLSearchParams({
+                fields: 'id, name, mimeType, thumbnailLink, webContentLink, size, createdTime, modifiedTime'
+            });
+
+            const response = await fetch(`${DRIVE_API_BASE}/files/${fileId}?${params}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`API error: ${response.status} ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            console.log(`[GoogleDriveAPI] Got metadata for file: ${fileId}`);
+
+            return data;
+
+        } catch (error) {
+            console.error('[GoogleDriveAPI] Failed to get file metadata:', error);
             throw error;
         }
     }
