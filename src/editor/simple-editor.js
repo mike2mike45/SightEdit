@@ -471,13 +471,27 @@ class SimpleMarkdownEditor {
           const range = selection.getRangeAt(0);
           range.deleteContents();
 
-          // テキストノードとして挿入（HTMLとしてではなくプレーンテキストとして）
-          const textNode = document.createTextNode(text);
-          range.insertNode(textNode);
+          // 改行を保持するために、テキストを行ごとに分割して挿入
+          const lines = text.split('\n');
+          const fragment = document.createDocumentFragment();
+
+          lines.forEach((line, index) => {
+            // 各行をテキストノードとして追加
+            const textNode = document.createTextNode(line);
+            fragment.appendChild(textNode);
+
+            // 最後の行以外は改行（<br>）を追加
+            if (index < lines.length - 1) {
+              const br = document.createElement('br');
+              fragment.appendChild(br);
+            }
+          });
+
+          // フラグメントを一度に挿入
+          range.insertNode(fragment);
 
           // カーソルを挿入したテキストの後ろに移動
-          range.setStartAfter(textNode);
-          range.collapse(true);
+          range.collapse(false);
           selection.removeAllRanges();
           selection.addRange(range);
         }
