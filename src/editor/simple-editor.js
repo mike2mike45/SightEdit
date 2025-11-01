@@ -460,12 +460,10 @@ class SimpleMarkdownEditor {
 
       // 貼り付け時の処理
       content.addEventListener('paste', (e) => {
-        console.log('[WYSIWYG] Paste event triggered');
         e.preventDefault();
 
         // クリップボードからテキストを取得
         const text = e.clipboardData.getData('text/plain');
-        console.log('[WYSIWYG] Clipboard text:', text);
 
         // 選択範囲に挿入
         const selection = window.getSelection();
@@ -482,10 +480,6 @@ class SimpleMarkdownEditor {
           range.collapse(true);
           selection.removeAllRanges();
           selection.addRange(range);
-
-          console.log('[WYSIWYG] Text inserted successfully');
-        } else {
-          console.log('[WYSIWYG] No selection range available');
         }
 
         this.saveToHistory();
