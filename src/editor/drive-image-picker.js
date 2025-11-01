@@ -52,15 +52,11 @@ export class DriveImagePicker {
                     </div>
                 </div>
                 <div class="drive-picker-body">
-                    <div class="drive-picker-loading" id="drive-picker-loading">
-                        <div class="spinner"></div>
-                        <p>読み込み中...</p>
-                    </div>
                     <div class="drive-picker-error hidden" id="drive-picker-error">
                         <p class="error-message"></p>
                         <button class="retry-btn">再試行</button>
                     </div>
-                    <div class="drive-picker-grid hidden" id="drive-picker-grid">
+                    <div class="drive-picker-grid" id="drive-picker-grid">
                         <!-- フォルダと画像がここに表示される -->
                     </div>
                 </div>
@@ -263,29 +259,6 @@ export class DriveImagePicker {
                 position: relative;
             }
 
-            .drive-picker-loading {
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                height: 100%;
-                color: #666;
-            }
-
-            .spinner {
-                width: 48px;
-                height: 48px;
-                border: 4px solid #e0e0e0;
-                border-top-color: #4285f4;
-                border-radius: 50%;
-                animation: spin 1s linear infinite;
-                margin-bottom: 16px;
-            }
-
-            @keyframes spin {
-                to { transform: rotate(360deg); }
-            }
-
             .drive-picker-error {
                 display: flex;
                 flex-direction: column;
@@ -469,6 +442,88 @@ export class DriveImagePicker {
                 cursor: not-allowed;
                 opacity: 0.6;
             }
+
+            /* カスタム確認ダイアログ */
+            .custom-confirm-dialog {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                z-index: 10001;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .custom-confirm-dialog .dialog-overlay {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.5);
+            }
+
+            .custom-confirm-dialog .dialog-content {
+                position: relative;
+                background: white;
+                border-radius: 12px;
+                padding: 24px;
+                max-width: 480px;
+                width: 90%;
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+                z-index: 1;
+            }
+
+            .custom-confirm-dialog .dialog-title {
+                margin: 0 0 16px 0;
+                font-size: 20px;
+                font-weight: 600;
+                color: #202124;
+            }
+
+            .custom-confirm-dialog .dialog-message {
+                margin: 0 0 24px 0;
+                font-size: 14px;
+                line-height: 1.6;
+                color: #5f6368;
+                white-space: pre-wrap;
+            }
+
+            .custom-confirm-dialog .dialog-buttons {
+                display: flex;
+                gap: 12px;
+                justify-content: flex-end;
+            }
+
+            .custom-confirm-dialog .dialog-btn {
+                padding: 10px 24px;
+                border: none;
+                border-radius: 6px;
+                font-size: 14px;
+                font-weight: 500;
+                cursor: pointer;
+                transition: all 0.2s;
+            }
+
+            .custom-confirm-dialog .dialog-btn-cancel {
+                background: #f1f3f4;
+                color: #202124;
+            }
+
+            .custom-confirm-dialog .dialog-btn-cancel:hover {
+                background: #e8eaed;
+            }
+
+            .custom-confirm-dialog .dialog-btn-confirm {
+                background: #4285f4;
+                color: white;
+            }
+
+            .custom-confirm-dialog .dialog-btn-confirm:hover {
+                background: #3367d6;
+            }
         `;
 
         document.head.appendChild(style);
@@ -555,14 +610,12 @@ export class DriveImagePicker {
      * 初期データを読み込み（ユーザー情報とルートフォルダ）
      */
     async loadInitialData() {
-        const loadingEl = this.modal.querySelector('#drive-picker-loading');
         const errorEl = this.modal.querySelector('#drive-picker-error');
         const gridEl = this.modal.querySelector('#drive-picker-grid');
 
-        // 表示状態をリセット
-        loadingEl.classList.remove('hidden');
+        // エラー表示をリセット
         errorEl.classList.add('hidden');
-        gridEl.classList.add('hidden');
+        gridEl.classList.remove('hidden');
 
         try {
             // ユーザー情報を取得
@@ -576,13 +629,10 @@ export class DriveImagePicker {
             // フォルダと画像を取得
             await this.loadFolderContents(this.currentFolderId);
 
-            loadingEl.classList.add('hidden');
-            gridEl.classList.remove('hidden');
-
         } catch (error) {
             console.error('Failed to load initial data:', error);
 
-            loadingEl.classList.add('hidden');
+            gridEl.classList.add('hidden');
             errorEl.classList.remove('hidden');
 
             const errorMessage = errorEl.querySelector('.error-message');
@@ -666,12 +716,6 @@ export class DriveImagePicker {
     async navigateToFolder(folderId, pathIndex = null) {
         console.log('[DEBUG] Navigating to folder:', folderId);
 
-        // ローディング表示
-        const loadingEl = this.modal.querySelector('#drive-picker-loading');
-        const gridEl = this.modal.querySelector('#drive-picker-grid');
-        gridEl.classList.add('hidden');
-        loadingEl.classList.remove('hidden');
-
         try {
             // パンくずリストを更新
             if (pathIndex !== null) {
@@ -685,13 +729,14 @@ export class DriveImagePicker {
             // フォルダ内容を読み込み
             await this.loadFolderContents(folderId);
 
-            loadingEl.classList.add('hidden');
-            gridEl.classList.remove('hidden');
-
         } catch (error) {
             console.error('Failed to navigate to folder:', error);
-            alert('フォルダの読み込みに失敗しました: ' + error.message);
-            loadingEl.classList.add('hidden');
+            this.showConfirmDialog(
+                'Error / エラー',
+                `フォルダの読み込みに失敗しました / Failed to load folder: ${error.message}`,
+                'OK',
+                null
+            );
         }
     }
 
@@ -712,21 +757,24 @@ export class DriveImagePicker {
      * アカウント切り替え
      */
     async switchAccount() {
-        const confirmed = confirm('アカウントを切り替えますか？\n新しいアカウントでログインします。');
+        const confirmed = await this.showConfirmDialog(
+            'Switch Account / アカウント切り替え',
+            'Do you want to switch accounts? You will be logged in with a new account.\n\nアカウントを切り替えますか？新しいアカウントでログインします。',
+            'Switch / 切り替え',
+            'Cancel / キャンセル'
+        );
+
         if (!confirmed) return;
 
         try {
             // トークンを削除
             await this.driveAPI.logout();
 
-            // ローディング表示
-            const loadingEl = this.modal.querySelector('#drive-picker-loading');
             const gridEl = this.modal.querySelector('#drive-picker-grid');
             const errorEl = this.modal.querySelector('#drive-picker-error');
 
             gridEl.classList.add('hidden');
             errorEl.classList.add('hidden');
-            loadingEl.classList.remove('hidden');
 
             // 新しいアカウントでログイン（interactive=trueでアカウント選択画面を表示）
             await this.loadInitialData();
@@ -736,16 +784,66 @@ export class DriveImagePicker {
         } catch (error) {
             console.error('Failed to switch account:', error);
 
-            // エラー表示
-            const loadingEl = this.modal.querySelector('#drive-picker-loading');
+            const gridEl = this.modal.querySelector('#drive-picker-grid');
             const errorEl = this.modal.querySelector('#drive-picker-error');
 
-            loadingEl.classList.add('hidden');
+            gridEl.classList.add('hidden');
             errorEl.classList.remove('hidden');
 
             const errorMessage = errorEl.querySelector('.error-message');
-            errorMessage.textContent = `アカウント切り替えに失敗しました: ${error.message}`;
+            errorMessage.textContent = `アカウント切り替えに失敗しました / Failed to switch account: ${error.message}`;
         }
+    }
+
+    /**
+     * カスタム確認ダイアログを表示（日本語・英語対応）
+     */
+    showConfirmDialog(title, message, confirmText, cancelText) {
+        return new Promise((resolve) => {
+            // ダイアログHTMLを作成
+            const dialog = document.createElement('div');
+            dialog.className = 'custom-confirm-dialog';
+            dialog.innerHTML = `
+                <div class="dialog-overlay"></div>
+                <div class="dialog-content">
+                    <h3 class="dialog-title">${title}</h3>
+                    <p class="dialog-message">${message}</p>
+                    <div class="dialog-buttons">
+                        ${cancelText ? `<button class="dialog-btn dialog-btn-cancel">${cancelText}</button>` : ''}
+                        <button class="dialog-btn dialog-btn-confirm">${confirmText}</button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(dialog);
+
+            // ボタンのイベントリスナー
+            const confirmBtn = dialog.querySelector('.dialog-btn-confirm');
+            const cancelBtn = dialog.querySelector('.dialog-btn-cancel');
+
+            const cleanup = () => {
+                dialog.remove();
+            };
+
+            confirmBtn.addEventListener('click', () => {
+                cleanup();
+                resolve(true);
+            });
+
+            if (cancelBtn) {
+                cancelBtn.addEventListener('click', () => {
+                    cleanup();
+                    resolve(false);
+                });
+            }
+
+            // オーバーレイクリックで閉じる（キャンセル扱い）
+            const overlay = dialog.querySelector('.dialog-overlay');
+            overlay.addEventListener('click', () => {
+                cleanup();
+                resolve(false);
+            });
+        });
     }
 
     /**
