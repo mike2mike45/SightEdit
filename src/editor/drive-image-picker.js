@@ -755,17 +755,9 @@ export class DriveImagePicker {
 
     /**
      * アカウント切り替え
+     * 直接Googleのアカウント選択画面を表示
      */
     async switchAccount() {
-        const confirmed = await this.showConfirmDialog(
-            'Switch Account / アカウント切り替え',
-            'Do you want to switch accounts? You will be logged in with a new account.\n\nアカウントを切り替えますか？新しいアカウントでログインします。',
-            'Switch / 切り替え',
-            'Cancel / キャンセル'
-        );
-
-        if (!confirmed) return;
-
         try {
             // トークンを削除
             await this.driveAPI.logout();
@@ -776,7 +768,7 @@ export class DriveImagePicker {
             gridEl.classList.add('hidden');
             errorEl.classList.add('hidden');
 
-            // 新しいアカウントでログイン（interactive=trueでアカウント選択画面を表示）
+            // Googleのアカウント選択画面を表示（interactive=trueで自動的に表示される）
             await this.loadInitialData();
 
             console.log('[DEBUG] Account switched successfully');
