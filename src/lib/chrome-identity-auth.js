@@ -86,6 +86,65 @@ export class ChromeIdentityAuth {
     }
 
     /**
+     * アカウント選択画面を強制的に表示してトークンを取得
+     * launchWebAuthFlowを使用してprompt=select_accountを指定
+     * @returns {Promise<string>} アクセストークン
+     */
+    async getTokenWithAccountSelection() {
+        console.log('[ChromeIdentityAuth] Launching account selection flow...');
+
+        const manifest = chrome.runtime.getManifest();
+        const clientId = manifest.oauth2.client_id;
+        const redirectUri = `https://${chrome.runtime.id}.chromiumapp.org/`;
+        const scopes = manifest.oauth2.scopes.join(' ');
+
+        // OAuth2認証URLを構築（prompt=select_accountでアカウント選択を強制）
+        const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+        authUrl.searchParams.set('client_id', clientId);
+        authUrl.searchParams.set('redirect_uri', redirectUri);
+        authUrl.searchParams.set('response_type', 'token');
+        authUrl.searchParams.set('scope', scopes);
+        authUrl.searchParams.set('prompt', 'select_account');  // アカウント選択を強制
+
+        console.log('[DEBUG] Auth URL:', authUrl.toString());
+
+        return new Promise((resolve, reject) => {
+            chrome.identity.launchWebAuthFlow({
+                url: authUrl.toString(),
+                interactive: true
+            }, (redirectUrl) => {
+                if (chrome.runtime.lastError) {
+                    console.error('[ChromeIdentityAuth] Auth flow error:', chrome.runtime.lastError);
+                    reject(new Error(chrome.runtime.lastError.message));
+                    return;
+                }
+
+                if (!redirectUrl) {
+                    reject(new Error('No redirect URL received'));
+                    return;
+                }
+
+                console.log('[DEBUG] Redirect URL:', redirectUrl);
+
+                // リダイレクトURLからアクセストークンを抽出
+                const url = new URL(redirectUrl);
+                const params = new URLSearchParams(url.hash.substring(1));
+                const token = params.get('access_token');
+
+                if (!token) {
+                    reject(new Error('No access token in redirect URL'));
+                    return;
+                }
+
+                this.token = token;
+                console.log('[ChromeIdentityAuth] Token obtained via account selection');
+                console.log('[DEBUG] Token length:', token.length);
+                resolve(token);
+            });
+        });
+    }
+
+    /**
      * 認証済みかチェック
      */
     isAuthenticated() {

@@ -775,9 +775,19 @@ export class DriveImagePicker {
             gridEl.classList.add('hidden');
             errorEl.classList.add('hidden');
 
-            console.log('[DEBUG] Calling loadInitialData() to show Google account picker...');
-            // Googleのアカウント選択画面を表示（interactive=trueで自動的に表示される）
-            await this.loadInitialData();
+            console.log('[DEBUG] Showing Google account selection screen...');
+            // Googleのアカウント選択画面を強制的に表示
+            const userInfo = await this.driveAPI.getUserInfoWithAccountSelection();
+            console.log('[DEBUG] User selected:', userInfo.emailAddress);
+
+            // アカウント情報を更新
+            const emailEl = this.modal.querySelector('#account-email');
+            if (emailEl) {
+                emailEl.textContent = userInfo.emailAddress;
+            }
+
+            // ルートフォルダのコンテンツをロード
+            await this.loadFolderContents(null);
 
             console.log('[DEBUG] Account switched successfully');
 
