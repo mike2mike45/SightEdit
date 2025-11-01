@@ -462,8 +462,18 @@ class SimpleMarkdownEditor {
       content.addEventListener('paste', (e) => {
         e.preventDefault();
 
-        // クリップボードからテキストを取得
-        const text = e.clipboardData.getData('text/plain');
+        // まずHTMLフォーマットを試す（リッチテキスト）
+        let html = e.clipboardData.getData('text/html');
+
+        // HTMLがない場合はプレーンテキストを使用
+        if (!html) {
+          const text = e.clipboardData.getData('text/plain');
+          // プレーンテキストの改行をHTMLに変換
+          html = text.split('\n').map(line => {
+            // 空行は<br>として扱う
+            return line || '<br>';
+          }).join('');
+        }
 
         // 選択範囲に挿入
         const selection = window.getSelection();
@@ -471,23 +481,19 @@ class SimpleMarkdownEditor {
           const range = selection.getRangeAt(0);
           range.deleteContents();
 
-          // 改行を保持するために、テキストを行ごとに分割して挿入
-          const lines = text.split('\n');
+          // HTMLをサニタイズして挿入
+          const sanitizedHtml = this.sanitizeHtml(html);
+
+          // 一時的なdiv要素を作成してHTMLをパース
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = sanitizedHtml;
+
+          // DocumentFragmentに変換して挿入
           const fragment = document.createDocumentFragment();
+          while (tempDiv.firstChild) {
+            fragment.appendChild(tempDiv.firstChild);
+          }
 
-          lines.forEach((line, index) => {
-            // 各行をテキストノードとして追加
-            const textNode = document.createTextNode(line);
-            fragment.appendChild(textNode);
-
-            // 最後の行以外は改行（<br>）を追加
-            if (index < lines.length - 1) {
-              const br = document.createElement('br');
-              fragment.appendChild(br);
-            }
-          });
-
-          // フラグメントを一度に挿入
           range.insertNode(fragment);
 
           // カーソルを挿入したテキストの後ろに移動
@@ -3050,6 +3056,78 @@ SimpleMarkdownEditor.prototype.redo = function() {
 
     this.updateWordCount();
   }
+};
+
+// HTMLサニタイズメソッド
+SimpleMarkdownEditor.prototype.sanitizeHtml = function(html) {
+  // 許可するタグのリスト
+  const allowedTags = [
+    'p', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'del', 'strike',
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+    'ul', 'ol', 'li',
+    'blockquote', 'pre', 'code',
+    'a', 'img',
+    'table', 'thead', 'tbody', 'tr', 'th', 'td',
+    'div', 'span'
+  ];
+
+  // 一時的なdiv要素でHTMLをパース
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = html;
+
+  // 再帰的に要素をサニタイズ
+  const sanitizeElement = (element) => {
+    // 要素のタグ名を小文字に変換
+    const tagName = element.tagName ? element.tagName.toLowerCase() : '';
+
+    // 許可されていないタグは削除（子要素は保持）
+    if (element.nodeType === Node.ELEMENT_NODE && !allowedTags.includes(tagName)) {
+      const fragment = document.createDocumentFragment();
+      while (element.firstChild) {
+        const child = element.firstChild;
+        element.removeChild(child);
+        if (child.nodeType === Node.ELEMENT_NODE) {
+          sanitizeElement(child);
+        }
+        fragment.appendChild(child);
+      }
+      element.parentNode?.replaceChild(fragment, element);
+      return;
+    }
+
+    // 危険な属性を削除
+    if (element.nodeType === Node.ELEMENT_NODE) {
+      const attributes = Array.from(element.attributes);
+      attributes.forEach(attr => {
+        const attrName = attr.name.toLowerCase();
+        // on* イベントハンドラーを削除
+        if (attrName.startsWith('on')) {
+          element.removeAttribute(attr.name);
+        }
+        // javascript: プロトコルを削除
+        if (attr.value && attr.value.toLowerCase().includes('javascript:')) {
+          element.removeAttribute(attr.name);
+        }
+      });
+    }
+
+    // 子要素を再帰的にサニタイズ
+    const children = Array.from(element.childNodes);
+    children.forEach(child => {
+      if (child.nodeType === Node.ELEMENT_NODE) {
+        sanitizeElement(child);
+      }
+    });
+  };
+
+  // ルート要素の全子要素をサニタイズ
+  Array.from(tempDiv.childNodes).forEach(child => {
+    if (child.nodeType === Node.ELEMENT_NODE) {
+      sanitizeElement(child);
+    }
+  });
+
+  return tempDiv.innerHTML;
 };
 
 export default SimpleMarkdownEditor;
