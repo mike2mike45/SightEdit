@@ -900,16 +900,8 @@ export class DriveImagePicker {
                 mimeType: fileInfo.mimeType
             };
 
-            // プレビューを更新
-            const previewEl = this.modal.querySelector('#selected-image-preview');
+            // 選択された画像名を更新
             const nameEl = this.modal.querySelector('#selected-image-name');
-
-            if (fileInfo.thumbnailLink) {
-                previewEl.src = fileInfo.thumbnailLink;
-                previewEl.classList.remove('hidden');
-            } else {
-                previewEl.classList.add('hidden');
-            }
             nameEl.textContent = fileInfo.name;
 
             // 選択ボタンを有効化
