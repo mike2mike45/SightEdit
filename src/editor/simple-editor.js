@@ -1919,18 +1919,155 @@ class SimpleMarkdownEditor {
   }
 
   saveAsFile() {
-    const filename = prompt('ファイル名を入力してください:', this.currentFileName || 'document.md');
-    if (filename) {
-      this.currentFileName = filename;
+    this.showSaveAsDialog();
+  }
+
+  showSaveAsDialog() {
+    // モーダルオーバーレイを作成
+    const overlay = document.createElement('div');
+    overlay.className = 'save-as-overlay';
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    `;
+
+    // ダイアログボックスを作成
+    const dialog = document.createElement('div');
+    dialog.className = 'save-as-dialog';
+    dialog.style.cssText = `
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      width: 500px;
+      max-width: 90%;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    `;
+
+    // 現在のファイル名を取得
+    const currentName = this.currentFileName || 'document.md';
+    const nameWithoutExt = currentName.replace(/\.[^/.]+$/, '');
+    const ext = currentName.match(/\.[^/.]+$/)?.[0] || '.md';
+
+    dialog.innerHTML = `
+      <div style="padding: 20px 24px; border-bottom: 1px solid #e0e0e0;">
+        <h3 style="margin: 0; font-size: 18px; font-weight: 600;">📁 名前を付けて保存</h3>
+      </div>
+      <div style="padding: 24px;">
+        <div style="margin-bottom: 20px;">
+          <label style="display: block; margin-bottom: 8px; font-weight: 500; color: #333;">ファイル名</label>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <input
+              type="text"
+              id="save-as-filename"
+              value="${nameWithoutExt}"
+              style="flex: 1; padding: 10px 12px; border: 1px solid #d0d0d0; border-radius: 4px; font-size: 14px; outline: none;"
+            />
+            <select
+              id="save-as-extension"
+              style="padding: 10px 12px; border: 1px solid #d0d0d0; border-radius: 4px; font-size: 14px; outline: none; cursor: pointer;"
+            >
+              <option value=".md" ${ext === '.md' ? 'selected' : ''}>.md (Markdown)</option>
+              <option value=".txt" ${ext === '.txt' ? 'selected' : ''}>.txt (テキスト)</option>
+              <option value=".markdown" ${ext === '.markdown' ? 'selected' : ''}>.markdown</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-bottom: 20px;">
+          <label style="display: block; margin-bottom: 8px; font-weight: 500; color: #333;">保存場所</label>
+          <div style="padding: 10px 12px; background: #f5f5f5; border: 1px solid #e0e0e0; border-radius: 4px; color: #666; font-size: 14px;">
+            💾 ダウンロードフォルダ
+          </div>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+          <button
+            id="save-as-cancel-btn"
+            style="padding: 10px 20px; background: white; border: 1px solid #d0d0d0; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.2s;"
+            onmouseover="this.style.background='#f5f5f5'"
+            onmouseout="this.style.background='white'"
+          >
+            キャンセル
+          </button>
+          <button
+            id="save-as-save-btn"
+            style="padding: 10px 20px; background: #4285f4; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.2s;"
+            onmouseover="this.style.background='#3367d6'"
+            onmouseout="this.style.background='#4285f4'"
+          >
+            💾 保存
+          </button>
+        </div>
+      </div>
+    `;
+
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+
+    // 入力フィールドにフォーカス
+    const filenameInput = document.getElementById('save-as-filename');
+    setTimeout(() => filenameInput.select(), 100);
+
+    // Enterキーで保存
+    filenameInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        document.getElementById('save-as-save-btn').click();
+      }
+    });
+
+    // 保存ボタンのイベント
+    document.getElementById('save-as-save-btn').addEventListener('click', () => {
+      const filename = filenameInput.value.trim();
+      const extension = document.getElementById('save-as-extension').value;
+
+      if (!filename) {
+        alert('ファイル名を入力してください');
+        filenameInput.focus();
+        return;
+      }
+
+      const fullFilename = filename + extension;
+      this.currentFileName = fullFilename;
+
       const content = this.getCurrentContent();
       const blob = new Blob([content], { type: 'text/markdown' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = filename;
+      a.download = fullFilename;
       a.click();
       URL.revokeObjectURL(url);
-    }
+
+      overlay.remove();
+    });
+
+    // キャンセルボタンのイベント
+    document.getElementById('save-as-cancel-btn').addEventListener('click', () => {
+      overlay.remove();
+    });
+
+    // オーバーレイクリックで閉じる
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        overlay.remove();
+      }
+    });
+
+    // ESCキーで閉じる
+    const escHandler = (e) => {
+      if (e.key === 'Escape') {
+        overlay.remove();
+        document.removeEventListener('keydown', escHandler);
+      }
+    };
+    document.addEventListener('keydown', escHandler);
   }
 
   updateWordCount() {
