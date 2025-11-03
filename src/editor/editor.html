@@ -953,6 +953,41 @@
       text-decoration: underline;
     }
 
+    .diagram-description-input {
+      margin-bottom: 20px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #dee2e6;
+    }
+
+    .diagram-description-field {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      resize: vertical;
+      margin-bottom: 10px;
+    }
+
+    .diagram-description-field:focus {
+      outline: none;
+      border-color: #007bff;
+      box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+    }
+
+    .diagram-code-section {
+      margin-top: 10px;
+    }
+
+    .diagram-code-section label {
+      font-weight: 500;
+      margin-bottom: 8px;
+      color: #333;
+      display: block;
+    }
+
     .diagram-preview-header {
       display: flex;
       justify-content: space-between;
@@ -1434,25 +1469,40 @@
         <!-- Mermaidタブ -->
         <div class="diagram-tab-content active" id="mermaid-tab">
           <div class="diagram-input-section">
-            <label for="mermaid-code">Mermaidコード:</label>
-            <textarea
-              id="mermaid-code"
-              class="diagram-code-input"
-              placeholder="graph TD&#10;    A[開始] --> B[処理]&#10;    B --> C[終了]"
-              rows="10"
-            ></textarea>
-            <div class="diagram-help">
-              <a href="https://mermaid.js.org/intro/" target="_blank">Mermaidドキュメント</a>
+            <div class="diagram-description-input">
+              <label for="mermaid-description">自然言語で図を説明:</label>
+              <textarea
+                id="mermaid-description"
+                class="diagram-description-field"
+                placeholder="例: ユーザー登録からログインまでのフロー図を作成して"
+                rows="3"
+              ></textarea>
+              <button id="mermaid-ai-generate-btn" class="diagram-btn diagram-btn-primary">
+                🤖 AIで生成
+              </button>
+            </div>
+
+            <div class="diagram-code-section">
+              <label for="mermaid-code">生成されたMermaidコード（編集可能）:</label>
+              <textarea
+                id="mermaid-code"
+                class="diagram-code-input"
+                placeholder="AIで生成されたコードがここに表示されます。手動でも編集できます。"
+                rows="10"
+              ></textarea>
+              <div class="diagram-help">
+                <a href="https://mermaid.js.org/intro/" target="_blank">Mermaidドキュメント</a>
+              </div>
             </div>
           </div>
           <div class="diagram-preview-section">
             <div class="diagram-preview-header">
               <span>プレビュー:</span>
-              <button id="mermaid-generate-btn" class="diagram-btn diagram-btn-primary">
-                🔄 プレビュー生成
+              <button id="mermaid-preview-btn" class="diagram-btn diagram-btn-primary">
+                🔄 プレビュー更新
               </button>
             </div>
-            <div id="mermaid-preview" class="diagram-preview"></div>
+            <div id="mermaid-preview" class="diagram-preview empty"></div>
           </div>
         </div>
 

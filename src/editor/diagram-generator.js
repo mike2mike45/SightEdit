@@ -1,9 +1,11 @@
 /**
  * Diagram Generator
  * Mermaid, Chart.js, SVGを使った図の生成と管理
+ * AI統合による自然言語からの図生成
  */
 
 import mermaid from 'mermaid';
+import { AIManager } from '../lib/ai-manager.js';
 
 export class DiagramGenerator {
   constructor() {
@@ -11,6 +13,7 @@ export class DiagramGenerator {
     this.currentTab = 'mermaid';
     this.currentSVG = null;
     this.onInsertCallback = null;
+    this.aiManager = new AIManager();
 
     // Mermaidを初期化
     mermaid.initialize({
@@ -22,7 +25,10 @@ export class DiagramGenerator {
     this.init();
   }
 
-  init() {
+  async init() {
+    // AI設定を読み込み
+    await this.aiManager.loadSettings();
+
     // モーダル要素を取得
     this.modal = document.getElementById('diagram-modal');
     if (!this.modal) {
@@ -51,11 +57,15 @@ export class DiagramGenerator {
       });
     });
 
-    // Mermaidプレビュー生成ボタン
-    const mermaidGenerateBtn = document.getElementById('mermaid-generate-btn');
-    mermaidGenerateBtn?.addEventListener('click', () => this.generateMermaidPreview());
+    // MermaidのAI生成ボタン
+    const mermaidAIGenerateBtn = document.getElementById('mermaid-ai-generate-btn');
+    mermaidAIGenerateBtn?.addEventListener('click', () => this.generateMermaidWithAI());
 
-    // Mermaidコード入力（リアルタイムプレビューは負荷が高いので手動生成）
+    // Mermaidプレビュー更新ボタン
+    const mermaidPreviewBtn = document.getElementById('mermaid-preview-btn');
+    mermaidPreviewBtn?.addEventListener('click', () => this.generateMermaidPreview());
+
+    // Mermaidコード入力（変更時は挿入ボタンを無効化）
     const mermaidCodeInput = document.getElementById('mermaid-code');
     mermaidCodeInput?.addEventListener('input', () => {
       // コードが変更されたら挿入ボタンを無効化（再生成が必要）
@@ -97,6 +107,204 @@ export class DiagramGenerator {
 
     this.currentTab = tabName;
     this.disableInsertButton();
+  }
+
+  /**
+   * 自然言語からMermaidコードをAI生成
+   */
+  async generateMermaidWithAI() {
+    const descriptionInput = document.getElementById('mermaid-description');
+    const codeInput = document.getElementById('mermaid-code');
+
+    if (!descriptionInput || !codeInput) {
+      console.error('[DiagramGenerator] Mermaid input elements not found');
+      return;
+    }
+
+    const description = descriptionInput.value.trim();
+    if (!description) {
+      alert('図の説明を入力してください');
+      return;
+    }
+
+    // AI生成用のプロンプトを作成
+    const prompt = this.buildMermaidPrompt(description);
+
+    try {
+      // ローディング表示
+      codeInput.value = '// AIで生成中...';
+      codeInput.disabled = true;
+
+      console.log('[DiagramGenerator] Generating Mermaid code with AI...');
+
+      // AIを呼び出し（非ストリーミング）
+      const generatedCode = await this.callAIForDiagram(prompt);
+
+      // 生成されたコードを抽出（マークダウンのコードブロックから抽出）
+      const extractedCode = this.extractMermaidCode(generatedCode);
+
+      // コードエディタに挿入
+      codeInput.value = extractedCode;
+      codeInput.disabled = false;
+
+      console.log('[DiagramGenerator] Mermaid code generated successfully');
+
+      // 自動的にプレビューを生成
+      await this.generateMermaidPreview();
+
+    } catch (error) {
+      console.error('[DiagramGenerator] Failed to generate Mermaid code:', error);
+      alert(`AI生成エラー: ${error.message}`);
+      codeInput.value = '';
+      codeInput.disabled = false;
+    }
+  }
+
+  /**
+   * Mermaid生成用のプロンプトを構築
+   */
+  buildMermaidPrompt(description) {
+    return `以下の説明に基づいて、Mermaid記法で図を生成してください。
+
+【要件】
+1. Mermaid.js v10 の構文を使用してください
+2. 日本語ラベルを使用してください
+3. 図は分かりやすく、適切な構造にしてください
+4. コードブロックのマークダウン記法（\`\`\`mermaid）で囲んで出力してください
+5. コメントや説明文は不要です。Mermaidコードのみを出力してください
+
+【図の説明】
+${description}
+
+【出力形式の例】
+\`\`\`mermaid
+graph TD
+    A[開始] --> B[処理]
+    B --> C[終了]
+\`\`\`
+
+それでは、上記の説明に基づいてMermaid図を生成してください：`;
+  }
+
+  /**
+   * AIから生成されたテキストからMermaidコードを抽出
+   */
+  extractMermaidCode(text) {
+    // ```mermaid と ``` で囲まれたコードを抽出
+    const mermaidBlockMatch = text.match(/```mermaid\s*\n([\s\S]*?)\n```/);
+    if (mermaidBlockMatch) {
+      return mermaidBlockMatch[1].trim();
+    }
+
+    // ```だけで囲まれている場合
+    const genericBlockMatch = text.match(/```\s*\n([\s\S]*?)\n```/);
+    if (genericBlockMatch) {
+      return genericBlockMatch[1].trim();
+    }
+
+    // コードブロックがない場合はそのまま返す
+    return text.trim();
+  }
+
+  /**
+   * AIを呼び出して図のコードを生成
+   */
+  async callAIForDiagram(prompt) {
+    const provider = this.aiManager.settings.aiProvider;
+
+    if (provider === 'gemini') {
+      return await this.callGeminiForDiagram(prompt);
+    } else if (provider === 'claude') {
+      return await this.callClaudeForDiagram(prompt);
+    } else {
+      throw new Error('サポートされていないAIプロバイダーです');
+    }
+  }
+
+  /**
+   * Gemini APIを呼び出し
+   */
+  async callGeminiForDiagram(prompt) {
+    const apiKey = this.aiManager.settings.geminiApiKey;
+    if (!apiKey) {
+      throw new Error('Gemini APIキーが設定されていません。設定画面で APIキーを入力してください。');
+    }
+
+    const model = this.aiManager.getCurrentModel();
+    const requestBody = {
+      contents: [{
+        parts: [{
+          text: prompt
+        }]
+      }]
+    };
+
+    const endpoint = `${model.endpoint}?key=${apiKey}`;
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Gemini API Error: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+
+    // レスポンスからテキストを抽出
+    if (data.candidates && data.candidates[0]) {
+      const candidate = data.candidates[0];
+      if (candidate.content && candidate.content.parts) {
+        return candidate.content.parts.map(part => part.text).join('');
+      }
+    }
+
+    throw new Error('Gemini APIからの応答が不正です');
+  }
+
+  /**
+   * Claude APIを呼び出し
+   */
+  async callClaudeForDiagram(prompt) {
+    // Claude Sonnet 4 は認証不要（Artifacts経由）
+    const model = this.aiManager.getCurrentModel();
+
+    const requestBody = {
+      model: 'claude-sonnet-4-20250514',
+      messages: [{
+        role: 'user',
+        content: prompt
+      }],
+      max_tokens: 2048
+    };
+
+    const response = await fetch(model.endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Claude API Error: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+
+    // レスポンスからテキストを抽出
+    if (data.content && data.content[0]) {
+      return data.content[0].text;
+    }
+
+    throw new Error('Claude APIからの応答が不正です');
   }
 
   async generateMermaidPreview() {
