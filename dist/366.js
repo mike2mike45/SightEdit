@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunksightedit_chrome_extension=self.webpackChunksightedit_chrome_extension||[]).push([[366],{86366:(e,t,s)=>{s.d(t,{createArchitectureServices:()=>c.S});var c=s(38980);s(37425)}}]);

@@ -1,0 +1,2 @@
+chrome.runtime.onInstalled.addListener(function(){console.log("SightEdit Chrome Extension installed")}),chrome.storage.onChanged.addListener(function(e,o){console.log("Storage changed:",e,o)}),chrome.runtime.onMessage.addListener(function(e,o,t){return"getStorageData"===e.action?(chrome.storage.local.get(e.keys||null,function(e){t(e)}),!0):"setStorageData"===e.action?(chrome.storage.local.set(e.data,function(){t({success:!0})}),!0):void 0});
+//# sourceMappingURL=background.js.map

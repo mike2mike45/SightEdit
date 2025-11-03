@@ -1,0 +1,1108 @@
+<!doctype html><html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SightEdit - Visual Markdown Editor</title><style>* {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: #f8f9fa;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .header {
+      background: white;
+      border-bottom: 1px solid #dee2e6;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      font-size: 18px;
+      font-weight: 600;
+      color: #333;
+    }
+
+    .logo-icon {
+      margin-right: 8px;
+      font-size: 20px;
+    }
+
+    .header-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn {
+      padding: 6px 12px;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      background: white;
+      color: #333;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+
+    .btn:hover {
+      background: #f8f9fa;
+      border-color: #adb5bd;
+    }
+
+    .btn.primary {
+      background: #007bff;
+      color: white;
+      border-color: #007bff;
+    }
+
+    .btn.primary:hover {
+      background: #0056b3;
+      border-color: #0056b3;
+    }
+
+    .main-container {
+      flex: 1;
+      display: flex;
+      min-height: 0;
+    }
+
+    .toolbar {
+      background: white;
+      border-bottom: 1px solid #dee2e6;
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .toolbar-group {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding-right: 12px;
+      border-right: 1px solid #dee2e6;
+    }
+
+    .toolbar-group:last-child {
+      border-right: none;
+    }
+
+    .toolbar-btn {
+      padding: 6px 8px;
+      border: 1px solid transparent;
+      border-radius: 3px;
+      background: transparent;
+      color: #495057;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+
+    .toolbar-btn:hover {
+      background: #f8f9fa;
+      border-color: #dee2e6;
+    }
+
+    .toolbar-btn.active {
+      background: #e3f2fd;
+      color: #1976d2;
+      border-color: #bbdefb;
+    }
+
+    .editor-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: white;
+      margin: 20px;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+
+    .editor-content {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+      min-height: 0;
+    }
+
+    .ProseMirror {
+      outline: none;
+      line-height: 1.6;
+      font-size: 16px;
+      color: #333;
+    }
+
+    .ProseMirror h1,
+    .ProseMirror h2,
+    .ProseMirror h3,
+    .ProseMirror h4,
+    .ProseMirror h5,
+    .ProseMirror h6 {
+      margin: 1.5em 0 0.5em 0;
+      font-weight: 600;
+      line-height: 1.3;
+    }
+
+    .ProseMirror h1 { font-size: 2em; }
+    .ProseMirror h2 { font-size: 1.5em; }
+    .ProseMirror h3 { font-size: 1.3em; }
+    .ProseMirror h4 { font-size: 1.1em; }
+    .ProseMirror h5 { font-size: 1em; }
+    .ProseMirror h6 { font-size: 0.9em; }
+
+    .ProseMirror p {
+      margin: 0.5em 0;
+    }
+
+    .ProseMirror ul,
+    .ProseMirror ol {
+      padding-left: 1.5em;
+      margin: 0.5em 0;
+    }
+
+    .ProseMirror blockquote {
+      border-left: 4px solid #dee2e6;
+      padding-left: 1em;
+      margin: 1em 0;
+      color: #6c757d;
+      font-style: italic;
+    }
+
+    .ProseMirror code {
+      background: #f8f9fa;
+      padding: 0.2em 0.4em;
+      border-radius: 3px;
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 0.9em;
+    }
+
+    .ProseMirror pre {
+      background: #282c34;
+      color: #abb2bf;
+      border: 1px solid #444;
+      border-radius: 6px;
+      padding: 1.2em;
+      margin: 1.5em 0;
+      overflow-x: auto;
+      font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', Monaco, Inconsolata, 'Roboto Mono', monospace;
+      font-size: 14px;
+      line-height: 1.6;
+      white-space: pre;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .ProseMirror pre code {
+      background: none;
+      padding: 0;
+      color: inherit;
+      font-size: inherit;
+      border-radius: 0;
+    }
+
+    /* コードブロック内のシンタックスハイライト風 */
+    .ProseMirror pre .keyword {
+      color: #c678dd;
+      font-weight: bold;
+    }
+
+    .ProseMirror pre .string {
+      color: #98c379;
+    }
+
+    .ProseMirror pre .comment {
+      color: #5c6370;
+      font-style: italic;
+    }
+
+    .ProseMirror pre .number {
+      color: #d19a66;
+    }
+
+    .ProseMirror pre .function {
+      color: #61afef;
+    }
+
+    /* インラインコードの改良 */
+    .ProseMirror code {
+      background: #f1f3f4;
+      color: #e74c3c;
+      padding: 0.2em 0.4em;
+      border-radius: 3px;
+      font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', Monaco, Inconsolata, 'Roboto Mono', monospace;
+      font-size: 0.9em;
+      border: 1px solid #e1e4e8;
+      font-weight: 600;
+    }
+
+    /* タスクリスト */
+    .ProseMirror .task-item {
+      display: flex;
+      align-items: center;
+      margin: 0.5em 0;
+    }
+
+    .ProseMirror .task-item input[type="checkbox"] {
+      margin-right: 0.5em;
+      transform: scale(1.2);
+    }
+
+    /* テーブルの改良 */
+    .ProseMirror table,
+    .ProseMirror .markdown-table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 1.5em 0;
+      border: 2px solid #dee2e6;
+      border-radius: 6px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .ProseMirror table th,
+    .ProseMirror .markdown-table th {
+      background: #f8f9fa;
+      font-weight: 600;
+      text-align: left;
+      padding: 12px;
+      border-bottom: 2px solid #dee2e6;
+      border-right: 1px solid #dee2e6;
+    }
+
+    .ProseMirror table td,
+    .ProseMirror .markdown-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #dee2e6;
+      border-right: 1px solid #dee2e6;
+    }
+
+    .ProseMirror table th:last-child,
+    .ProseMirror table td:last-child {
+      border-right: none;
+    }
+
+    .ProseMirror table tr:hover,
+    .ProseMirror .markdown-table tr:hover {
+      background: #f8f9fa;
+    }
+
+    /* 引用の改良 */
+    .ProseMirror blockquote {
+      border-left: 4px solid #007bff;
+      background: #f8f9fa;
+      padding: 1em 1.5em;
+      margin: 1.5em 0;
+      color: #6c757d;
+      font-style: italic;
+      border-radius: 0 4px 4px 0;
+    }
+
+    .ProseMirror table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 1em 0;
+    }
+
+    .ProseMirror table td,
+    .ProseMirror table th {
+      border: 1px solid #dee2e6;
+      padding: 0.5em;
+      text-align: left;
+    }
+
+    .ProseMirror table th {
+      background: #f8f9fa;
+      font-weight: 600;
+    }
+
+    /* WYSIWYG Content styles - contentEditable用 */
+    /* WYSIWYG エディターコンテンツ */
+    .wysiwyg-editor-content {
+      outline: none;
+      min-height: 400px;
+      padding: 20px;
+      line-height: 1.6;
+      font-size: 16px;
+      color: #333;
+      white-space: pre-wrap;
+    }
+
+    #wysiwyg-content {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6;
+      color: #333;
+    }
+
+    /* インラインコード */
+    #wysiwyg-content code {
+      background: #f1f3f4;
+      color: #e74c3c;
+      padding: 0.2em 0.4em;
+      border-radius: 3px;
+      font-family: 'Monaco', 'Consolas', 'Courier New', monospace;
+      font-size: 0.9em;
+      border: 1px solid #e1e4e8;
+    }
+
+    /* 引用ブロック */
+    #wysiwyg-content blockquote {
+      border-left: 4px solid #007bff;
+      background: #f8f9fa;
+      padding: 1em 1.5em;
+      margin: 1.5em 0;
+      border-radius: 0 4px 4px 0;
+      color: #495057;
+      font-style: italic;
+    }
+
+    /* コードブロック */
+    #wysiwyg-content pre {
+      background: #282c34;
+      color: #abb2bf;
+      border: 1px solid #444;
+      border-radius: 6px;
+      padding: 1.2em;
+      margin: 1.5em 0;
+      overflow-x: auto;
+      line-height: 1.6;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    #wysiwyg-content pre code {
+      background: none;
+      padding: 0;
+      color: inherit;
+      border: none;
+      font-size: inherit;
+    }
+
+    /* テーブル */
+    #wysiwyg-content table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 1.5em 0;
+      border: 1px solid #dee2e6;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    #wysiwyg-content table th,
+    #wysiwyg-content table td {
+      border: 1px solid #dee2e6;
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    #wysiwyg-content table th {
+      background: #f8f9fa;
+      font-weight: 600;
+      color: #495057;
+    }
+
+    #wysiwyg-content table tr:hover {
+      background: #f8f9fa;
+    }
+
+    /* セル配置 */
+    #wysiwyg-content table td.text-left { text-align: left; }
+    #wysiwyg-content table td.text-center { text-align: center; }
+    #wysiwyg-content table td.text-right { text-align: right; }
+
+    /* タスクリスト */
+    #wysiwyg-content .task-item {
+      display: flex;
+      align-items: flex-start;
+      margin: 0.5em 0;
+      padding: 0.2em 0;
+    }
+
+    #wysiwyg-content .task-item input[type="checkbox"] {
+      margin-right: 0.5em;
+      margin-top: 0.1em;
+      cursor: pointer;
+    }
+
+    #wysiwyg-content .task-text {
+      flex: 1;
+      transition: text-decoration 0.2s ease;
+    }
+
+    /* ツールバーセレクトのスタイル */
+    .toolbar-select {
+      padding: 6px 8px;
+      border: 1px solid #dee2e6;
+      border-radius: 3px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    /* ソースエディターのスタイル */
+    #source-editor {
+      display: none;
+      width: 100%;
+      height: 100%;
+      padding: 20px;
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 14px;
+      line-height: 1.6;
+      border: none;
+      outline: none;
+      resize: none;
+    }
+
+    /* モーダル関連のスタイル */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-content {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      max-width: 600px;
+      max-height: 80vh;
+      overflow-y: auto;
+      position: relative;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #dee2e6;
+    }
+
+    .modal-title {
+      margin: 0;
+      color: #333;
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: #6c757d;
+      padding: 0;
+      width: 30px;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* 編集ダイアログ用のスタイル */
+    .edit-dialog-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .edit-dialog-content {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      max-width: 400px;
+      width: 90%;
+    }
+
+    .edit-dialog-title {
+      margin: 0 0 15px 0;
+      color: #333;
+    }
+
+    .edit-dialog-field {
+      margin-bottom: 10px;
+    }
+
+    .edit-dialog-field:last-of-type {
+      margin-bottom: 15px;
+    }
+
+    .edit-dialog-label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+      color: #555;
+    }
+
+    .edit-dialog-input {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+
+    .edit-dialog-buttons {
+      text-align: right;
+    }
+
+    .edit-dialog-btn {
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .edit-dialog-btn-cancel {
+      margin-right: 10px;
+      border: 1px solid #ddd;
+      background: #f5f5f5;
+      color: #333;
+    }
+
+    .edit-dialog-btn-ok {
+      border: none;
+      background: #007cba;
+      color: white;
+    }
+
+    .status-bar {
+      background: #f8f9fa;
+      border-top: 1px solid #dee2e6;
+      padding: 8px 16px;
+      font-size: 12px;
+      color: #6c757d;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .ai-loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+    }
+
+    .ai-loading-content {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      text-align: center;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    }
+
+    .ai-spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #007bff;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 15px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* AI設定モーダル */
+    .ai-settings-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10001;
+    }
+
+    .ai-settings-panel {
+      background: white;
+      border-radius: 8px;
+      padding: 24px;
+      width: 500px;
+      max-width: 90vw;
+      max-height: 80vh;
+      overflow-y: auto;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    }
+
+    .ai-settings-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #dee2e6;
+    }
+
+    .ai-settings-content label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 500;
+      color: #333;
+    }
+
+    .ai-settings-content select,
+    .ai-settings-content input {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      font-size: 14px;
+      margin-bottom: 15px;
+    }
+
+    .ai-settings-content small {
+      color: #6c757d;
+      font-size: 12px;
+    }
+
+    .ai-settings-content a {
+      color: #007bff;
+      text-decoration: none;
+    }
+
+    .ai-settings-content a:hover {
+      text-decoration: underline;
+    }
+
+    .ai-settings-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 20px;
+      padding-top: 15px;
+      border-top: 1px solid #dee2e6;
+    }
+
+    .close-btn {
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: #6c757d;
+      padding: 0;
+      width: 30px;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .close-btn:hover {
+      color: #333;
+    }
+
+    /* AI結果モーダル */
+    .ai-result-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10002;
+    }
+
+    .ai-result-panel {
+      background: white;
+      border-radius: 8px;
+      padding: 24px;
+      width: 700px;
+      max-width: 90vw;
+      max-height: 80vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    }
+
+    .ai-result-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #dee2e6;
+    }
+
+    .ai-result-content {
+      flex: 1;
+      overflow-y: auto;
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      padding: 16px;
+      margin-bottom: 20px;
+      line-height: 1.6;
+    }
+
+    .ai-result-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .secondary {
+      background: #6c757d;
+      border-color: #6c757d;
+    }
+
+    .secondary:hover {
+      background: #5a6268;
+      border-color: #545b62;
+    }
+
+    /* Diagram Generation Modal */
+    .diagram-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10002;
+    }
+
+    .diagram-modal-container {
+      background: white;
+      border-radius: 8px;
+      width: 90%;
+      max-width: 900px;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .diagram-modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 24px;
+      border-bottom: 1px solid #dee2e6;
+    }
+
+    .diagram-modal-header h3 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+      color: #333;
+    }
+
+    .diagram-modal-close {
+      background: none;
+      border: none;
+      font-size: 28px;
+      cursor: pointer;
+      color: #6c757d;
+      padding: 0;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+
+    .diagram-modal-close:hover {
+      background: #f8f9fa;
+      color: #333;
+    }
+
+    .diagram-modal-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+    }
+
+    .diagram-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #dee2e6;
+    }
+
+    .diagram-tab {
+      padding: 10px 20px;
+      background: none;
+      border: none;
+      border-bottom: 3px solid transparent;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      color: #6c757d;
+      transition: all 0.2s;
+      margin-bottom: -2px;
+    }
+
+    .diagram-tab:hover {
+      color: #333;
+      background: #f8f9fa;
+    }
+
+    .diagram-tab.active {
+      color: #007bff;
+      border-bottom-color: #007bff;
+    }
+
+    .diagram-tab-content {
+      display: none;
+    }
+
+    .diagram-tab-content.active {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .diagram-input-section,
+    .diagram-preview-section {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .diagram-input-section label {
+      font-weight: 500;
+      margin-bottom: 8px;
+      color: #333;
+    }
+
+    .diagram-code-input {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      resize: vertical;
+      min-height: 200px;
+    }
+
+    .diagram-code-input:focus {
+      outline: none;
+      border-color: #007bff;
+      box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+    }
+
+    .diagram-code-input:disabled {
+      background: #f8f9fa;
+      cursor: not-allowed;
+    }
+
+    .diagram-help {
+      margin-top: 8px;
+      font-size: 12px;
+    }
+
+    .diagram-help a {
+      color: #007bff;
+      text-decoration: none;
+    }
+
+    .diagram-help a:hover {
+      text-decoration: underline;
+    }
+
+    .diagram-description-input {
+      margin-bottom: 20px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #dee2e6;
+    }
+
+    .diagram-description-field {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      resize: vertical;
+      margin-bottom: 10px;
+    }
+
+    .diagram-description-field:focus {
+      outline: none;
+      border-color: #007bff;
+      box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+    }
+
+    .diagram-code-section {
+      margin-top: 10px;
+    }
+
+    .diagram-code-section label {
+      font-weight: 500;
+      margin-bottom: 8px;
+      color: #333;
+      display: block;
+    }
+
+    .diagram-template-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+
+    .diagram-template-row label {
+      font-weight: 500;
+      color: #333;
+      white-space: nowrap;
+      margin: 0;
+    }
+
+    .diagram-template-select {
+      flex: 1;
+      padding: 8px 12px;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      font-size: 14px;
+      background: white;
+      cursor: pointer;
+    }
+
+    .diagram-template-select:focus {
+      outline: none;
+      border-color: #007bff;
+      box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+    }
+
+    .diagram-preview-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .diagram-preview-header span {
+      font-weight: 500;
+      color: #333;
+    }
+
+    .diagram-preview {
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      padding: 16px;
+      min-height: 250px;
+      background: #f8f9fa;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: auto;
+    }
+
+    .diagram-preview svg {
+      max-width: 100%;
+      height: auto;
+    }
+
+    .diagram-preview.empty::after {
+      content: 'プレビューがここに表示されます';
+      color: #6c757d;
+      font-size: 14px;
+    }
+
+    .diagram-modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      padding: 20px 24px;
+      border-top: 1px solid #dee2e6;
+    }
+
+    .diagram-btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .diagram-btn-primary {
+      background: #007bff;
+      color: white;
+    }
+
+    .diagram-btn-primary:hover:not(:disabled) {
+      background: #0056b3;
+    }
+
+    .diagram-btn-primary:disabled {
+      background: #6c757d;
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+
+    .diagram-btn-secondary {
+      background: #6c757d;
+      color: white;
+    }
+
+    .diagram-btn-secondary:hover {
+      background: #5a6268;
+    }
+
+    @media (max-width: 768px) {
+      .main-container {
+        flex-direction: column;
+      }
+
+      .editor-container {
+        margin: 10px;
+      }
+
+      .toolbar {
+        flex-wrap: wrap;
+      }
+
+      .header-controls {
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+    }</style></head><body><div class="header"><div class="logo"><span class="logo-icon">📝</span> SightEdit</div><div class="header-controls"><button class="btn" id="new-file-btn" title="新規ファイル">📄 新規</button> <button class="btn" id="open-file-btn" title="ファイルを開く">📂 開く</button> <button class="btn" id="save-file-btn" title="保存">💾 保存</button> <button class="btn" id="save-as-btn" title="名前を付けて保存">💾 名前付き保存</button> <button class="btn" id="export-btn">📤 エクスポート</button> <button class="btn" id="settings-btn">⚙️ 設定</button></div></div><div class="main-container"><div class="editor-container"><div class="toolbar"><div class="toolbar-group"><button class="toolbar-btn" data-action="bold" title="太字"><strong>B</strong></button> <button class="toolbar-btn" data-action="italic" title="斜体"><em>I</em></button> <button class="toolbar-btn" data-action="strike" title="取り消し線"><s>S</s></button> <button class="toolbar-btn" data-action="code" title="インラインコード">&lt;/&gt;</button></div><div class="toolbar-group"><select id="heading-select" class="toolbar-select"><option value="">見出し</option><option value="1">H1 - 大見出し</option><option value="2">H2 - 中見出し</option><option value="3">H3 - 小見出し</option><option value="4">H4 - 小見出し4</option><option value="5">H5 - 小見出し5</option><option value="6">H6 - 小見出し6</option><option value="p">段落</option></select></div><div class="toolbar-group"><button class="toolbar-btn" data-action="bulletList" title="箇条書きリスト">• リスト</button> <button class="toolbar-btn" data-action="orderedList" title="番号付きリスト">1. リスト</button> <button class="toolbar-btn" data-action="blockquote" title="引用">❝ 引用</button></div><div class="toolbar-group"><button class="toolbar-btn" data-action="codeBlock" title="コードブロック">{ } コード</button> <button class="toolbar-btn" data-action="horizontalRule" title="水平線">— 水平線</button></div><div class="toolbar-group"><button class="toolbar-btn" data-action="link" title="リンク">🔗 リンク</button> <button class="toolbar-btn" data-action="image" title="画像">🖼️ 画像</button> <button class="toolbar-btn" data-action="diagram" title="図を挿入">📊 図</button> <button class="toolbar-btn" data-action="table" title="表">📦 表</button></div><div class="toolbar-group"><button class="toolbar-btn" data-action="undo" title="元に戻す">↶</button> <button class="toolbar-btn" data-action="redo" title="やり直し">↷</button></div><div class="toolbar-group"><button class="toolbar-btn" id="ai-command-btn" title="AIコマンド">🤖 AI</button> <button class="toolbar-btn" id="chat-toggle-btn" title="AIチャット (Ctrl+K)">💬 Chat</button> <button class="toolbar-btn" id="toggle-mode-btn" title="WYSIWYG/ソース切り替え">🔄 モード</button> <button class="toolbar-btn" id="toc-btn" title="目次生成">📋 目次</button> <button class="toolbar-btn" id="help-btn" title="ヘルプ">❓ ヘルプ</button></div></div><div class="editor-content" id="editor"></div><div class="status-bar"><span id="word-count">文字数: 0</span> <span id="editor-mode">WYSIWYG モード</span></div><textarea id="source-editor"></textarea></div></div><div id="ai-command-modal" class="ai-command-modal" style="display: none;"><div class="ai-command-container"><div class="ai-command-header"><div class="ai-command-title"><span class="ai-command-title-icon">🤖</span> AIコマンド選択</div><button class="ai-command-close" id="ai-command-close">×</button></div><div class="ai-command-body"><div class="selected-text-preview" id="selected-text-preview" style="display: none;"><div class="selected-text-label">選択されたテキスト</div><div class="selected-text-content" id="selected-text-content"></div></div><div id="ai-command-panel-content"></div></div><div class="ai-command-loading" id="ai-command-loading" style="display: none;"><div class="ai-command-spinner"></div></div></div></div><div id="command-input-dialog" class="command-input-dialog" style="display: none;"><div class="command-input-title" id="command-input-title">パラメータ入力</div><input class="command-input-field" id="command-input-field" placeholder="値を入力してください"><div class="command-input-buttons"><button class="command-input-cancel" id="command-input-cancel">キャンセル</button> <button class="command-input-confirm" id="command-input-confirm">実行</button></div></div><div id="ai-settings-modal" class="ai-settings-modal" style="display: none;"><div class="ai-settings-container"><div class="ai-settings-header"><h3>🤖 AI設定</h3><button class="ai-settings-close" id="ai-settings-close">×</button></div><div class="ai-settings-body"><div class="ai-settings-section"><h4>🔑 APIキー設定</h4><div class="ai-provider-tabs"><button class="ai-tab-btn active" data-provider="gemini">Gemini API</button> <button class="ai-tab-btn" data-provider="claude">Claude API</button></div><div class="ai-provider-panel active" id="gemini-panel"><div class="form-group"><label for="gemini-api-key">Gemini APIキー:</label> <input id="gemini-api-key" class="api-key-input" placeholder="AIzaSy..."> <button type="button" class="toggle-password" data-target="gemini-api-key">👁️</button></div><div class="form-group"><label for="gemini-model">モデル選択:</label> <select id="gemini-model" class="ai-form-select"><option value="gemini-2.0-flash-exp">Gemini 2.0 Flash (実験版・最新・無料枠あり)</option><option value="gemini-2.0-flash">Gemini 2.0 Flash (無料枠あり)</option><option value="gemini-2.5-pro" selected="selected">Gemini 2.5 Pro (無料枠あり・推奨)</option><option value="gemini-1.5-flash">Gemini 1.5 Flash (無料枠あり・高速)</option><option value="gemini-1.5-pro">Gemini 1.5 Pro (無料枠あり)</option></select></div></div><div class="ai-provider-panel" id="claude-panel"><div class="form-group"><p class="ai-info-text">✨ Claude Sonnet 4は認証不要で使用できます（Artifacts対応）</p></div><div class="form-group"><label for="claude-model">モデル選択:</label> <select id="claude-model" class="ai-form-select"><option value="claude-sonnet-4-20250514" selected="selected">Claude Sonnet 4 (Artifacts対応)</option></select></div></div><div class="form-group"><label for="default-provider">既定のAIプロバイダー:</label> <select id="default-provider" class="provider-select"><option value="gemini">Gemini (Google)</option><option value="claude">Claude (Anthropic)</option></select></div></div><div class="ai-settings-section"><h4>ℹ️ 取得方法</h4><div class="api-info"><div class="api-info-item"><strong>Gemini API:</strong> <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio</a> で無料取得可能</div><div class="api-info-item"><strong>Claude:</strong> Claude Sonnet 4は認証不要（Artifacts対応）</div></div></div><div class="ai-settings-actions"><button class="ai-settings-test" id="ai-settings-test">🧪 接続テスト</button> <button class="ai-settings-save" id="ai-settings-save">💾 設定保存</button></div></div></div></div><div id="export-menu" class="export-menu" style="display: none;"><div class="export-menu-container"><div class="export-menu-header"><h3>📤 エクスポート・コピー</h3><button class="export-menu-close" id="export-menu-close">×</button></div><div class="export-menu-body"><div class="export-section"><h4>📋 サービス別コピー&ペースト</h4><p class="export-section-desc">各サービスに最適化されたフォーマットでクリップボードにコピー</p><div class="export-buttons" id="clipboard-buttons"></div></div><div class="export-section"><h4>💾 ファイル保存</h4><p class="export-section-desc">各種ファイル形式でダウンロード保存</p><div class="export-buttons" id="download-buttons"></div></div></div></div></div><div id="settings-overlay" class="settings-overlay" style="display: none;"><div class="settings-dialog"><div class="settings-header"><h3>⚙️ 設定</h3><button id="settings-close" class="settings-close">&times;</button></div><div class="settings-body"><div class="settings-tabs"><button class="settings-tab active" data-tab="ai"><span>🤖 AI設定</span></button> <button class="settings-tab" data-tab="editor"><span>📝 エディター</span></button> <button class="settings-tab" data-tab="export"><span>📤 エクスポート</span></button></div><div id="ai-tab" class="settings-tab-content active"><h4>AI設定</h4><div class="ai-provider-tabs"><button class="ai-provider-tab active" data-provider="gemini"><span>🧠 Gemini</span></button> <button class="ai-provider-tab" data-provider="claude"><span>🤖 Claude</span></button></div><div id="gemini-settings" class="ai-provider-content active"><div class="ai-api-info"><h4>Google Gemini API</h4><p>Google AI Studio でAPIキーを取得してください。無料枠が利用可能です。</p><a href="https://aistudio.google.com/app/apikey" target="_blank" class="ai-api-link">APIキーを取得 ↗️</a></div><div class="ai-form-group"><label for="gemini-api-key" class="ai-form-label">APIキー:</label><div class="ai-password-group"><input id="gemini-api-key" class="ai-form-input" placeholder="Gemini APIキーを入力"> <button type="button" id="gemini-password-toggle" class="ai-password-toggle">👁️</button></div></div><div class="ai-form-group"><label for="gemini-model" class="ai-form-label">モデル選択:</label> <select id="gemini-model" class="ai-form-select"><option value="gemini-2.0-flash-exp">Gemini 2.0 Flash (実験版・最新・無料枠あり)</option><option value="gemini-2.0-flash">Gemini 2.0 Flash (無料枠あり)</option><option value="gemini-2.5-pro" selected="selected">Gemini 2.5 Pro (無料枠あり・推奨)</option><option value="gemini-1.5-flash">Gemini 1.5 Flash (無料枠あり・高速)</option><option value="gemini-1.5-pro">Gemini 1.5 Pro (無料枠あり)</option></select></div><button id="gemini-test-btn" class="ai-button ai-button-secondary ai-test-button">🔍 接続テスト</button></div><div id="claude-settings" class="ai-provider-content"><div class="ai-api-info"><h4>Anthropic Claude</h4><p>Claude.aiのArtifacts機能との互換性対応。認証不要で使用できます。</p></div><div class="ai-form-group"><label for="claude-model" class="ai-form-label">モデル選択:</label> <select id="claude-model" class="ai-form-select"><option value="claude-sonnet-4-20250514" selected="selected">Claude Sonnet 4 (Artifacts対応)</option></select></div><p class="ai-info-text">✨ Claude Sonnet 4モデルは、Claude.aiのArtifacts機能との互換性を持ち、認証なしで使用できます。</p></div></div><div id="editor-tab" class="settings-tab-content"><h4>エディター設定</h4><p>エディターの動作設定（今後実装予定）</p><div class="settings-form-group"><label><input type="checkbox" id="auto-save" checked="checked"> 自動保存を有効にする</label></div><div class="settings-form-group"><label><input type="checkbox" id="word-wrap" checked="checked"> 行の折り返しを有効にする</label></div></div><div id="export-tab" class="settings-tab-content"><h4>エクスポート設定</h4><p>エクスポート機能の設定（今後実装予定）</p><div class="settings-form-group"><label for="default-export-format">デフォルトエクスポート形式:</label> <select id="default-export-format" class="settings-form-select"><option value="markdown">Markdown</option><option value="html">HTML</option><option value="pdf">PDF</option></select></div></div><div class="settings-button-group"><button id="settings-save" class="settings-button settings-button-primary">💾 設定を保存</button></div></div></div></div><div id="chat-panel-container"></div><div id="diagram-modal" class="diagram-modal" style="display: none;"><div class="diagram-modal-container"><div class="diagram-modal-header"><h3>📊 図を挿入</h3><button class="diagram-modal-close" id="diagram-modal-close">×</button></div><div class="diagram-modal-body"><div class="diagram-tabs"><button class="diagram-tab active" data-tab="mermaid">🔷 Mermaid</button> <button class="diagram-tab" data-tab="chart">📈 Chart</button> <button class="diagram-tab" data-tab="svg">🎨 SVG</button></div><div class="diagram-tab-content active" id="mermaid-tab"><div class="diagram-input-section"><div class="diagram-description-input"><div class="diagram-template-row"><label for="mermaid-template">テンプレート:</label> <select id="mermaid-template" class="diagram-template-select"><option value="">-- テンプレートを選択 --</option><option value="flowchart">フローチャート（処理の流れ）</option><option value="sequence">シーケンス図（処理の順序）</option><option value="class">クラス図（クラスの関係）</option><option value="er">ER図（データベース設計）</option><option value="gantt">ガントチャート（スケジュール）</option><option value="state">状態遷移図（状態の変化）</option><option value="pie">円グラフ（割合）</option></select></div><label for="mermaid-description">自然言語で図を説明:</label> <textarea id="mermaid-description" class="diagram-description-field" placeholder="例: ユーザー登録からログインまでのフロー図を作成して" rows="3"></textarea> <button id="mermaid-ai-generate-btn" class="diagram-btn diagram-btn-primary">🤖 AIで生成</button></div><div class="diagram-code-section"><label for="mermaid-code">生成されたMermaidコード（編集可能）:</label> <textarea id="mermaid-code" class="diagram-code-input" placeholder="AIで生成されたコードがここに表示されます。手動でも編集できます。" rows="10"></textarea><div class="diagram-help"><a href="https://mermaid.js.org/intro/" target="_blank">Mermaidドキュメント</a></div></div></div><div class="diagram-preview-section"><div class="diagram-preview-header"><span>プレビュー:</span> <button id="mermaid-preview-btn" class="diagram-btn diagram-btn-primary">🔄 プレビュー更新</button></div><div id="mermaid-preview" class="diagram-preview empty"></div></div></div><div class="diagram-tab-content" id="chart-tab"><div class="diagram-input-section"><div class="diagram-description-input"><div class="diagram-template-row"><label for="chart-template">テンプレート:</label> <select id="chart-template" class="diagram-template-select"><option value="">-- テンプレートを選択 --</option><option value="bar">棒グラフ（比較）</option><option value="line">折れ線グラフ（推移）</option><option value="pie">円グラフ（割合）</option><option value="doughnut">ドーナツグラフ（割合）</option><option value="radar">レーダーチャート（多角評価）</option><option value="scatter">散布図（相関）</option></select></div><label for="chart-description">自然言語でグラフを説明:</label> <textarea id="chart-description" class="diagram-description-field" placeholder="例: 2020年から2024年の売上推移を棒グラフで表示して" rows="3"></textarea> <button id="chart-ai-generate-btn" class="diagram-btn diagram-btn-primary">🤖 AIで生成</button></div><div class="diagram-code-section"><label for="chart-config">生成されたChart.js設定（編集可能）:</label> <textarea id="chart-config" class="diagram-code-input" placeholder="AIで生成されたChart.js設定がここに表示されます。手動でも編集できます。" rows="10"></textarea><div class="diagram-help"><a href="https://www.chartjs.org/docs/latest/" target="_blank">Chart.jsドキュメント</a></div></div></div><div class="diagram-preview-section"><div class="diagram-preview-header"><span>プレビュー:</span> <button id="chart-preview-btn" class="diagram-btn diagram-btn-primary">🔄 プレビュー更新</button></div><div id="chart-preview" class="diagram-preview empty"></div></div></div><div class="diagram-tab-content" id="svg-tab"><div class="diagram-input-section"><div class="diagram-description-input"><div class="diagram-template-row"><label for="svg-template">テンプレート:</label> <select id="svg-template" class="diagram-template-select"><option value="">-- テンプレートを選択 --</option><option value="icon">アイコン（シンプルな図形）</option><option value="logo">ロゴ（組み合わせ図形）</option><option value="diagram">技術図（システム構成図）</option><option value="infographic">インフォグラフィック（情報視覚化）</option></select></div><label for="svg-description">自然言語でSVG図形を説明:</label> <textarea id="svg-description" class="diagram-description-field" placeholder="例: 青い円と赤い四角形を並べたアイコンを作って" rows="3"></textarea> <button id="svg-ai-generate-btn" class="diagram-btn diagram-btn-primary">🤖 AIで生成</button></div><div class="diagram-code-section"><label for="svg-code">生成されたSVGコード（編集可能）:</label> <textarea id="svg-code" class="diagram-code-input" placeholder="AIで生成されたSVGコードがここに表示されます。手動でも編集できます。" rows="10"></textarea><div class="diagram-help"><a href="https://developer.mozilla.org/en-US/docs/Web/SVG" target="_blank">SVGドキュメント</a></div></div></div><div class="diagram-preview-section"><div class="diagram-preview-header"><span>プレビュー:</span> <button id="svg-preview-btn" class="diagram-btn diagram-btn-primary">🔄 プレビュー更新</button></div><div id="svg-preview" class="diagram-preview empty"></div></div></div></div><div class="diagram-modal-footer"><button id="diagram-cancel-btn" class="diagram-btn diagram-btn-secondary">キャンセル</button> <button id="diagram-insert-btn" class="diagram-btn diagram-btn-primary" disabled="disabled">挿入</button></div></div></div><script defer="defer" src="editor.js"></script></body></html>
