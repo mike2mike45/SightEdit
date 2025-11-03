@@ -1422,24 +1422,33 @@ class SimpleMarkdownEditor {
 
   insertImage() {
     console.log('[DEBUG] insertImage() called');
+    console.log('[DEBUG] Current mode - isSourceMode:', this.isSourceMode);
+
     // Google Driveピッカーを開く
     const picker = getDriveImagePicker();
     console.log('[DEBUG] picker instance:', picker);
 
     picker.onSelect((imageData) => {
       console.log('[DEBUG] Image selected:', imageData);
+      console.log('[DEBUG] Mode at selection time - isSourceMode:', this.isSourceMode);
       const url = imageData.url;
       const alt = imageData.fileName;
 
       if (url && alt) {
         if (this.isSourceMode) {
+          console.log('[DEBUG] Inserting in SOURCE mode');
           this.insertText(`![${alt}](${url})`);
         } else {
+          console.log('[DEBUG] Inserting in WYSIWYG mode');
           // WYSIWYGモード: <img>タグを挿入
           const content = document.getElementById('wysiwyg-content');
+          console.log('[DEBUG] wysiwyg-content element:', content);
+
           const selection = window.getSelection();
+          console.log('[DEBUG] Selection rangeCount:', selection.rangeCount);
 
           if (selection.rangeCount > 0) {
+            console.log('[DEBUG] Using existing selection');
             const range = selection.getRangeAt(0);
             const img = document.createElement('img');
             img.src = url;
@@ -1454,11 +1463,27 @@ class SimpleMarkdownEditor {
             range.collapse(true);
             selection.removeAllRanges();
             selection.addRange(range);
+            console.log('[DEBUG] Image inserted via selection');
+          } else {
+            console.log('[DEBUG] No selection range - appending to content');
+            // セレクションがない場合、最後に追加
+            const img = document.createElement('img');
+            img.src = url;
+            img.alt = alt;
+            img.className = 'editable-image';
+            img.style.maxWidth = '100%';
+            img.style.height = 'auto';
+            content.appendChild(img);
+            console.log('[DEBUG] Image appended to content');
           }
 
           content.focus();
+          this.saveToHistory();
           this.updateWordCount();
+          console.log('[DEBUG] WYSIWYG insertion completed');
         }
+      } else {
+        console.error('[DEBUG] Missing url or alt:', { url, alt });
       }
     });
 
