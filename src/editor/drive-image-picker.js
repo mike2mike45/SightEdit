@@ -1102,7 +1102,7 @@ export class DriveImagePicker {
 
             if (isPublic) {
                 // すでに公開されている - そのまま挿入
-                this.returnImageUrl(imageUrl);
+                this.returnImageUrl(displayUrl);
                 return;
             }
 
@@ -1125,17 +1125,17 @@ export class DriveImagePicker {
             const updatedMetadata = await this.driveAPI.getFileMetadata(this.selectedImage.file_id);
 
             if (updatedMetadata.webContentLink) {
-                console.log('[DEBUG] File is now public, using webContentLink');
+                console.log('[DEBUG] File is now public, using googleusercontent URL');
 
                 // 成功メッセージを表示
                 await this.showConfirmDialog(
                     'Success / 成功',
-                    `✅ ファイルを公開設定に変更しました\n\n画像URL: ${updatedMetadata.webContentLink}`,
+                    `✅ ファイルを公開設定に変更しました\n\n画像URL: ${displayUrl}`,
                     'OK',
                     null
                 );
 
-                this.returnImageUrl(updatedMetadata.webContentLink);
+                this.returnImageUrl(displayUrl);
             } else {
                 throw new Error('公開設定後もwebContentLinkが取得できませんでした');
             }
