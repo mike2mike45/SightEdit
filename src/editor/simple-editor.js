@@ -41,6 +41,9 @@ import { ExportImportManager } from '../lib/export-import-manager.js';
 // Google Drive画像ピッカーをインポート
 import { getDriveImagePicker } from './drive-image-picker.js';
 
+// 図生成機能をインポート
+import { getDiagramGenerator } from './diagram-generator.js';
+
 class SimpleMarkdownEditor {
   constructor() {
     this.currentFileName = null;
@@ -547,6 +550,7 @@ class SimpleMarkdownEditor {
       horizontalRule: () => this.insertText('\n---\n'),
       link: () => this.insertLink(),
       image: () => this.insertImage(),
+      diagram: () => this.insertDiagram(),
       table: () => this.insertTable(),
       undo: () => this.undo(),
       redo: () => this.redo()
@@ -1490,6 +1494,55 @@ class SimpleMarkdownEditor {
     console.log('[DEBUG] Calling picker.open()');
     picker.open();
     console.log('[DEBUG] picker.open() completed');
+  }
+
+  insertDiagram() {
+    console.log('[DiagramGenerator] insertDiagram() called');
+
+    // 図生成ダイアログを開く
+    const generator = getDiagramGenerator();
+
+    generator.open((svgContent) => {
+      console.log('[DiagramGenerator] SVG content received');
+
+      // SVGをデータURLに変換
+      const svgBlob = new Blob([svgContent], { type: 'image/svg+xml' });
+      const svgUrl = URL.createObjectURL(svgBlob);
+
+      if (this.isSourceMode) {
+        // ソースモード: Markdownの画像記法で挿入
+        this.insertText(`![diagram](${svgUrl})`);
+      } else {
+        // WYSIWYGモード: imgタグとして挿入
+        const content = document.getElementById('wysiwyg-content');
+        const selection = window.getSelection();
+
+        const img = document.createElement('img');
+        img.src = svgUrl;
+        img.alt = 'diagram';
+        img.className = 'editable-image';
+        img.style.maxWidth = '100%';
+        img.style.height = 'auto';
+
+        if (selection.rangeCount > 0) {
+          const range = selection.getRangeAt(0);
+          range.deleteContents();
+          range.insertNode(img);
+          range.setStartAfter(img);
+          range.collapse(true);
+          selection.removeAllRanges();
+          selection.addRange(range);
+        } else {
+          content.appendChild(img);
+        }
+
+        content.focus();
+        this.saveToHistory();
+        this.updateWordCount();
+      }
+
+      console.log('[DiagramGenerator] Diagram inserted successfully');
+    });
   }
 
   insertTable() {

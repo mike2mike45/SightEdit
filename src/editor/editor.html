@@ -797,6 +797,239 @@
       border-color: #545b62;
     }
 
+    /* Diagram Generation Modal */
+    .diagram-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10002;
+    }
+
+    .diagram-modal-container {
+      background: white;
+      border-radius: 8px;
+      width: 90%;
+      max-width: 900px;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .diagram-modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 24px;
+      border-bottom: 1px solid #dee2e6;
+    }
+
+    .diagram-modal-header h3 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+      color: #333;
+    }
+
+    .diagram-modal-close {
+      background: none;
+      border: none;
+      font-size: 28px;
+      cursor: pointer;
+      color: #6c757d;
+      padding: 0;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+
+    .diagram-modal-close:hover {
+      background: #f8f9fa;
+      color: #333;
+    }
+
+    .diagram-modal-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+    }
+
+    .diagram-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #dee2e6;
+    }
+
+    .diagram-tab {
+      padding: 10px 20px;
+      background: none;
+      border: none;
+      border-bottom: 3px solid transparent;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      color: #6c757d;
+      transition: all 0.2s;
+      margin-bottom: -2px;
+    }
+
+    .diagram-tab:hover {
+      color: #333;
+      background: #f8f9fa;
+    }
+
+    .diagram-tab.active {
+      color: #007bff;
+      border-bottom-color: #007bff;
+    }
+
+    .diagram-tab-content {
+      display: none;
+    }
+
+    .diagram-tab-content.active {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .diagram-input-section,
+    .diagram-preview-section {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .diagram-input-section label {
+      font-weight: 500;
+      margin-bottom: 8px;
+      color: #333;
+    }
+
+    .diagram-code-input {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      resize: vertical;
+      min-height: 200px;
+    }
+
+    .diagram-code-input:focus {
+      outline: none;
+      border-color: #007bff;
+      box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+    }
+
+    .diagram-code-input:disabled {
+      background: #f8f9fa;
+      cursor: not-allowed;
+    }
+
+    .diagram-help {
+      margin-top: 8px;
+      font-size: 12px;
+    }
+
+    .diagram-help a {
+      color: #007bff;
+      text-decoration: none;
+    }
+
+    .diagram-help a:hover {
+      text-decoration: underline;
+    }
+
+    .diagram-preview-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .diagram-preview-header span {
+      font-weight: 500;
+      color: #333;
+    }
+
+    .diagram-preview {
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      padding: 16px;
+      min-height: 250px;
+      background: #f8f9fa;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: auto;
+    }
+
+    .diagram-preview svg {
+      max-width: 100%;
+      height: auto;
+    }
+
+    .diagram-preview.empty::after {
+      content: 'プレビューがここに表示されます';
+      color: #6c757d;
+      font-size: 14px;
+    }
+
+    .diagram-modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      padding: 20px 24px;
+      border-top: 1px solid #dee2e6;
+    }
+
+    .diagram-btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .diagram-btn-primary {
+      background: #007bff;
+      color: white;
+    }
+
+    .diagram-btn-primary:hover:not(:disabled) {
+      background: #0056b3;
+    }
+
+    .diagram-btn-primary:disabled {
+      background: #6c757d;
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+
+    .diagram-btn-secondary {
+      background: #6c757d;
+      color: white;
+    }
+
+    .diagram-btn-secondary:hover {
+      background: #5a6268;
+    }
+
     @media (max-width: 768px) {
       .main-container {
         flex-direction: column;
@@ -870,6 +1103,7 @@
         <div class="toolbar-group">
           <button class="toolbar-btn" data-action="link" title="リンク">🔗 リンク</button>
           <button class="toolbar-btn" data-action="image" title="画像">🖼️ 画像</button>
+          <button class="toolbar-btn" data-action="diagram" title="図を挿入">📊 図</button>
           <button class="toolbar-btn" data-action="table" title="表">📦 表</button>
         </div>
 
@@ -1174,6 +1408,105 @@
 
   <!-- AI Chat Panel Container -->
   <div id="chat-panel-container"></div>
+
+  <!-- Diagram Generation Modal -->
+  <div id="diagram-modal" class="diagram-modal" style="display: none;">
+    <div class="diagram-modal-container">
+      <div class="diagram-modal-header">
+        <h3>📊 図を挿入</h3>
+        <button class="diagram-modal-close" id="diagram-modal-close">×</button>
+      </div>
+
+      <div class="diagram-modal-body">
+        <!-- タブ -->
+        <div class="diagram-tabs">
+          <button class="diagram-tab active" data-tab="mermaid">
+            🔷 Mermaid
+          </button>
+          <button class="diagram-tab" data-tab="chart">
+            📈 Chart
+          </button>
+          <button class="diagram-tab" data-tab="svg">
+            🎨 SVG
+          </button>
+        </div>
+
+        <!-- Mermaidタブ -->
+        <div class="diagram-tab-content active" id="mermaid-tab">
+          <div class="diagram-input-section">
+            <label for="mermaid-code">Mermaidコード:</label>
+            <textarea
+              id="mermaid-code"
+              class="diagram-code-input"
+              placeholder="graph TD&#10;    A[開始] --> B[処理]&#10;    B --> C[終了]"
+              rows="10"
+            ></textarea>
+            <div class="diagram-help">
+              <a href="https://mermaid.js.org/intro/" target="_blank">Mermaidドキュメント</a>
+            </div>
+          </div>
+          <div class="diagram-preview-section">
+            <div class="diagram-preview-header">
+              <span>プレビュー:</span>
+              <button id="mermaid-generate-btn" class="diagram-btn diagram-btn-primary">
+                🔄 プレビュー生成
+              </button>
+            </div>
+            <div id="mermaid-preview" class="diagram-preview"></div>
+          </div>
+        </div>
+
+        <!-- Chartタブ -->
+        <div class="diagram-tab-content" id="chart-tab">
+          <div class="diagram-input-section">
+            <label>Chart.js設定:</label>
+            <textarea
+              id="chart-config"
+              class="diagram-code-input"
+              placeholder="今後実装予定"
+              rows="10"
+              disabled
+            ></textarea>
+          </div>
+          <div class="diagram-preview-section">
+            <div class="diagram-preview-header">
+              <span>プレビュー:</span>
+            </div>
+            <div id="chart-preview" class="diagram-preview"></div>
+          </div>
+        </div>
+
+        <!-- SVGタブ -->
+        <div class="diagram-tab-content" id="svg-tab">
+          <div class="diagram-input-section">
+            <label for="svg-code">SVGコード:</label>
+            <textarea
+              id="svg-code"
+              class="diagram-code-input"
+              placeholder="今後実装予定"
+              rows="10"
+              disabled
+            ></textarea>
+          </div>
+          <div class="diagram-preview-section">
+            <div class="diagram-preview-header">
+              <span>プレビュー:</span>
+            </div>
+            <div id="svg-preview" class="diagram-preview"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="diagram-modal-footer">
+        <button id="diagram-cancel-btn" class="diagram-btn diagram-btn-secondary">
+          キャンセル
+        </button>
+        <button id="diagram-insert-btn" class="diagram-btn diagram-btn-primary" disabled>
+          挿入
+        </button>
+      </div>
+    </div>
+  </div>
 
 </body>
 </html>
