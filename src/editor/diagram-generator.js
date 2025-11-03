@@ -5,7 +5,11 @@
  */
 
 import mermaid from 'mermaid';
+import { Chart, registerables } from 'chart.js';
 import { AIManager } from '../lib/ai-manager.js';
+
+// Chart.jsの全コンポーネントを登録
+Chart.register(...registerables);
 
 export class DiagramGenerator {
   constructor() {
@@ -68,7 +72,34 @@ export class DiagramGenerator {
     // Mermaidコード入力（変更時は挿入ボタンを無効化）
     const mermaidCodeInput = document.getElementById('mermaid-code');
     mermaidCodeInput?.addEventListener('input', () => {
-      // コードが変更されたら挿入ボタンを無効化（再生成が必要）
+      this.disableInsertButton();
+    });
+
+    // ChartのAI生成ボタン
+    const chartAIGenerateBtn = document.getElementById('chart-ai-generate-btn');
+    chartAIGenerateBtn?.addEventListener('click', () => this.generateChartWithAI());
+
+    // Chartプレビュー更新ボタン
+    const chartPreviewBtn = document.getElementById('chart-preview-btn');
+    chartPreviewBtn?.addEventListener('click', () => this.generateChartPreview());
+
+    // Chartコード入力（変更時は挿入ボタンを無効化）
+    const chartConfigInput = document.getElementById('chart-config');
+    chartConfigInput?.addEventListener('input', () => {
+      this.disableInsertButton();
+    });
+
+    // SVGのAI生成ボタン
+    const svgAIGenerateBtn = document.getElementById('svg-ai-generate-btn');
+    svgAIGenerateBtn?.addEventListener('click', () => this.generateSVGWithAI());
+
+    // SVGプレビュー更新ボタン
+    const svgPreviewBtn = document.getElementById('svg-preview-btn');
+    svgPreviewBtn?.addEventListener('click', () => this.generateSVGPreview());
+
+    // SVGコード入力（変更時は挿入ボタンを無効化）
+    const svgCodeInput = document.getElementById('svg-code');
+    svgCodeInput?.addEventListener('input', () => {
       this.disableInsertButton();
     });
 
@@ -374,6 +405,325 @@ graph TD
     }
 
     this.close();
+  }
+
+  /**
+   * Chart.jsをAI生成
+   */
+  async generateChartWithAI() {
+    const descriptionInput = document.getElementById('chart-description');
+    const configInput = document.getElementById('chart-config');
+    const templateSelect = document.getElementById('chart-template');
+
+    if (!descriptionInput || !configInput) {
+      console.error('[DiagramGenerator] Chart input elements not found');
+      return;
+    }
+
+    const description = descriptionInput.value.trim();
+    if (!description) {
+      alert('グラフの説明を入力してください');
+      return;
+    }
+
+    const template = templateSelect?.value || '';
+    const prompt = this.buildChartPrompt(description, template);
+
+    try {
+      configInput.value = '// AIで生成中...';
+      configInput.disabled = true;
+
+      console.log('[DiagramGenerator] Generating Chart.js config with AI...');
+
+      const generatedConfig = await this.callAIForDiagram(prompt);
+      const extractedConfig = this.extractJSONCode(generatedConfig);
+
+      configInput.value = extractedConfig;
+      configInput.disabled = false;
+
+      console.log('[DiagramGenerator] Chart.js config generated successfully');
+
+      await this.generateChartPreview();
+
+    } catch (error) {
+      console.error('[DiagramGenerator] Failed to generate Chart.js config:', error);
+      alert(`AI生成エラー: ${error.message}`);
+      configInput.value = '';
+      configInput.disabled = false;
+    }
+  }
+
+  /**
+   * Chart.js生成用のプロンプトを構築
+   */
+  buildChartPrompt(description, template) {
+    const templateHint = template ? `\n【グラフの種類】: ${template}` : '';
+
+    return `以下の説明に基づいて、Chart.js用の設定（JSON形式）を生成してください。
+
+【要件】
+1. Chart.js v4 の構文を使用してください
+2. 日本語ラベルを使用してください
+3. データは適切なサンプル値を入れてください
+4. レスポンシブ設定を含めてください
+5. コードブロックのマークダウン記法（\`\`\`json）で囲んで出力してください
+6. コメントや説明文は不要です。JSON設定のみを出力してください${templateHint}
+
+【グラフの説明】
+${description}
+
+【出力形式の例】
+\`\`\`json
+{
+  "type": "bar",
+  "data": {
+    "labels": ["2020年", "2021年", "2022年"],
+    "datasets": [{
+      "label": "売上",
+      "data": [100, 150, 200],
+      "backgroundColor": "rgba(54, 162, 235, 0.5)"
+    }]
+  },
+  "options": {
+    "responsive": true,
+    "maintainAspectRatio": false
+  }
+}
+\`\`\`
+
+それでは、上記の説明に基づいてChart.js設定を生成してください：`;
+  }
+
+  /**
+   * Chart.jsプレビュー生成
+   */
+  async generateChartPreview() {
+    const configInput = document.getElementById('chart-config');
+    const preview = document.getElementById('chart-preview');
+
+    if (!configInput || !preview) {
+      console.error('[DiagramGenerator] Chart elements not found');
+      return;
+    }
+
+    const configStr = configInput.value.trim();
+    if (!configStr) {
+      preview.innerHTML = '<p style="color: #6c757d;">設定を入力してください</p>';
+      this.disableInsertButton();
+      return;
+    }
+
+    try {
+      preview.innerHTML = '<p style="color: #6c757d;">生成中...</p>';
+
+      // JSONをパース
+      const config = JSON.parse(configStr);
+
+      // 既存のCanvasがあればクリア
+      preview.innerHTML = '<canvas id="chart-canvas"></canvas>';
+
+      const canvas = document.getElementById('chart-canvas');
+      if (!canvas) {
+        throw new Error('Canvasが作成できませんでした');
+      }
+
+      // Chart.jsでグラフを描画
+      const chart = new Chart(canvas, config);
+
+      // CanvasをSVGに変換
+      const chartCanvas = chart.canvas;
+      const svgStr = this.canvasToSVG(chartCanvas);
+
+      this.currentSVG = svgStr;
+      this.enableInsertButton();
+
+      console.log('[DiagramGenerator] Chart generated successfully');
+    } catch (error) {
+      console.error('[DiagramGenerator] Failed to generate Chart:', error);
+      preview.innerHTML = `<p style="color: #dc3545;">エラー: ${error.message}</p>`;
+      this.disableInsertButton();
+    }
+  }
+
+  /**
+   * CanvasをSVGに変換
+   */
+  canvasToSVG(canvas) {
+    const dataURL = canvas.toDataURL('image/png');
+    const width = canvas.width;
+    const height = canvas.height;
+
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+  <image href="${dataURL}" width="${width}" height="${height}"/>
+</svg>`;
+  }
+
+  /**
+   * SVGをAI生成
+   */
+  async generateSVGWithAI() {
+    const descriptionInput = document.getElementById('svg-description');
+    const codeInput = document.getElementById('svg-code');
+    const templateSelect = document.getElementById('svg-template');
+
+    if (!descriptionInput || !codeInput) {
+      console.error('[DiagramGenerator] SVG input elements not found');
+      return;
+    }
+
+    const description = descriptionInput.value.trim();
+    if (!description) {
+      alert('SVG図形の説明を入力してください');
+      return;
+    }
+
+    const template = templateSelect?.value || '';
+    const prompt = this.buildSVGPrompt(description, template);
+
+    try {
+      codeInput.value = '<!-- AIで生成中... -->';
+      codeInput.disabled = true;
+
+      console.log('[DiagramGenerator] Generating SVG with AI...');
+
+      const generatedSVG = await this.callAIForDiagram(prompt);
+      const extractedSVG = this.extractSVGCode(generatedSVG);
+
+      codeInput.value = extractedSVG;
+      codeInput.disabled = false;
+
+      console.log('[DiagramGenerator] SVG generated successfully');
+
+      await this.generateSVGPreview();
+
+    } catch (error) {
+      console.error('[DiagramGenerator] Failed to generate SVG:', error);
+      alert(`AI生成エラー: ${error.message}`);
+      codeInput.value = '';
+      codeInput.disabled = false;
+    }
+  }
+
+  /**
+   * SVG生成用のプロンプトを構築
+   */
+  buildSVGPrompt(description, template) {
+    const templateHint = template ? `\n【図形の種類】: ${template}` : '';
+
+    return `以下の説明に基づいて、SVGコードを生成してください。
+
+【要件】
+1. 標準SVG 1.1の構文を使用してください
+2. widthとheightを適切に設定してください（例: 400x300）
+3. viewBoxを設定してレスポンシブ対応してください
+4. 日本語テキストを含む場合は適切なフォント設定を行ってください
+5. コードブロックのマークダウン記法（\`\`\`svg）で囲んで出力してください
+6. コメントや説明文は不要です。SVGコードのみを出力してください${templateHint}
+
+【図形の説明】
+${description}
+
+【出力形式の例】
+\`\`\`svg
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">
+  <circle cx="100" cy="100" r="50" fill="#3498db"/>
+  <rect x="200" y="50" width="100" height="100" fill="#e74c3c"/>
+</svg>
+\`\`\`
+
+それでは、上記の説明に基づいてSVGコードを生成してください：`;
+  }
+
+  /**
+   * SVGプレビュー生成
+   */
+  async generateSVGPreview() {
+    const codeInput = document.getElementById('svg-code');
+    const preview = document.getElementById('svg-preview');
+
+    if (!codeInput || !preview) {
+      console.error('[DiagramGenerator] SVG elements not found');
+      return;
+    }
+
+    const code = codeInput.value.trim();
+    if (!code) {
+      preview.innerHTML = '<p style="color: #6c757d;">コードを入力してください</p>';
+      this.disableInsertButton();
+      return;
+    }
+
+    try {
+      preview.innerHTML = '<p style="color: #6c757d;">生成中...</p>';
+
+      // SVGコードをそのまま表示
+      preview.innerHTML = code;
+
+      // SVGを保存
+      this.currentSVG = code;
+
+      this.enableInsertButton();
+
+      console.log('[DiagramGenerator] SVG preview generated successfully');
+    } catch (error) {
+      console.error('[DiagramGenerator] Failed to generate SVG preview:', error);
+      preview.innerHTML = `<p style="color: #dc3545;">エラー: ${error.message}</p>`;
+      this.disableInsertButton();
+    }
+  }
+
+  /**
+   * JSONコードを抽出
+   */
+  extractJSONCode(text) {
+    // ```json と ``` で囲まれたコードを抽出
+    const jsonBlockMatch = text.match(/```json\s*\n([\s\S]*?)\n```/);
+    if (jsonBlockMatch) {
+      return jsonBlockMatch[1].trim();
+    }
+
+    // ```だけで囲まれている場合
+    const genericBlockMatch = text.match(/```\s*\n([\s\S]*?)\n```/);
+    if (genericBlockMatch) {
+      return genericBlockMatch[1].trim();
+    }
+
+    // { で始まる場合はそのまま返す
+    if (text.trim().startsWith('{')) {
+      return text.trim();
+    }
+
+    return text.trim();
+  }
+
+  /**
+   * SVGコードを抽出
+   */
+  extractSVGCode(text) {
+    // ```svg と ``` で囲まれたコードを抽出
+    const svgBlockMatch = text.match(/```svg\s*\n([\s\S]*?)\n```/);
+    if (svgBlockMatch) {
+      return svgBlockMatch[1].trim();
+    }
+
+    // ```xml と ``` で囲まれている場合
+    const xmlBlockMatch = text.match(/```xml\s*\n([\s\S]*?)\n```/);
+    if (xmlBlockMatch) {
+      return xmlBlockMatch[1].trim();
+    }
+
+    // ```だけで囲まれている場合
+    const genericBlockMatch = text.match(/```\s*\n([\s\S]*?)\n```/);
+    if (genericBlockMatch) {
+      return genericBlockMatch[1].trim();
+    }
+
+    // <svg で始まる場合はそのまま返す
+    if (text.trim().startsWith('<svg')) {
+      return text.trim();
+    }
+
+    return text.trim();
   }
 
   open(onInsert) {

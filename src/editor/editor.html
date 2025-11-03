@@ -988,6 +988,36 @@
       display: block;
     }
 
+    .diagram-template-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+
+    .diagram-template-row label {
+      font-weight: 500;
+      color: #333;
+      white-space: nowrap;
+      margin: 0;
+    }
+
+    .diagram-template-select {
+      flex: 1;
+      padding: 8px 12px;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      font-size: 14px;
+      background: white;
+      cursor: pointer;
+    }
+
+    .diagram-template-select:focus {
+      outline: none;
+      border-color: #007bff;
+      box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+    }
+
     .diagram-preview-header {
       display: flex;
       justify-content: space-between;
@@ -1470,6 +1500,19 @@
         <div class="diagram-tab-content active" id="mermaid-tab">
           <div class="diagram-input-section">
             <div class="diagram-description-input">
+              <div class="diagram-template-row">
+                <label for="mermaid-template">テンプレート:</label>
+                <select id="mermaid-template" class="diagram-template-select">
+                  <option value="">-- テンプレートを選択 --</option>
+                  <option value="flowchart">フローチャート（処理の流れ）</option>
+                  <option value="sequence">シーケンス図（処理の順序）</option>
+                  <option value="class">クラス図（クラスの関係）</option>
+                  <option value="er">ER図（データベース設計）</option>
+                  <option value="gantt">ガントチャート（スケジュール）</option>
+                  <option value="state">状態遷移図（状態の変化）</option>
+                  <option value="pie">円グラフ（割合）</option>
+                </select>
+              </div>
               <label for="mermaid-description">自然言語で図を説明:</label>
               <textarea
                 id="mermaid-description"
@@ -1509,40 +1552,102 @@
         <!-- Chartタブ -->
         <div class="diagram-tab-content" id="chart-tab">
           <div class="diagram-input-section">
-            <label>Chart.js設定:</label>
-            <textarea
-              id="chart-config"
-              class="diagram-code-input"
-              placeholder="今後実装予定"
-              rows="10"
-              disabled
-            ></textarea>
+            <div class="diagram-description-input">
+              <div class="diagram-template-row">
+                <label for="chart-template">テンプレート:</label>
+                <select id="chart-template" class="diagram-template-select">
+                  <option value="">-- テンプレートを選択 --</option>
+                  <option value="bar">棒グラフ（比較）</option>
+                  <option value="line">折れ線グラフ（推移）</option>
+                  <option value="pie">円グラフ（割合）</option>
+                  <option value="doughnut">ドーナツグラフ（割合）</option>
+                  <option value="radar">レーダーチャート（多角評価）</option>
+                  <option value="scatter">散布図（相関）</option>
+                </select>
+              </div>
+              <label for="chart-description">自然言語でグラフを説明:</label>
+              <textarea
+                id="chart-description"
+                class="diagram-description-field"
+                placeholder="例: 2020年から2024年の売上推移を棒グラフで表示して"
+                rows="3"
+              ></textarea>
+              <button id="chart-ai-generate-btn" class="diagram-btn diagram-btn-primary">
+                🤖 AIで生成
+              </button>
+            </div>
+
+            <div class="diagram-code-section">
+              <label for="chart-config">生成されたChart.js設定（編集可能）:</label>
+              <textarea
+                id="chart-config"
+                class="diagram-code-input"
+                placeholder="AIで生成されたChart.js設定がここに表示されます。手動でも編集できます。"
+                rows="10"
+              ></textarea>
+              <div class="diagram-help">
+                <a href="https://www.chartjs.org/docs/latest/" target="_blank">Chart.jsドキュメント</a>
+              </div>
+            </div>
           </div>
           <div class="diagram-preview-section">
             <div class="diagram-preview-header">
               <span>プレビュー:</span>
+              <button id="chart-preview-btn" class="diagram-btn diagram-btn-primary">
+                🔄 プレビュー更新
+              </button>
             </div>
-            <div id="chart-preview" class="diagram-preview"></div>
+            <div id="chart-preview" class="diagram-preview empty"></div>
           </div>
         </div>
 
         <!-- SVGタブ -->
         <div class="diagram-tab-content" id="svg-tab">
           <div class="diagram-input-section">
-            <label for="svg-code">SVGコード:</label>
-            <textarea
-              id="svg-code"
-              class="diagram-code-input"
-              placeholder="今後実装予定"
-              rows="10"
-              disabled
-            ></textarea>
+            <div class="diagram-description-input">
+              <div class="diagram-template-row">
+                <label for="svg-template">テンプレート:</label>
+                <select id="svg-template" class="diagram-template-select">
+                  <option value="">-- テンプレートを選択 --</option>
+                  <option value="icon">アイコン（シンプルな図形）</option>
+                  <option value="logo">ロゴ（組み合わせ図形）</option>
+                  <option value="diagram">技術図（システム構成図）</option>
+                  <option value="infographic">インフォグラフィック（情報視覚化）</option>
+                </select>
+              </div>
+              <label for="svg-description">自然言語でSVG図形を説明:</label>
+              <textarea
+                id="svg-description"
+                class="diagram-description-field"
+                placeholder="例: 青い円と赤い四角形を並べたアイコンを作って"
+                rows="3"
+              ></textarea>
+              <button id="svg-ai-generate-btn" class="diagram-btn diagram-btn-primary">
+                🤖 AIで生成
+              </button>
+            </div>
+
+            <div class="diagram-code-section">
+              <label for="svg-code">生成されたSVGコード（編集可能）:</label>
+              <textarea
+                id="svg-code"
+                class="diagram-code-input"
+                placeholder="AIで生成されたSVGコードがここに表示されます。手動でも編集できます。"
+                rows="10"
+              ></textarea>
+              <div class="diagram-help">
+                <a href="https://developer.mozilla.org/en-US/docs/Web/SVG" target="_blank">SVGドキュメント</a>
+              </div>
+            </div>
           </div>
           <div class="diagram-preview-section">
             <div class="diagram-preview-header">
               <span>プレビュー:</span>
+              <button id="svg-preview-btn" class="diagram-btn diagram-btn-primary">
+                🔄 プレビュー更新
+              </button>
             </div>
-            <div id="svg-preview" class="diagram-preview"></div>
+            <div id="svg-preview" class="diagram-preview empty"></div>
           </div>
         </div>
       </div>
