@@ -1497,52 +1497,92 @@ class SimpleMarkdownEditor {
   }
 
   insertDiagram() {
-    console.log('[DiagramGenerator] insertDiagram() called');
+    console.log('[SimpleEditor] insertDiagram() called');
 
     // 図生成ダイアログを開く
     const generator = getDiagramGenerator();
+    console.log('[SimpleEditor] Generator instance obtained:', !!generator);
 
     generator.open((svgContent) => {
-      console.log('[DiagramGenerator] SVG content received');
+      console.log('[SimpleEditor] Callback invoked with SVG content');
+      console.log('[SimpleEditor] SVG content length:', svgContent?.length || 0);
+      console.log('[SimpleEditor] SVG content preview:', svgContent?.substring(0, 100));
+      console.log('[SimpleEditor] Current mode - isSourceMode:', this.isSourceMode);
 
-      // SVGをデータURLに変換
-      const svgBlob = new Blob([svgContent], { type: 'image/svg+xml' });
-      const svgUrl = URL.createObjectURL(svgBlob);
+      try {
+        // SVGをdata URIに変換（Blob URLではなくdata URIを使用）
+        const svgBase64 = btoa(unescape(encodeURIComponent(svgContent)));
+        const svgDataUri = `data:image/svg+xml;base64,${svgBase64}`;
+        console.log('[SimpleEditor] Data URI created (length):', svgDataUri.length);
 
-      if (this.isSourceMode) {
-        // ソースモード: Markdownの画像記法で挿入
-        this.insertText(`![diagram](${svgUrl})`);
-      } else {
-        // WYSIWYGモード: imgタグとして挿入
-        const content = document.getElementById('wysiwyg-content');
-        const selection = window.getSelection();
-
-        const img = document.createElement('img');
-        img.src = svgUrl;
-        img.alt = 'diagram';
-        img.className = 'editable-image';
-        img.style.maxWidth = '100%';
-        img.style.height = 'auto';
-
-        if (selection.rangeCount > 0) {
-          const range = selection.getRangeAt(0);
-          range.deleteContents();
-          range.insertNode(img);
-          range.setStartAfter(img);
-          range.collapse(true);
-          selection.removeAllRanges();
-          selection.addRange(range);
+        if (this.isSourceMode) {
+          console.log('[SimpleEditor] Inserting in SOURCE mode');
+          // ソースモード: Markdownの画像記法で挿入
+          this.insertText(`![diagram](${svgDataUri})`);
+          console.log('[SimpleEditor] Source mode insertion completed');
         } else {
-          content.appendChild(img);
+          console.log('[SimpleEditor] Inserting in WYSIWYG mode');
+          // WYSIWYGモード: imgタグとして挿入
+          const content = document.getElementById('wysiwyg-content');
+          console.log('[SimpleEditor] wysiwyg-content element:', !!content);
+
+          if (!content) {
+            throw new Error('WYSIWYG content element not found');
+          }
+
+          const selection = window.getSelection();
+          console.log('[SimpleEditor] Selection range count:', selection.rangeCount);
+
+          const img = document.createElement('img');
+          img.src = svgDataUri;
+          img.alt = 'diagram';
+          img.className = 'editable-image';
+          img.style.maxWidth = '100%';
+          img.style.height = 'auto';
+          console.log('[SimpleEditor] Image element created');
+
+          if (selection.rangeCount > 0) {
+            console.log('[SimpleEditor] Inserting at selection');
+            const range = selection.getRangeAt(0);
+
+            // contenteditable要素内にカーソルがあるか確認
+            if (content.contains(range.commonAncestorContainer)) {
+              range.deleteContents();
+              range.insertNode(img);
+
+              // 画像の後ろにスペースを追加（カーソル移動のため）
+              const space = document.createTextNode('\u00A0');
+              range.setStartAfter(img);
+              range.insertNode(space);
+              range.setStartAfter(space);
+              range.collapse(true);
+
+              selection.removeAllRanges();
+              selection.addRange(range);
+            } else {
+              // カーソルがcontent外にある場合は末尾に追加
+              console.log('[SimpleEditor] Selection outside content, appending to end');
+              content.appendChild(img);
+            }
+          } else {
+            console.log('[SimpleEditor] No selection, appending to content');
+            content.appendChild(img);
+          }
+
+          content.focus();
+          this.saveToHistory();
+          this.updateWordCount();
+          console.log('[SimpleEditor] WYSIWYG mode insertion completed');
         }
 
-        content.focus();
-        this.saveToHistory();
-        this.updateWordCount();
+        console.log('[SimpleEditor] Diagram inserted successfully');
+      } catch (error) {
+        console.error('[SimpleEditor] Error during diagram insertion:', error);
+        alert(`図の挿入中にエラーが発生しました: ${error.message}`);
       }
-
-      console.log('[DiagramGenerator] Diagram inserted successfully');
     });
+
+    console.log('[SimpleEditor] generator.open() called');
   }
 
   insertTable() {

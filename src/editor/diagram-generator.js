@@ -394,17 +394,35 @@ graph TD
   }
 
   insertDiagram() {
+    console.log('[DiagramGenerator] insertDiagram() called');
+    console.log('[DiagramGenerator] currentSVG length:', this.currentSVG?.length || 0);
+    console.log('[DiagramGenerator] onInsertCallback exists:', !!this.onInsertCallback);
+
     if (!this.currentSVG) {
       console.error('[DiagramGenerator] No SVG to insert');
+      alert('エラー: 挿入するSVGがありません。プレビューを生成してください。');
       return;
     }
 
     // コールバックを呼び出してSVGを挿入
     if (this.onInsertCallback) {
-      this.onInsertCallback(this.currentSVG);
+      try {
+        console.log('[DiagramGenerator] Calling onInsertCallback...');
+        this.onInsertCallback(this.currentSVG);
+        console.log('[DiagramGenerator] onInsertCallback completed successfully');
+      } catch (error) {
+        console.error('[DiagramGenerator] Error in onInsertCallback:', error);
+        alert(`エラー: 図の挿入に失敗しました。\n${error.message}`);
+        return;
+      }
+    } else {
+      console.error('[DiagramGenerator] No onInsertCallback set');
+      alert('エラー: 挿入コールバックが設定されていません。');
+      return;
     }
 
     this.close();
+    console.log('[DiagramGenerator] Modal closed');
   }
 
   /**
