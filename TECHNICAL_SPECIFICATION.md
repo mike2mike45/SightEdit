@@ -1,16 +1,34 @@
-# SightEdit Chrome拡張版 技術仕様書
+# SightEdit Chrome拡張版 技術仕様書 | SightEdit Chrome Extension Technical Specification
 
-## 1. プロジェクト概要
+## 1. プロジェクト概要 | Project Overview
 
-### 1.1 基本情報
+### 1.1 基本情報 | Basic Information
+
+**日本語:**
 - **プロジェクト名**: SightEdit Chrome Extension
 - **バージョン**: 3.0.0
 - **開発元**: DuckEngine LLC
 - **ライセンス**: MIT
 - **リポジトリ**: https://github.com/mike2mike45/sightedit.git
 
-### 1.2 プロダクト説明
+**English:**
+- **Project Name**: SightEdit Chrome Extension
+- **Version**: 3.0.0
+- **Developer**: DuckEngine LLC
+- **License**: MIT
+- **Repository**: https://github.com/mike2mike45/sightedit.git
+
+---
+
+### 1.2 プロダクト説明 | Product Description
+
+**日本語:**
 SightEditは、Chrome拡張機能として動作するWYSIWYG Markdownエディターです。ブラウザ環境で高度なMarkdown編集機能を提供し、AI機能統合により執筆支援も実現します。
+
+**English:**
+SightEdit is a WYSIWYG Markdown editor that operates as a Chrome extension. It provides advanced Markdown editing functionality in a browser environment and enables writing assistance through AI integration.
+
+---
 
 ## 2. 技術アーキテクチャ
 
