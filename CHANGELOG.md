@@ -7,6 +7,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Phase 2.0 - AI図生成機能 (2025-01-09)
+
+#### Added
+
+**AI図生成機能**
+- ✨ 自然言語からMermaid図を生成
+  - フローチャート、シーケンス図、クラス図、ER図、ガントチャート、状態図、円グラフ
+  - AIプロンプトテンプレートによる図タイプ選択
+  - リアルタイムプレビュー機能
+- ✨ Chart.js統合によるグラフ生成
+  - 棒グラフ、折れ線グラフ、円グラフ、ドーナツグラフ、レーダーチャート、散布図
+  - AI生成設定からグラフを自動作成
+  - Canvas to SVG変換機能
+- ✨ SVG図形の直接生成
+  - カスタムSVGコードの自動生成
+  - アイコン、ロゴ、基本図形、イラストに対応
+
+**図挿入機能の改善**
+- 🐛 Blob URLからdata URIへの変更（永続性の向上）
+- 🐛 WYSIWYGモードでの挿入処理の改善
+- 🐛 詳細なデバッグログの追加
+- 🐛 エラーハンドリングの強化
+
+**UI/UX改善**
+- 🎨 図生成ダイアログの追加（Mermaid/Chart/SVGタブ）
+- 🎨 テンプレート選択機能
+- 🎨 プレビュー更新ボタン
+- 🎨 挿入ボタンの有効/無効状態管理
+
+#### Fixed
+
+- 🐛 APIキー設定の重複ID問題を修正
+  - 古いai-settings-modalダイアログを削除
+  - ID重複によるAPIキー取得失敗の解消
+- 🐛 図挿入時の画像が表示されない問題を修正
+  - Blob URLの問題を解決
+  - data URI方式に変更して永続性を確保
+- 🐛 カーソル位置外への挿入処理の改善
+
+#### Technical Details
+
+**Dependencies**
+- Added: `mermaid@^10.x` - Mermaid図レンダリング
+- Added: `chart.js@^4.5.1` - Chart.jsグラフ生成
+
+**New Modules**
+- `src/editor/diagram-generator.js` - 図生成コアロジック（727行）
+  - Mermaid AI生成機能
+  - Chart.js AI生成機能
+  - SVG AI生成機能
+  - プレビュー機能
+  - コード抽出機能
+
+**Updated Modules**
+- `src/editor/simple-editor.js` - 図生成機能統合
+- `src/editor/editor.html` - 図生成UIの追加
+- `src/lib/ai-manager.js` - AI図生成プロンプト対応
+
 ### Phase 1.0 - AI Chat Feature (2025-10-24)
 
 #### Added
