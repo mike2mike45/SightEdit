@@ -36,7 +36,20 @@ export class PromptManager {
      */
     async loadTemplates() {
         try {
-            const result = await chrome.storage.local.get(this.storageKey);
+            let result = {};
+            
+            // Feature detection: Chrome Extension環境かチェック
+            if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                // Chrome Extension環境
+                result = await chrome.storage.local.get(this.storageKey);
+            } else {
+                // スタンドアロン環境: localStorage を使用
+                const stored = localStorage.getItem(this.storageKey);
+                if (stored) {
+                    result[this.storageKey] = JSON.parse(stored);
+                }
+            }
+            
             const stored = result[this.storageKey];
 
             if (stored && Array.isArray(stored)) {
@@ -59,9 +72,16 @@ export class PromptManager {
      */
     async saveAllTemplates() {
         try {
-            await chrome.storage.local.set({
-                [this.storageKey]: this.templates
-            });
+            // Feature detection: Chrome Extension環境かチェック
+            if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                // Chrome Extension環境
+                await chrome.storage.local.set({
+                    [this.storageKey]: this.templates
+                });
+            } else {
+                // スタンドアロン環境: localStorage を使用
+                localStorage.setItem(this.storageKey, JSON.stringify(this.templates));
+            }
         } catch (error) {
             console.error('Failed to save templates:', error);
             throw error;

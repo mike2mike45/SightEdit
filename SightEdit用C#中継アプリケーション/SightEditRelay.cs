@@ -2,6 +2,7 @@ using System;
 using System.Configuration;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Text;
 using System.Threading;
@@ -206,6 +207,11 @@ namespace SightEditRelay
                 {
                     HandleFileRequest(request, response);
                 }
+                else if (path.StartsWith("/") && !path.StartsWith("/api/"))
+                {
+                    // 静的ファイル配信
+                    HandleStaticFileRequest(request, response, path);
+                }
                 else if (path == "/api/versions")
                 {
                     HandleVersionsRequest(request, response).Wait();
@@ -217,6 +223,26 @@ namespace SightEditRelay
                 else if (path.StartsWith("/api/versions/") && path.EndsWith("/restore"))
                 {
                     HandleRestoreRequest(request, response).Wait();
+                }
+                else if (path == "/api/drive/folders")
+                {
+                    HandleDriveFoldersRequest(request, response).Wait();
+                }
+                else if (path == "/api/drive/images")
+                {
+                    HandleDriveImagesRequest(request, response).Wait();
+                }
+                else if (path == "/api/drive/files")
+                {
+                    HandleDriveFilesRequest(request, response).Wait();
+                }
+                else if (path.StartsWith("/api/drive/share/"))
+                {
+                    HandleDriveShareRequest(request, response).Wait();
+                }
+                else if (path == "/api/status")
+                {
+                    HandleStatusRequest(request, response);
                 }
                 else
                 {
@@ -241,33 +267,196 @@ namespace SightEditRelay
         {
             try
             {
-                string fileContent;
-                if (_filePath != null && File.Exists(_filePath))
+                if (request.HttpMethod == "GET")
                 {
-                    // ファイル内容を読み込み
-                    fileContent = File.ReadAllText(_filePath, Encoding.UTF8);
-                    _logger.LogInfo("ファイル内容を送信");
+                    // エディターHTMLファイルのパス
+                    string editorHtmlPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "dist", "editor.html");
+                    
+                    if (!File.Exists(editorHtmlPath))
+                    {
+                        // dist/editor.htmlが見つからない場合は相対パスでも試す
+                        editorHtmlPath = Path.Combine(Directory.GetCurrentDirectory(), "dist", "editor.html");
+                    }
+                    
+                    if (File.Exists(editorHtmlPath))
+                    {
+                        // HTMLファイルを読み込み
+                        string editorHtml = File.ReadAllText(editorHtmlPath, Encoding.UTF8);
+                        
+                        if (_filePath != null && File.Exists(_filePath))
+                        {
+                            // ファイル内容を読み込み
+                            string fileContent = File.ReadAllText(_filePath, Encoding.UTF8);
+                            string fileName = Path.GetFileName(_filePath);
+                            
+                            // ファイル内容をJavaScriptとして埋め込み
+                            string fileDataScript = $@"
+        <script>
+          window.INITIAL_FILE_DATA = {{
+            fileName: {JsonConvert.SerializeObject(fileName)},
+            content: {JsonConvert.SerializeObject(fileContent)},
+            originalPath: {JsonConvert.SerializeObject(_filePath)}
+          }};
+          console.log('🎯 初期ファイルデータ設定完了:', window.INITIAL_FILE_DATA.fileName);
+        </script>
+      ";
+                            
+                            // </head>タグの直前にスクリプトを挿入
+                            editorHtml = editorHtml.Replace("</head>", fileDataScript + "</head>");
+                            _logger.LogInfo($"ファイル内容をHTML埋め込み: {fileName}");
+                        }
+                        else
+                        {
+                            _logger.LogInfo("新規ファイルモードでHTML送信");
+                        }
+                        
+                        // HTMLレスポンスとして送信
+                        response.ContentType = "text/html; charset=utf-8";
+                        byte[] buffer = Encoding.UTF8.GetBytes(editorHtml);
+                        response.ContentLength64 = buffer.Length;
+                        response.StatusCode = 200;
+                        response.OutputStream.Write(buffer, 0, buffer.Length);
+                    }
+                    else
+                    {
+                        // editor.htmlが見つからない場合はエラーレスポンス
+                        _logger.LogError($"editor.htmlが見つかりません: {editorHtmlPath}");
+                        response.StatusCode = 404;
+                        string errorHtml = "<html><body><h1>エラー</h1><p>エディターファイルが見つかりません</p></body></html>";
+                        byte[] buffer = Encoding.UTF8.GetBytes(errorHtml);
+                        response.ContentType = "text/html; charset=utf-8";
+                        response.ContentLength64 = buffer.Length;
+                        response.OutputStream.Write(buffer, 0, buffer.Length);
+                    }
                 }
-                else
+                else if (request.HttpMethod == "POST")
                 {
-                    // 新規ファイルの場合は空の内容を返す
-                    fileContent = "# 新規Markdownファイル\n\nここにMarkdownを記述してください...";
-                    _logger.LogInfo("新規ファイル用の初期内容を送信");
+                    // POSTリクエスト：ファイル保存処理
+                    using (var reader = new StreamReader(request.InputStream, request.ContentEncoding))
+                    {
+                        var requestBody = reader.ReadToEnd();
+                        var data = JsonConvert.DeserializeObject<dynamic>(requestBody);
+                        
+                        string content = data.content;
+                        string filePath = data.filePath ?? _filePath;
+                        
+                        if (!string.IsNullOrEmpty(filePath))
+                        {
+                            File.WriteAllText(filePath, content, Encoding.UTF8);
+                            _logger.LogInfo($"ファイルを保存しました: {filePath}");
+                            
+                            response.StatusCode = 200;
+                            var responseData = JsonConvert.SerializeObject(new { success = true, message = "保存しました" });
+                            byte[] buffer = Encoding.UTF8.GetBytes(responseData);
+                            response.ContentType = "application/json; charset=utf-8";
+                            response.ContentLength64 = buffer.Length;
+                            response.OutputStream.Write(buffer, 0, buffer.Length);
+                        }
+                        else
+                        {
+                            response.StatusCode = 400;
+                            var responseData = JsonConvert.SerializeObject(new { success = false, message = "ファイルパスが指定されていません" });
+                            byte[] buffer = Encoding.UTF8.GetBytes(responseData);
+                            response.ContentType = "application/json; charset=utf-8";
+                            response.ContentLength64 = buffer.Length;
+                            response.OutputStream.Write(buffer, 0, buffer.Length);
+                        }
+                    }
                 }
-
-                // レスポンス設定
-                byte[] buffer = Encoding.UTF8.GetBytes(fileContent);
-                response.ContentLength64 = buffer.Length;
-                response.ContentType = "text/markdown; charset=utf-8";
-                response.StatusCode = 200;
-
-                // ファイル内容をレスポンスとして返す
-                response.OutputStream.Write(buffer, 0, buffer.Length);
             }
             catch (Exception ex)
             {
                 _logger.LogError($"ファイルリクエスト処理エラー: {ex.Message}");
                 response.StatusCode = 500;
+            }
+        }
+
+        private static void HandleStaticFileRequest(HttpListenerRequest request, HttpListenerResponse response, string path)
+        {
+            try
+            {
+                // パスからファイル名を取得（先頭の'/'を除去）
+                string fileName = path.TrimStart('/');
+                
+                // セキュリティチェック：パストラバーサル攻撃を防ぐ
+                if (fileName.Contains("..") || fileName.Contains("\\"))
+                {
+                    response.StatusCode = 403;
+                    return;
+                }
+                
+                // ファイルパスを構築
+                string staticFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "dist", fileName);
+                
+                if (!File.Exists(staticFilePath))
+                {
+                    // 現在のディレクトリからも探してみる
+                    staticFilePath = Path.Combine(Directory.GetCurrentDirectory(), "dist", fileName);
+                }
+                
+                if (File.Exists(staticFilePath))
+                {
+                    // ファイルの内容を読み込み
+                    byte[] fileContent = File.ReadAllBytes(staticFilePath);
+                    
+                    // Content-Typeを設定
+                    string contentType = GetContentType(fileName);
+                    response.ContentType = contentType;
+                    
+                    // ファイル内容を送信
+                    response.StatusCode = 200;
+                    response.ContentLength64 = fileContent.Length;
+                    response.OutputStream.Write(fileContent, 0, fileContent.Length);
+                    
+                    _logger.LogInfo($"静的ファイル配信: {fileName} ({fileContent.Length} bytes)");
+                }
+                else
+                {
+                    // ファイルが見つからない
+                    response.StatusCode = 404;
+                    _logger.LogWarning($"静的ファイルが見つかりません: {fileName}");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"静的ファイル配信エラー: {ex.Message}");
+                response.StatusCode = 500;
+            }
+        }
+
+        private static string GetContentType(string fileName)
+        {
+            string extension = Path.GetExtension(fileName).ToLowerInvariant();
+            
+            switch (extension)
+            {
+                case ".html":
+                    return "text/html; charset=utf-8";
+                case ".css":
+                    return "text/css; charset=utf-8";
+                case ".js":
+                    return "application/javascript; charset=utf-8";
+                case ".json":
+                    return "application/json; charset=utf-8";
+                case ".png":
+                    return "image/png";
+                case ".jpg":
+                case ".jpeg":
+                    return "image/jpeg";
+                case ".gif":
+                    return "image/gif";
+                case ".svg":
+                    return "image/svg+xml";
+                case ".ico":
+                    return "image/x-icon";
+                case ".woff":
+                    return "font/woff";
+                case ".woff2":
+                    return "font/woff2";
+                case ".ttf":
+                    return "font/ttf";
+                default:
+                    return "application/octet-stream";
             }
         }
 
@@ -404,6 +593,168 @@ namespace SightEditRelay
             response.OutputStream.Write(buffer, 0, buffer.Length);
         }
 
+        /// <summary>
+        /// Google Driveフォルダ一覧API
+        /// </summary>
+        private static async Task HandleDriveFoldersRequest(HttpListenerRequest request, HttpListenerResponse response)
+        {
+            try
+            {
+                if (_driveService == null)
+                {
+                    SendJsonResponse(response, 503, new { error = "Google Drive service not available" });
+                    return;
+                }
+
+                if (request.HttpMethod == "GET")
+                {
+                    var parentId = request.QueryString["parentId"] ?? "root";
+                    var folders = await _driveService.GetFoldersAsync(parentId);
+                    SendJsonResponse(response, 200, new { folders = folders });
+                }
+                else
+                {
+                    SendJsonResponse(response, 405, new { error = "Method not allowed" });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Drive folders request error: {ex.Message}");
+                SendJsonResponse(response, 500, new { error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Google Drive画像一覧API
+        /// </summary>
+        private static async Task HandleDriveImagesRequest(HttpListenerRequest request, HttpListenerResponse response)
+        {
+            try
+            {
+                if (_driveService == null)
+                {
+                    SendJsonResponse(response, 503, new { error = "Google Drive service not available" });
+                    return;
+                }
+
+                if (request.HttpMethod == "GET")
+                {
+                    var parentId = request.QueryString["parentId"] ?? "root";
+                    var images = await _driveService.GetImagesAsync(parentId);
+                    SendJsonResponse(response, 200, new { images = images });
+                }
+                else
+                {
+                    SendJsonResponse(response, 405, new { error = "Method not allowed" });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Drive images request error: {ex.Message}");
+                SendJsonResponse(response, 500, new { error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Google Driveファイル・フォルダ一覧API
+        /// </summary>
+        private static async Task HandleDriveFilesRequest(HttpListenerRequest request, HttpListenerResponse response)
+        {
+            try
+            {
+                if (_driveService == null)
+                {
+                    SendJsonResponse(response, 503, new { error = "Google Drive service not available" });
+                    return;
+                }
+
+                if (request.HttpMethod == "GET")
+                {
+                    var parentId = request.QueryString["parentId"] ?? "root";
+                    var items = await _driveService.GetFilesAndFoldersAsync(parentId);
+                    SendJsonResponse(response, 200, new { items = items });
+                }
+                else
+                {
+                    SendJsonResponse(response, 405, new { error = "Method not allowed" });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Drive files request error: {ex.Message}");
+                SendJsonResponse(response, 500, new { error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Google Drive共有リンク取得API
+        /// </summary>
+        private static async Task HandleDriveShareRequest(HttpListenerRequest request, HttpListenerResponse response)
+        {
+            try
+            {
+                if (_driveService == null)
+                {
+                    SendJsonResponse(response, 503, new { error = "Google Drive service not available" });
+                    return;
+                }
+
+                if (request.HttpMethod == "GET")
+                {
+                    // URLから ファイルIDを抽出: /api/drive/share/{fileId}
+                    var urlParts = request.Url.AbsolutePath.Split('/');
+                    if (urlParts.Length >= 4 && urlParts[3] != "")
+                    {
+                        var fileId = urlParts[4];
+                        var shareLink = await _driveService.GetSharableLinkAsync(fileId);
+                        SendJsonResponse(response, 200, new { shareLink = shareLink });
+                    }
+                    else
+                    {
+                        SendJsonResponse(response, 400, new { error = "File ID required" });
+                    }
+                }
+                else
+                {
+                    SendJsonResponse(response, 405, new { error = "Method not allowed" });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Drive share request error: {ex.Message}");
+                SendJsonResponse(response, 500, new { error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// ステータス確認API
+        /// </summary>
+        private static void HandleStatusRequest(HttpListenerRequest request, HttpListenerResponse response)
+        {
+            try
+            {
+                if (request.HttpMethod == "GET")
+                {
+                    var status = new
+                    {
+                        status = "running",
+                        driveServiceAvailable = _driveService != null,
+                        timestamp = DateTime.Now.ToString("o")
+                    };
+                    SendJsonResponse(response, 200, status);
+                }
+                else
+                {
+                    SendJsonResponse(response, 405, new { error = "Method not allowed" });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Status request error: {ex.Message}");
+                SendJsonResponse(response, 500, new { error = ex.Message });
+            }
+        }
+
         private static void OpenBrowser()
         {
             try
@@ -419,19 +770,42 @@ namespace SightEditRelay
                 if (_filePath != null)
                 {
                     // ファイル指定がある場合は外部ファイル読み込みモード
-                    extensionUrl = $"chrome-extension://{extensionId}{extensionPath}?file=http://localhost:8080/file";
+                    // ポート番号を動的に取得
+                    string portUrl = "";
+                    foreach (string prefix in _listener.Prefixes)
+                    {
+                        portUrl = prefix;
+                        break;
+                    }
+                    string port = portUrl.Split(':')[2].TrimEnd('/');
+                    // ファイルパスとファイル名をURLエンコード
+                    string encodedPath = Uri.EscapeDataString(_filePath);
+                    string fileName = Path.GetFileName(_filePath);
+                    string encodedFileName = Uri.EscapeDataString(fileName);
+                    
+                    extensionUrl = $"http://localhost:{port}/file?path={encodedPath}&name={encodedFileName}";
+                    _logger.LogInfo($"ファイルモードで起動: {_filePath}");
+                    _logger.LogInfo($"生成URL: {extensionUrl}");
                 }
                 else
                 {
                     // ファイル指定がない場合は新規作成モード
-                    extensionUrl = $"chrome-extension://{extensionId}{extensionPath}";
+                    string portUrl = "";
+                    foreach (string prefix in _listener.Prefixes)
+                    {
+                        portUrl = prefix;
+                        break;
+                    }
+                    string port = portUrl.Split(':')[2].TrimEnd('/');
+                    extensionUrl = $"http://localhost:{port}/";
+                    _logger.LogInfo("新規ファイルモードで起動");
                 }
 
-                _logger.LogInfo($"使用する拡張機能ID: {extensionId}");
+                _logger.LogInfo($"対象URL: {extensionUrl}");
 
                 if (!string.IsNullOrEmpty(chromePath))
                 {
-                    // Chromeブラウザで拡張機能URLを開く
+                    // Chromeブラウザでlocalhostサーバーを開く
                     ProcessStartInfo startInfo = new ProcessStartInfo
                     {
                         FileName = chromePath,

@@ -78,6 +78,13 @@ export class VersionManager {
                 throw new Error(data.error || 'バージョンの保存に失敗しました');
             }
         } catch (error) {
+            // ネットワークエラーの場合はより詳細なメッセージを表示
+            if (error.message === 'Failed to fetch' || error.name === 'TypeError') {
+                const serverError = new Error('SightEditRelayサーバーに接続できません。\n\nSightEditRelay.exeが起動していることを確認してください。\n\nサーバーはポート8080で実行されている必要があります。');
+                serverError.isServerConnectionError = true;
+                console.error('サーバー接続エラー:', serverError.message);
+                throw serverError;
+            }
             console.error('バージョン保存エラー:', error);
             throw error;
         }

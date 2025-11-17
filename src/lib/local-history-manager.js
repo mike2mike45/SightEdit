@@ -51,12 +51,20 @@ export class LocalHistoryManager {
      */
     async getHistory() {
         try {
-            return new Promise((resolve) => {
-                chrome.storage.local.get([this.storageKey], (result) => {
-                    const history = result[this.storageKey] || [];
-                    resolve(history);
+            // Feature detection: Chrome Extension環境かチェック
+            if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                // Chrome Extension環境
+                return new Promise((resolve) => {
+                    chrome.storage.local.get([this.storageKey], (result) => {
+                        const history = result[this.storageKey] || [];
+                        resolve(history);
+                    });
                 });
-            });
+            } else {
+                // スタンドアロン環境: localStorage を使用
+                const stored = localStorage.getItem(this.storageKey);
+                return stored ? JSON.parse(stored) : [];
+            }
         } catch (error) {
             console.error('履歴取得エラー:', error);
             return [];
@@ -110,21 +118,29 @@ export class LocalHistoryManager {
      * ストレージに保存
      */
     async saveToStorage(history) {
-        return new Promise((resolve, reject) => {
-            try {
-                const data = {};
-                data[this.storageKey] = history;
-                chrome.storage.local.set(data, () => {
-                    if (chrome.runtime.lastError) {
-                        reject(new Error(chrome.runtime.lastError.message));
-                    } else {
-                        resolve();
-                    }
+        try {
+            // Feature detection: Chrome Extension環境かチェック
+            if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                // Chrome Extension環境
+                return new Promise((resolve, reject) => {
+                    const data = {};
+                    data[this.storageKey] = history;
+                    chrome.storage.local.set(data, () => {
+                        if (chrome.runtime.lastError) {
+                            reject(new Error(chrome.runtime.lastError.message));
+                        } else {
+                            resolve();
+                        }
+                    });
                 });
-            } catch (error) {
-                reject(error);
+            } else {
+                // スタンドアロン環境: localStorage を使用
+                localStorage.setItem(this.storageKey, JSON.stringify(history));
+                return Promise.resolve();
             }
-        });
+        } catch (error) {
+            return Promise.reject(error);
+        }
     }
 
     /**
@@ -202,39 +218,83 @@ export class LocalHistoryManager {
      * ストレージ使用状況を取得
      */
     async getStorageInfo() {
-        return new Promise((resolve) => {
-            chrome.storage.local.getBytesInUse([this.storageKey], (bytes) => {
-                resolve({
+        try {
+            // Feature detection: Chrome Extension環境かチェック
+            if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                // Chrome Extension環境
+                return new Promise((resolve) => {
+                    chrome.storage.local.getBytesInUse([this.storageKey], (bytes) => {
+                        resolve({
+                            bytesInUse: bytes,
+                            formatted: this.formatFileSize(bytes)
+                        });
+                    });
+                });
+            } else {
+                // スタンドアロン環境: localStorage サイズを推定
+                const stored = localStorage.getItem(this.storageKey);
+                const bytes = stored ? new Blob([stored]).size : 0;
+                return Promise.resolve({
                     bytesInUse: bytes,
                     formatted: this.formatFileSize(bytes)
                 });
-            });
-        });
+            }
+        } catch (error) {
+            return Promise.resolve({ bytesInUse: 0, formatted: '0 B' });
+        }
     }
 
     /**
      * 自動保存機能の有効/無効を設定
      */
     async setAutoSaveEnabled(enabled) {
-        return new Promise((resolve) => {
-            chrome.storage.local.set({ autoSaveEnabled: enabled }, () => {
-                resolve();
-            });
-        });
+        try {
+            // Feature detection: Chrome Extension環境かチェック
+            if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                // Chrome Extension環境
+                return new Promise((resolve) => {
+                    chrome.storage.local.set({ autoSaveEnabled: enabled }, () => {
+                        resolve();
+                    });
+                });
+            } else {
+                // スタンドアロン環境: localStorage を使用
+                localStorage.setItem('sightedit_autoSaveEnabled', JSON.stringify(enabled));
+                return Promise.resolve();
+            }
+        } catch (error) {
+            return Promise.resolve();
+        }
     }
 
     /**
      * 自動保存の設定を取得
      */
     async getAutoSaveSettings() {
-        return new Promise((resolve) => {
-            chrome.storage.local.get(['autoSaveEnabled', 'autoSaveInterval'], (result) => {
-                resolve({
-                    enabled: result.autoSaveEnabled !== false, // デフォルトtrue
-                    interval: result.autoSaveInterval || 300 // デフォルト5分
+        try {
+            // Feature detection: Chrome Extension環境かチェック
+            if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                // Chrome Extension環境
+                return new Promise((resolve) => {
+                    chrome.storage.local.get(['autoSaveEnabled', 'autoSaveInterval'], (result) => {
+                        resolve({
+                            enabled: result.autoSaveEnabled !== false, // デフォルトtrue
+                            interval: result.autoSaveInterval || 300 // デフォルト5分
+                        });
+                    });
                 });
-            });
-        });
+            } else {
+                // スタンドアロン環境: localStorage を使用
+                const enabled = localStorage.getItem('sightedit_autoSaveEnabled');
+                const interval = localStorage.getItem('sightedit_autoSaveInterval');
+                return Promise.resolve({
+                    enabled: enabled !== null ? JSON.parse(enabled) : true, // デフォルトtrue
+                    interval: interval ? JSON.parse(interval) : 300 // デフォルト5分
+                });
+            }
+        } catch (error) {
+            return Promise.resolve({ enabled: true, interval: 300 });
+        }
     }
 }
 

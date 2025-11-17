@@ -11,15 +11,13 @@
     "dev": "webpack --mode=development --watch",
     "clean": "rimraf dist/*",
     "test": "jest",
-    "test:watch": "jest --watch",
-    "server": "node server.js"
+    "test:watch": "jest --watch"
   },
   "keywords": [
     "chrome-extension",
     "markdown",
     "editor",
     "wysiwyg",
-    "tiptap",
     "ai",
     "gemini",
     "claude"
@@ -42,12 +40,17 @@
     "webpack-cli": "^5.1.4"
   },
   "dependencies": {
+    "docx": "^9.5.1",
     "dompurify": "^3.0.8",
     "html-docx-js": "^0.3.1",
     "html2canvas": "^1.4.1",
     "jspdf": "^3.0.3",
     "mammoth": "^1.11.0",
     "marked": "^14.1.2",
+    "markdown-docx": "^1.0.6",
+    "unified": "^11.0.4",
+    "remark-parse": "^11.0.0",
+    "remark-docx": "^0.2.0",
     "turndown": "^7.2.1"
   }
 }

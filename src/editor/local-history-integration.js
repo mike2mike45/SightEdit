@@ -54,8 +54,8 @@ export class LocalHistoryIntegration {
         // 履歴ボタンを作成
         const historyButton = document.createElement('button');
         historyButton.className = 'toolbar-btn';
-        historyButton.title = '編集履歴';
-        historyButton.innerHTML = '📋';
+        historyButton.title = '編集履歴を表示';
+        historyButton.innerHTML = '📋 履歴';
         historyButton.addEventListener('click', () => {
             this.toggleHistoryPanel();
         });

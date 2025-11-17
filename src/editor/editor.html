@@ -20,59 +20,155 @@
     }
 
     .header {
-      background: white;
-      border-bottom: 1px solid #dee2e6;
-      padding: 12px 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-bottom: none;
+      padding: 8px 16px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      box-shadow: 0 2px 10px rgba(102, 126, 234, 0.3);
+      height: 52px;
     }
 
     .logo {
       display: flex;
       align-items: center;
-      font-size: 18px;
-      font-weight: 600;
-      color: #333;
+      gap: 12px;
     }
 
     .logo-icon {
-      margin-right: 8px;
-      font-size: 20px;
+      font-size: 24px;
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+
+    .logo-icon:hover {
+      transform: scale(1.1);
+    }
+
+    .file-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255, 255, 255, 0.15);
+      padding: 4px 12px;
+      border-radius: 20px;
+      backdrop-filter: blur(10px);
+      max-width: 250px;
+    }
+
+    .file-label {
+      display: none;
+    }
+
+    .file-name {
+      font-size: 13px;
+      color: white;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 200px;
+    }
+
+    .file-name:hover {
+      opacity: 0.8;
+    }
+
+    .file-name.editing {
+      background: rgba(255, 255, 255, 0.95);
+      color: #333;
+      border: none;
+      outline: none;
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+
+    .modified-indicator {
+      color: #ffd700;
+      font-size: 8px;
+      font-weight: bold;
+      vertical-align: super;
+      margin-left: 2px;
+    }
+
+    /* ドラッグアンドドロップ用スタイル */
+    body.drag-over {
+      position: relative;
+    }
+
+    body.drag-over::after {
+      content: "📁 ファイルをドロップしてください";
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 123, 255, 0.9);
+      color: white;
+      font-size: 24px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      pointer-events: none;
     }
 
     .header-controls {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 4px;
     }
 
     .btn {
-      padding: 6px 12px;
-      border: 1px solid #dee2e6;
-      border-radius: 4px;
-      background: white;
-      color: #333;
+      width: 36px;
+      height: 36px;
+      padding: 0;
+      border: none;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
       cursor: pointer;
-      font-size: 14px;
+      font-size: 18px;
       transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
     }
 
     .btn:hover {
-      background: #f8f9fa;
-      border-color: #adb5bd;
+      background: rgba(255, 255, 255, 0.2);
+      transform: scale(1.05);
     }
 
-    .btn.primary {
-      background: #007bff;
+    .btn:active {
+      transform: scale(0.95);
+    }
+
+    .btn-tooltip {
+      position: absolute;
+      bottom: -30px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.8);
       color: white;
-      border-color: #007bff;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+      z-index: 1000;
     }
 
-    .btn.primary:hover {
-      background: #0056b3;
-      border-color: #0056b3;
+    .btn:hover .btn-tooltip {
+      opacity: 1;
     }
 
     .main-container {
@@ -797,7 +893,260 @@
       border-color: #545b62;
     }
 
+    /* 検索・置換ダイアログ */
+    .search-replace-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10005;
+    }
+
+    .search-replace-dialog {
+      background: white;
+      border-radius: 8px;
+      padding: 24px;
+      width: 500px;
+      max-width: 90vw;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    }
+
+    .search-replace-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #dee2e6;
+    }
+
+    .search-replace-title {
+      margin: 0;
+      color: #333;
+      font-size: 18px;
+    }
+
+    .search-replace-close {
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: #6c757d;
+      padding: 0;
+      width: 30px;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .search-replace-close:hover {
+      color: #333;
+    }
+
+    .search-replace-form {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .search-field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .search-field-label {
+      font-size: 14px;
+      font-weight: 500;
+      color: #333;
+    }
+
+    .search-input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .search-input {
+      flex: 1;
+      padding: 8px 12px;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      font-size: 14px;
+      outline: none;
+    }
+
+    .search-input:focus {
+      border-color: #007bff;
+      box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+    }
+
+    .search-count {
+      position: absolute;
+      right: 10px;
+      font-size: 12px;
+      color: #6c757d;
+      background: #f8f9fa;
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+
+    .search-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      margin: 10px 0;
+    }
+
+    .search-checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .search-checkbox {
+      margin: 0;
+    }
+
+    .search-checkbox-label {
+      font-size: 14px;
+      color: #333;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .search-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 20px;
+      padding-top: 15px;
+      border-top: 1px solid #dee2e6;
+    }
+
+    .search-navigation {
+      display: flex;
+      gap: 8px;
+    }
+
+    .search-nav-btn {
+      padding: 8px 12px;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      background: white;
+      color: #333;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .search-nav-btn:hover {
+      background: #f8f9fa;
+      border-color: #adb5bd;
+    }
+
+    .search-nav-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .search-main-actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    .search-btn {
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      border: none;
+      transition: all 0.2s;
+    }
+
+    .search-btn-secondary {
+      background: #6c757d;
+      color: white;
+    }
+
+    .search-btn-secondary:hover {
+      background: #5a6268;
+    }
+
+    .search-btn-danger {
+      background: #dc3545;
+      color: white;
+    }
+
+    .search-btn-danger:hover {
+      background: #c82333;
+    }
+
+    .search-btn-primary {
+      background: #007bff;
+      color: white;
+    }
+
+    .search-btn-primary:hover {
+      background: #0056b3;
+    }
+
+    /* 検索結果のハイライト */
+    .search-highlight {
+      background: #fff3cd;
+      border: 1px solid #ffeaa7;
+      border-radius: 2px;
+      padding: 1px 2px;
+    }
+
+    .search-highlight.current {
+      background: #007bff;
+      color: white;
+      border-color: #0056b3;
+    }
+
     @media (max-width: 768px) {
+      .header {
+        padding: 8px 12px;
+      }
+      
+      .logo-icon {
+        font-size: 20px;
+      }
+      
+      .file-info {
+        max-width: 150px;
+        padding: 3px 10px;
+      }
+      
+      .file-name {
+        max-width: 120px;
+        font-size: 12px;
+      }
+      
+      .btn {
+        width: 32px;
+        height: 32px;
+        font-size: 16px;
+      }
+      
+      .header-controls {
+        gap: 2px;
+      }
+      
+      .btn-tooltip {
+        display: none;
+      }
+
       .main-container {
         flex-direction: column;
       }
@@ -810,9 +1159,313 @@
         flex-wrap: wrap;
       }
 
-      .header-controls {
-        flex-wrap: wrap;
-        gap: 8px;
+      .search-replace-dialog {
+        width: 95vw;
+        padding: 20px;
+      }
+
+      .search-options {
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .search-actions {
+        flex-direction: column;
+        gap: 15px;
+        align-items: stretch;
+      }
+
+      .search-navigation {
+        justify-content: center;
+      }
+    }
+
+    /* 画像挿入ダイアログのスタイル */
+    .image-insert-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .image-insert-dialog {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      width: 90%;
+      max-width: 600px;
+      max-height: 80%;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .dialog-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 24px;
+      border-bottom: 1px solid #e0e0e0;
+      background: #f8f9fa;
+    }
+
+    .dialog-header h3 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+      color: #333;
+    }
+
+    .close-btn {
+      background: none;
+      border: none;
+      font-size: 20px;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 4px;
+      color: #666;
+    }
+
+    .close-btn:hover {
+      background: #e9ecef;
+      color: #333;
+    }
+
+    .dialog-content {
+      flex: 1;
+      padding: 24px;
+      overflow-y: auto;
+    }
+
+    .insert-method-tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 20px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+
+    .method-tab {
+      background: none;
+      border: none;
+      padding: 12px 20px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      color: #666;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s ease;
+    }
+
+    .method-tab:hover {
+      color: #333;
+      background: #f8f9fa;
+    }
+
+    .method-tab.active {
+      color: #0066cc;
+      border-bottom-color: #0066cc;
+      background: #f0f8ff;
+    }
+
+    .insert-method-content {
+      position: relative;
+    }
+
+    .method-panel {
+      display: none;
+    }
+
+    .method-panel.active {
+      display: block;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 500;
+      color: #333;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 6px;
+      font-size: 14px;
+      transition: border-color 0.2s ease;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: #0066cc;
+    }
+
+    .drive-selection-area {
+      text-align: center;
+      padding: 40px 20px;
+    }
+
+    .drive-status {
+      margin-bottom: 20px;
+    }
+
+    .status-checking,
+    .status-success,
+    .status-warning,
+    .status-error {
+      padding: 12px 16px;
+      border-radius: 6px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .status-success {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+
+    .status-warning {
+      background: #fff3e0;
+      color: #f57c00;
+    }
+
+    .status-error {
+      background: #ffebee;
+      color: #d32f2f;
+    }
+
+    .status-checking {
+      background: #f3e5f5;
+      color: #7b1fa2;
+    }
+
+    .selected-drive-file {
+      display: none;
+      align-items: center;
+      gap: 16px;
+      padding: 16px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      background: #f8f9fa;
+    }
+
+    .file-preview-small {
+      width: 48px;
+      height: 48px;
+      border-radius: 6px;
+      overflow: hidden;
+      background: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .file-preview-small img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .file-info-small {
+      flex: 1;
+      text-align: left;
+    }
+
+    .file-info-small .file-name {
+      font-weight: 500;
+      color: #333;
+      margin-bottom: 2px;
+    }
+
+    .file-info-small .file-meta {
+      font-size: 12px;
+      color: #666;
+    }
+
+    .dialog-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      padding: 20px 24px;
+      border-top: 1px solid #e0e0e0;
+      background: white;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+
+    .btn-secondary {
+      background: #f5f5f5;
+      color: #333;
+      border: 1px solid #ddd;
+    }
+
+    .btn-secondary:hover {
+      background: #e9ecef;
+    }
+
+    .btn-primary {
+      background: #0066cc;
+      color: white;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: #0052a3;
+    }
+
+    .btn-primary:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+
+    .btn-small {
+      padding: 6px 12px;
+      font-size: 12px;
+    }
+
+    @media (max-width: 768px) {
+      .image-insert-dialog {
+        width: 95%;
+        margin: 10px;
+      }
+      
+      .dialog-content {
+        padding: 16px;
+      }
+      
+      .insert-method-tabs {
+        flex-direction: column;
+        gap: 0;
+      }
+      
+      .method-tab {
+        text-align: left;
+        border-bottom: 1px solid #e0e0e0;
+        border-radius: 0;
+      }
+      
+      .selected-drive-file {
+        flex-direction: column;
+        text-align: center;
       }
     }
   </style>
@@ -820,16 +1473,20 @@
 <body>
   <div class="header">
     <div class="logo">
-      <span class="logo-icon">📝</span>
-      SightEdit
+      <span class="logo-icon" title="SightEdit">👁️</span>
+      <div class="file-info">
+        <span class="file-label">ファイル:</span>
+        <span id="current-file-name" class="file-name" title="クリックして名前を変更">無題</span>
+        <span id="file-modified-indicator" class="modified-indicator" style="display: none;">●</span>
+      </div>
     </div>
     <div class="header-controls">
-      <button class="btn" id="new-file-btn" title="新規ファイル">📄 新規</button>
-      <button class="btn" id="open-file-btn" title="ファイルを開く">📂 開く</button>
-      <button class="btn" id="save-file-btn" title="保存">💾 保存</button>
-      <button class="btn" id="save-as-btn" title="名前を付けて保存">💾 名前付き保存</button>
-      <button class="btn" id="export-btn">📤 エクスポート</button>
-      <button class="btn" id="settings-btn">⚙️ 設定</button>
+      <button class="btn" id="new-file-btn" title="新規ファイル">📄<span class="btn-tooltip">新規</span></button>
+      <button class="btn" id="open-file-btn" title="ファイルを開く">📂<span class="btn-tooltip">開く</span></button>
+      <button class="btn" id="save-file-btn" title="保存">💾<span class="btn-tooltip">保存</span></button>
+      <button class="btn" id="save-as-btn" title="名前を付けて保存">📁<span class="btn-tooltip">別名保存</span></button>
+      <button class="btn" id="export-btn" title="エクスポート">📤<span class="btn-tooltip">エクスポート</span></button>
+      <button class="btn" id="settings-btn" title="設定">⚙️<span class="btn-tooltip">設定</span></button>
     </div>
   </div>
 
@@ -879,7 +1536,13 @@
         </div>
 
         <div class="toolbar-group">
+          <button class="toolbar-btn" id="search-replace-btn" title="検索と置換 (Ctrl+F)">🔍 検索</button>
+        </div>
+
+        <div class="toolbar-group">
           <button class="toolbar-btn" id="ai-command-btn" title="AIコマンド">🤖 AI</button>
+          <!-- Subagents機能は削除済み -->
+          <button class="toolbar-btn" id="diagram-btn" title="図表生成">📊 図表</button>
           <button class="toolbar-btn" id="chat-toggle-btn" title="AIチャット (Ctrl+K)">💬 Chat</button>
           <button class="toolbar-btn" id="toggle-mode-btn" title="WYSIWYG/ソース切り替え">🔄 モード</button>
           <button class="toolbar-btn" id="toc-btn" title="目次生成">📋 目次</button>
@@ -1172,8 +1835,408 @@
     </div>
   </div>
 
+  <!-- 図表生成モーダル -->
+  <div id="diagram-modal" class="diagram-modal" style="display: none;">
+    <div class="diagram-container">
+      <div class="diagram-header">
+        <h3 class="diagram-title">📊 AI図表生成</h3>
+        <button class="diagram-close" id="diagram-close">×</button>
+      </div>
+      
+      <div class="diagram-body">
+        <!-- 図表タイプ選択 -->
+        <div class="diagram-types">
+          <h4>図表タイプを選択:</h4>
+          <div class="diagram-type-grid" id="diagram-type-grid">
+            <!-- ここに動的にボタンが生成される -->
+          </div>
+        </div>
+        
+        <!-- 入力エリア -->
+        <div class="diagram-input-section">
+          <label for="diagram-description">説明（自然言語で入力）:</label>
+          <textarea 
+            id="diagram-description" 
+            class="diagram-description"
+            rows="3"
+            placeholder="例：ユーザー登録のフローを表すフローチャート"
+          ></textarea>
+        </div>
+        
+        <!-- サイズ設定 -->
+        <div class="diagram-size-section">
+          <h4>サイズ設定:</h4>
+          <div class="diagram-size-inputs">
+            <div class="size-input-group">
+              <label for="diagram-width">幅:</label>
+              <input type="number" id="diagram-width" value="800" min="200" max="2000" step="50">
+              <span>px</span>
+            </div>
+            <div class="size-input-group">
+              <label for="diagram-height">高さ:</label>
+              <input type="number" id="diagram-height" value="600" min="200" max="2000" step="50">
+              <span>px</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- プレビューエリア -->
+        <div class="diagram-preview-section" style="display: none;">
+          <h4>プレビュー:</h4>
+          <div id="diagram-preview" class="diagram-preview"></div>
+        </div>
+        
+        <!-- ボタン -->
+        <div class="diagram-buttons">
+          <button id="diagram-generate" class="diagram-btn diagram-btn-primary">🎨 生成</button>
+          <button id="diagram-insert" class="diagram-btn" style="display: none;">📝 挿入</button>
+          <button id="diagram-copy" class="diagram-btn" style="display: none;">📋 コピー</button>
+          <button id="diagram-export" class="diagram-btn" style="display: none;">💾 エクスポート</button>
+        </div>
+      </div>
+      
+      <div class="diagram-loading" id="diagram-loading" style="display: none;">
+        <div class="diagram-spinner"></div>
+        <p>図表を生成中...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 図表生成用のスタイル -->
+  <style>
+    .diagram-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+    }
+    
+    .diagram-container {
+      background: white;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 900px;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+      position: relative;
+    }
+    
+    .diagram-header {
+      padding: 20px;
+      border-bottom: 1px solid #e0e0e0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .diagram-title {
+      margin: 0;
+      font-size: 20px;
+      color: #333;
+    }
+    
+    .diagram-close {
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: #999;
+      padding: 0;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      transition: all 0.2s;
+    }
+    
+    .diagram-close:hover {
+      background: #f0f0f0;
+      color: #333;
+    }
+    
+    .diagram-body {
+      padding: 20px;
+    }
+    
+    .diagram-types {
+      margin-bottom: 20px;
+    }
+    
+    .diagram-types h4 {
+      margin: 0 0 12px 0;
+      font-size: 14px;
+      color: #666;
+    }
+    
+    .diagram-type-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+      gap: 8px;
+    }
+    
+    .diagram-type-btn {
+      padding: 10px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      background: white;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s;
+      font-size: 12px;
+    }
+    
+    .diagram-type-btn:hover {
+      background: #f8f9fa;
+      border-color: #667eea;
+    }
+    
+    .diagram-type-btn.selected {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-color: #667eea;
+    }
+    
+    .diagram-type-icon {
+      font-size: 24px;
+      margin-bottom: 4px;
+      display: block;
+    }
+    
+    .diagram-input-section {
+      margin: 20px 0;
+    }
+    
+    .diagram-input-section label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 14px;
+      color: #666;
+    }
+    
+    .diagram-description {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+      resize: vertical;
+      font-family: inherit;
+    }
+    
+    .diagram-description:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    
+    .diagram-size-section {
+      margin: 20px 0;
+    }
+    
+    .diagram-size-section h4 {
+      margin: 0 0 12px 0;
+      font-size: 14px;
+      color: #666;
+    }
+    
+    .diagram-size-inputs {
+      display: flex;
+      gap: 20px;
+    }
+    
+    .size-input-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .size-input-group label {
+      font-size: 14px;
+      color: #666;
+    }
+    
+    .size-input-group input {
+      width: 80px;
+      padding: 6px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    
+    .size-input-group span {
+      font-size: 14px;
+      color: #999;
+    }
+    
+    .diagram-preview-section {
+      margin: 20px 0;
+    }
+    
+    .diagram-preview-section h4 {
+      margin: 0 0 12px 0;
+      font-size: 14px;
+      color: #666;
+    }
+    
+    .diagram-preview {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 20px;
+      background: #f8f9fa;
+      min-height: 200px;
+      overflow: auto;
+      text-align: center;
+    }
+    
+    .diagram-buttons {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid #e0e0e0;
+    }
+    
+    .diagram-btn {
+      padding: 10px 20px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      background: white;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+    
+    .diagram-btn:hover {
+      background: #f8f9fa;
+    }
+    
+    .diagram-btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+    }
+    
+    .diagram-btn-primary:hover {
+      opacity: 0.9;
+    }
+    
+    .diagram-loading {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(255, 255, 255, 0.95);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+    }
+    
+    .diagram-spinner {
+      width: 50px;
+      height: 50px;
+      border: 4px solid #f0f0f0;
+      border-top: 4px solid #667eea;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+
   <!-- AI Chat Panel Container -->
   <div id="chat-panel-container"></div>
+
+  <!-- 検索・置換ダイアログ -->
+  <div id="search-replace-overlay" class="search-replace-overlay" style="display: none;">
+    <div class="search-replace-dialog">
+      <div class="search-replace-header">
+        <h3 class="search-replace-title">🔍 検索と置換</h3>
+        <button class="search-replace-close" id="search-replace-close">×</button>
+      </div>
+      
+      <form class="search-replace-form">
+        <div class="search-field-group">
+          <label class="search-field-label" for="search-input">検索</label>
+          <div class="search-input-wrapper">
+            <input 
+              type="text" 
+              id="search-input" 
+              class="search-input" 
+              placeholder="検索する文字列を入力..."
+              autocomplete="off"
+            >
+            <span id="search-count" class="search-count" style="display: none;">0/0</span>
+          </div>
+        </div>
+
+        <div class="search-field-group">
+          <label class="search-field-label" for="replace-input">置換</label>
+          <div class="search-input-wrapper">
+            <input 
+              type="text" 
+              id="replace-input" 
+              class="search-input" 
+              placeholder="置換後の文字列を入力..."
+              autocomplete="off"
+            >
+          </div>
+        </div>
+
+        <div class="search-options">
+          <div class="search-checkbox-group">
+            <input type="checkbox" id="match-case" class="search-checkbox">
+            <label for="match-case" class="search-checkbox-label">大文字と小文字を区別</label>
+          </div>
+          <div class="search-checkbox-group">
+            <input type="checkbox" id="whole-word" class="search-checkbox">
+            <label for="whole-word" class="search-checkbox-label">単語全体</label>
+          </div>
+          <div class="search-checkbox-group">
+            <input type="checkbox" id="use-regex" class="search-checkbox">
+            <label for="use-regex" class="search-checkbox-label">正規表現</label>
+          </div>
+        </div>
+
+        <div class="search-actions">
+          <div class="search-navigation">
+            <button type="button" id="search-prev" class="search-nav-btn" disabled>
+              ↑ 前へ
+            </button>
+            <button type="button" id="search-next" class="search-nav-btn" disabled>
+              ↓ 次へ
+            </button>
+          </div>
+          
+          <div class="search-main-actions">
+            <button type="button" id="replace-current" class="search-btn search-btn-secondary" disabled>
+              置換
+            </button>
+            <button type="button" id="replace-all" class="search-btn search-btn-danger" disabled>
+              すべて置換
+            </button>
+            <button type="button" id="search-close" class="search-btn search-btn-primary">
+              閉じる
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
 
 </body>
 </html>

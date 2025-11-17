@@ -22,6 +22,17 @@
     "paste": "貼り付け",
     "selectAll": "すべて選択",
     "searchReplace": "検索と置換",
+    "search": "検索",
+    "replace": "置換",
+    "findNext": "次を検索",
+    "findPrevious": "前を検索",
+    "replaceOne": "置換",
+    "replaceAll": "すべて置換",
+    "searchPlaceholder": "検索する文字列を入力...",
+    "replacePlaceholder": "置換後の文字列を入力...",
+    "matchCase": "大文字と小文字を区別",
+    "wholeWord": "単語全体",
+    "useRegex": "正規表現",
     "bold": "太字",
     "italic": "斜体",
     "strikethrough": "取り消し線",
@@ -111,7 +122,10 @@
     "noChangesToCommit": "コミットする変更がありません",
     "noCommitsToPush": "プッシュするコミットがありません。先にコミットを作成してください。",
     "noRemoteConfigured": "リモートリポジトリが設定されていません。先にリモート設定を行ってください。",
-    "languageChanged": "言語を{{language}}に変更しました。アプリの再起動が必要です。"
+    "languageChanged": "言語を{{language}}に変更しました。アプリの再起動が必要です。",
+    "searchReplaced": "{{count}}件を置換しました",
+    "searchNotFound": "見つかりませんでした",
+    "searchInvalidRegex": "正規表現にエラーがあります"
   },
   "error": {
     "gitNotAvailable": "Gitがインストールされていないか、PATHが設定されていません",
@@ -186,7 +200,7 @@
   "editor": {
     "placeholder": "ここに文字を入力してください...",
     "welcome": "SightEditへようこそ！",
-    "welcomeMessage": "TipTapベースの新しいエディタです。"
+    "welcomeMessage": "最新のWYSIWYGエディタです。"
   },
   "status": {
     "saved": "保存済み",

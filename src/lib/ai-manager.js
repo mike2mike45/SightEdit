@@ -70,7 +70,7 @@ export class AIManager {
     }
 
     async getChromeStorageSettings() {
-        if (typeof chrome !== 'undefined' && chrome.storage) {
+        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
             return new Promise((resolve) => {
                 chrome.storage.sync.get(['geminiApiKey', 'geminiModel', 'claudeApiKey', 'claudeModel'], (result) => {
                     const settings = {};
@@ -120,7 +120,14 @@ export class AIManager {
                 }
             }
 
-            await chrome.storage.local.set({ aiSettings: this.settings });
+            // Feature detection: Chrome Extension環境かチェック
+            if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                // Chrome Extension環境
+                await chrome.storage.local.set({ aiSettings: this.settings });
+            } else {
+                // スタンドアロン環境: localStorage を使用
+                localStorage.setItem('aiSettings', JSON.stringify(this.settings));
+            }
             this.updateAIButton();
         } catch (error) {
             console.error('AI設定の保存に失敗:', error);

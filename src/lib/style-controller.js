@@ -276,9 +276,16 @@ export class StyleController {
      */
     async saveSettings() {
         try {
-            await chrome.storage.local.set({
-                [this.storageKey]: this.currentStyle
-            });
+            // Feature detection: Chrome Extension環境かチェック
+            if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                // Chrome Extension環境
+                await chrome.storage.local.set({
+                    [this.storageKey]: this.currentStyle
+                });
+            } else {
+                // スタンドアロン環境: localStorage を使用
+                localStorage.setItem(this.storageKey, JSON.stringify(this.currentStyle));
+            }
         } catch (error) {
             console.error('Failed to save style settings:', error);
         }
@@ -289,7 +296,20 @@ export class StyleController {
      */
     async loadSettings() {
         try {
-            const result = await chrome.storage.local.get(this.storageKey);
+            let result = {};
+            
+            // Feature detection: Chrome Extension環境かチェック
+            if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                // Chrome Extension環境
+                result = await chrome.storage.local.get(this.storageKey);
+            } else {
+                // スタンドアロン環境: localStorage を使用
+                const stored = localStorage.getItem(this.storageKey);
+                if (stored) {
+                    result[this.storageKey] = JSON.parse(stored);
+                }
+            }
+            
             if (result[this.storageKey]) {
                 this.currentStyle = {
                     ...this.getDefaultStyle(),

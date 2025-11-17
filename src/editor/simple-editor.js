@@ -1,5 +1,8 @@
 // SightEdit Simple Editor - Chrome Extension版
-// TipTapの代わりに基本的なtextareaベースのエディターを使用
+// contentEditableベースのWYSIWYGエディター
+
+// HTML⇄Markdown変換ライブラリ
+import TurndownService from 'turndown';
 
 // CSSファイルをインポート
 import './ai-command-panel.css';
@@ -40,7 +43,729 @@ class SimpleMarkdownEditor {
     this.isSourceMode = false;
     this.versionIntegration = null;
     this.localHistoryIntegration = null;
+    this.isModified = false;
+    this.originalContent = '';
+    
+    // バージョン情報をログに出力
+    const buildTimestamp = new Date().toISOString();
+    console.log('🚀 SightEdit Editor 初期化開始');
+    console.log('📅 ビルド時刻:', buildTimestamp);
+    console.log('🔧 機能バージョン: WYSIWYG書式修正版 v2.1');
+    console.log('📝 変更内容: TurndownService強化、HTML正規化、書式変換修正');
+    
+    // HTML⇄Markdown変換サービスの初期化
+    this.turndownService = new TurndownService({
+      headingStyle: 'atx',
+      codeBlockStyle: 'fenced',
+      fence: '```',
+      emDelimiter: '*',
+      strongDelimiter: '**',
+      linkStyle: 'inlined',
+      linkReferenceStyle: 'full'
+    });
+    
+    console.log('📚 TurndownService設定:', {
+      strongDelimiter: this.turndownService.options.strongDelimiter,
+      emDelimiter: this.turndownService.options.emDelimiter,
+      headingStyle: this.turndownService.options.headingStyle
+    });
+    
+    // カスタムルールを追加
+    this.setupTurndownRules();
+    
     this.init();
+  }
+
+  // TurndownServiceのカスタムルールを設定
+  setupTurndownRules() {
+    // 基本的な書式設定のルールを最適化
+    this.turndownService.addRule('bold', {
+      filter: ['strong', 'b'],
+      replacement: function(content) {
+        return content.trim() ? `**${content}**` : '';
+      }
+    });
+
+    this.turndownService.addRule('italic', {
+      filter: ['em', 'i'],
+      replacement: function(content) {
+        return content.trim() ? `*${content}*` : '';
+      }
+    });
+
+    this.turndownService.addRule('underline', {
+      filter: 'u',
+      replacement: function(content) {
+        // Markdownに下線はないので、強調として扱う
+        return content.trim() ? `**${content}**` : '';
+      }
+    });
+
+    this.turndownService.addRule('strikethrough', {
+      filter: ['strike', 'del', 's'],
+      replacement: function(content) {
+        return content.trim() ? `~~${content}~~` : '';
+      }
+    });
+
+    // タスクリスト（チェックボックス）のルール
+    this.turndownService.addRule('taskList', {
+      filter: function(node) {
+        return node.classList && node.classList.contains('task-item');
+      },
+      replacement: function(content, node) {
+        const checkbox = node.querySelector('input[type="checkbox"]');
+        const isChecked = checkbox && checkbox.checked;
+        const text = node.textContent.replace(/^\s*/, '').trim();
+        return `- [${isChecked ? 'x' : ' '}] ${text}`;
+      }
+    });
+
+    // テーブルのルール
+    this.turndownService.addRule('table', {
+      filter: 'table',
+      replacement: function(content, node) {
+        const rows = Array.from(node.querySelectorAll('tr'));
+        if (rows.length === 0) return content;
+
+        let tableMarkdown = '';
+        
+        rows.forEach((row, rowIndex) => {
+          const cells = Array.from(row.querySelectorAll('td, th'));
+          const cellTexts = cells.map(cell => cell.textContent.trim());
+          tableMarkdown += '| ' + cellTexts.join(' | ') + ' |\n';
+          
+          // ヘッダー行の後に区切り線を追加
+          if (rowIndex === 0) {
+            const separator = cells.map(() => '---').join(' | ');
+            tableMarkdown += '| ' + separator + ' |\n';
+          }
+        });
+        
+        return '\n' + tableMarkdown + '\n';
+      }
+    });
+
+    // コードブロックのルール
+    this.turndownService.addRule('codeBlock', {
+      filter: function(node) {
+        return node.nodeName === 'PRE' && node.querySelector('code');
+      },
+      replacement: function(content, node) {
+        const codeNode = node.querySelector('code');
+        const language = codeNode.className.replace('language-', '') || '';
+        const code = codeNode.textContent;
+        return '\n```' + language + '\n' + code + '\n```\n';
+      }
+    });
+
+    // divやspanのスタイル属性を処理
+    this.turndownService.addRule('styledElements', {
+      filter: function(node) {
+        const style = node.style;
+        return style && (
+          style.fontWeight === 'bold' || 
+          style.fontWeight === '700' ||
+          style.fontStyle === 'italic' ||
+          style.textDecoration === 'underline' ||
+          style.textDecoration === 'line-through'
+        );
+      },
+      replacement: function(content, node) {
+        const style = node.style;
+        let result = content;
+        
+        if (style.fontWeight === 'bold' || style.fontWeight === '700') {
+          result = `**${result}**`;
+        }
+        if (style.fontStyle === 'italic') {
+          result = `*${result}*`;
+        }
+        if (style.textDecoration === 'line-through') {
+          result = `~~${result}~~`;
+        }
+        if (style.textDecoration === 'underline') {
+          result = `**${result}**`; // Markdownに下線はないので強調
+        }
+        
+        return result;
+      }
+    });
+  }
+
+  // HTMLからMarkdownに変換
+  htmlToMarkdown(html) {
+    if (!html) return '';
+    
+    console.log('🔄 HTML→Markdown変換開始');
+    console.log('📥 元HTML:', html);
+    
+    // ブラウザのcontentEditableで生成されたHTMLを正規化
+    let cleanHtml = html
+      .replace(/&nbsp;/g, ' ') // &nbsp;を通常の空白に
+      .replace(/\s+/g, ' ') // 複数の空白を1つに
+      .replace(/<br\s*\/?>/gi, '\n') // <br>を改行に
+      .replace(/<div><br><\/div>/gi, '\n') // 空のdivを改行に
+      .replace(/<div>/gi, '\n') // <div>を改行に  
+      .replace(/<\/div>/gi, '') // </div>を削除
+      .replace(/<p><br><\/p>/gi, '\n') // 空のpを改行に
+      .replace(/<p>/gi, '\n') // <p>を改行に
+      .replace(/<\/p>/gi, '') // </p>を削除
+      .trim();
+
+    console.log('🧹 第1段階クリーンアップ後:', cleanHtml);
+
+    // document.execCommandで生成される可能性のあるタグを正規化
+    cleanHtml = cleanHtml
+      .replace(/<font[^>]*>/gi, '') // fontタグを除去
+      .replace(/<\/font>/gi, '') // /fontタグを除去
+      .replace(/<span style="font-weight:\s*bold;?"[^>]*>/gi, '<strong>') // インラインstyleの太字をstrongに
+      .replace(/<span style="font-weight:\s*700;?"[^>]*>/gi, '<strong>')
+      .replace(/<span style="font-style:\s*italic;?"[^>]*>/gi, '<em>') // インラインstyleの斜体をemに
+      .replace(/<span style="text-decoration:\s*underline;?"[^>]*>/gi, '<u>')
+      .replace(/<span style="text-decoration:\s*line-through;?"[^>]*>/gi, '<strike>')
+      .replace(/<\/span>/gi, function(match, offset, str) {
+        // 対応するspanタグを適切に閉じる
+        const beforeSpan = str.substring(0, offset);
+        if (beforeSpan.includes('<strong>') && !beforeSpan.includes('</strong>')) return '</strong>';
+        if (beforeSpan.includes('<em>') && !beforeSpan.includes('</em>')) return '</em>';
+        if (beforeSpan.includes('<u>') && !beforeSpan.includes('</u>')) return '</u>';
+        if (beforeSpan.includes('<strike>') && !beforeSpan.includes('</strike>')) return '</strike>';
+        return '';
+      });
+    
+    console.log('🔧 第2段階正規化後:', cleanHtml);
+    
+    try {
+      const markdown = this.turndownService.turndown(cleanHtml);
+      console.log('📚 TurndownService変換結果:', markdown);
+      
+      // 追加のクリーンアップ
+      const finalMarkdown = markdown
+        .replace(/\*\*\s*\*\*/g, '') // 空の太字マークを削除
+        .replace(/\*\s*\*/g, '') // 空の斜体マークを削除
+        .replace(/~~\s*~~/g, '') // 空の取り消し線を削除
+        .replace(/\n{3,}/g, '\n\n') // 3つ以上の改行を2つに
+        .trim();
+      
+      console.log('✨ 最終Markdown結果:', finalMarkdown);
+      console.log('🎯 変換成功: HTML→Markdown');
+      
+      return finalMarkdown;
+    } catch (error) {
+      console.error('❌ HTML→Markdown変換エラー:', error);
+      // フォールバック: 基本的なHTMLタグを削除
+      const fallback = cleanHtml.replace(/<[^>]*>/g, '').trim();
+      console.log('🔄 フォールバック結果:', fallback);
+      return fallback;
+    }
+  }
+
+  // WYSIWYGエディターのコンテンツ変更ハンドラー
+  handleContentChange(e) {
+    // ソースモードの場合は何もしない
+    if (this.isSourceMode) return;
+    
+    // 変更状態をチェック
+    this.checkIfModified();
+    
+    // リアルタイムMarkdown変換は重いので、一定時間後に実行
+    clearTimeout(this.contentChangeTimer);
+    this.contentChangeTimer = setTimeout(() => {
+      this.syncToSourceMode();
+    }, 500);
+  }
+  
+  // コンテンツの変更をチェック
+  checkIfModified() {
+    const currentContent = this.getCurrentContent();
+    const wasModified = this.isModified;
+    this.isModified = currentContent !== this.originalContent;
+    
+    // 状態が変わったら表示を更新
+    if (wasModified !== this.isModified) {
+      this.updateFileNameDisplay();
+    }
+  }
+
+  // キーボードショートカットハンドラー
+  handleKeyboardShortcuts(e) {
+    if (e.ctrlKey || e.metaKey) {
+      switch (e.key) {
+        case 'b':
+          e.preventDefault();
+          this.applyRichFormat('bold');
+          break;
+        case 'i':
+          e.preventDefault();
+          this.applyRichFormat('italic');
+          break;
+        case 'u':
+          e.preventDefault();
+          this.applyRichFormat('underline');
+          break;
+        case 'k':
+          e.preventDefault();
+          this.insertLink();
+          break;
+      }
+    }
+  }
+
+  // ペーストイベントハンドラー
+  handlePaste(e) {
+    e.preventDefault();
+    
+    const clipboardData = e.clipboardData || window.clipboardData;
+    const htmlData = clipboardData.getData('text/html');
+    const textData = clipboardData.getData('text/plain');
+    
+    if (htmlData) {
+      // HTMLをMarkdownに変換してから挿入
+      const markdown = this.htmlToMarkdown(htmlData);
+      const html = this.markdownToHtml(markdown);
+      this.insertHtmlAtCursor(html);
+    } else if (textData) {
+      this.insertTextAtCursor(textData);
+    }
+  }
+
+  // リッチテキスト書式を適用（DOM操作ベース）
+  applyRichFormat(command) {
+    const selection = window.getSelection();
+    if (selection.rangeCount === 0) return;
+    
+    const range = selection.getRangeAt(0);
+    const selectedText = selection.toString();
+    
+    console.log('🎨 書式適用開始');
+    console.log('📝 選択テキスト:', selectedText);
+    console.log('🔧 適用コマンド:', command);
+    
+    // 選択されたテキストがない場合は処理しない
+    if (!selectedText) {
+      console.log('⚠️ 選択されたテキストがありません');
+      return;
+    }
+    
+    let wrapperElement;
+    
+    // コマンドに応じて適切な要素を作成
+    switch(command) {
+      case 'bold':
+        wrapperElement = document.createElement('strong');
+        break;
+      case 'italic':
+        wrapperElement = document.createElement('em');
+        break;
+      case 'strikeThrough':
+        wrapperElement = document.createElement('s');
+        break;
+      case 'underline':
+        wrapperElement = document.createElement('u');
+        break;
+      default:
+        console.error('❌ 未対応のコマンド:', command);
+        return;
+    }
+    
+    // 既に同じタグで囲まれているかチェック
+    const parentElement = range.commonAncestorContainer.nodeType === Node.TEXT_NODE
+      ? range.commonAncestorContainer.parentElement
+      : range.commonAncestorContainer;
+    
+    const tagName = wrapperElement.tagName;
+    let existingWrapper = null;
+    let currentElement = parentElement;
+    
+    // 親要素を辿って同じタグを探す
+    while (currentElement && currentElement.id !== 'wysiwyg-content') {
+      if (currentElement.tagName === tagName) {
+        existingWrapper = currentElement;
+        break;
+      }
+      currentElement = currentElement.parentElement;
+    }
+    
+    if (existingWrapper) {
+      // 既に同じ書式が適用されている場合は解除
+      console.log(`🔄 ${tagName}タグを解除します`);
+      
+      // 要素の内容を親要素に移動
+      const parent = existingWrapper.parentNode;
+      while (existingWrapper.firstChild) {
+        parent.insertBefore(existingWrapper.firstChild, existingWrapper);
+      }
+      parent.removeChild(existingWrapper);
+      
+      console.log('✅ 書式を解除しました');
+    } else {
+      // 新しく書式を適用
+      console.log(`🔧 ${tagName}タグを適用します`);
+      
+      try {
+        // 選択範囲の内容を取得
+        const contents = range.extractContents();
+        
+        // ラッパー要素に内容を追加
+        wrapperElement.appendChild(contents);
+        
+        // ラッパー要素を挿入
+        range.insertNode(wrapperElement);
+        
+        // カーソルを適用した要素の後に移動
+        range.setStartAfter(wrapperElement);
+        range.setEndAfter(wrapperElement);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        
+        console.log('✅ 書式を適用しました');
+      } catch (error) {
+        console.error('❌ 書式適用エラー:', error);
+      }
+    }
+    
+    // 変更通知
+    setTimeout(() => this.handleContentChange({}), 100);
+  }
+
+  // WYSIWYGからソースモードへ同期
+  syncToSourceMode() {
+    const content = document.getElementById('wysiwyg-content');
+    const sourceEditor = document.getElementById('source-editor');
+    
+    if (content && sourceEditor && !this.isSourceMode) {
+      console.log('🔄 WYSIWYG→ソース同期開始');
+      const html = content.innerHTML;
+      const markdown = this.htmlToMarkdown(html);
+      sourceEditor.value = markdown;
+      console.log('✅ ソースエディターに設定:', markdown);
+    }
+  }
+
+  // モード別書式設定メソッド
+  toggleFormatting(execCommand, markdownStart, markdownEnd) {
+    console.log(`🎨 書式設定: ${execCommand}, isSourceMode: ${this.isSourceMode}`);
+    
+    if (this.isSourceMode) {
+      // ソースモード：Markdown記法を挿入
+      this.wrapText(markdownStart, markdownEnd);
+    } else {
+      // WYSIWYGモード：リッチテキスト書式を適用
+      this.applyRichFormat(execCommand);
+    }
+  }
+
+  // インラインコードの処理
+  toggleInlineCode() {
+    console.log(`💻 インラインコード設定: isSourceMode: ${this.isSourceMode}`);
+    
+    if (this.isSourceMode) {
+      this.wrapText('`', '`');
+    } else {
+      // WYSIWYGではcode要素として処理（insertHTMLを使用）
+      this.applyInlineCode();
+    }
+  }
+
+  // WYSIWYGモードでインラインコードを適用する専用メソッド
+  applyInlineCode() {
+    const selection = window.getSelection();
+    if (selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      const selectedText = selection.toString();
+      
+      console.log('🎨 インラインコード適用開始');
+      console.log('📝 選択テキスト:', selectedText);
+      
+      if (selectedText) {
+        // 選択されたテキストがある場合
+        const codeElement = document.createElement('code');
+        codeElement.textContent = selectedText;
+        
+        // 既にcodeタグで囲まれている場合は解除
+        const parentElement = range.commonAncestorContainer.parentElement;
+        if (parentElement && parentElement.tagName === 'CODE') {
+          // codeタグを解除して中身のテキストだけを残す
+          const textNode = document.createTextNode(parentElement.textContent);
+          parentElement.parentNode.replaceChild(textNode, parentElement);
+          console.log('✅ コードタグを解除しました');
+        } else {
+          // 新しくcodeタグで囲む
+          range.deleteContents();
+          range.insertNode(codeElement);
+          console.log('✅ コードタグを適用しました');
+        }
+        
+        // 選択を解除
+        selection.removeAllRanges();
+        
+        // コンテンツ変更を通知
+        setTimeout(() => this.handleContentChange({}), 100);
+      } else {
+        // 選択されたテキストがない場合はカーソル位置にコードスタイルを挿入
+        const codeElement = document.createElement('code');
+        codeElement.textContent = 'code';
+        
+        range.insertNode(codeElement);
+        
+        // code要素内にカーソルを移動
+        const newRange = document.createRange();
+        newRange.selectNodeContents(codeElement);
+        selection.removeAllRanges();
+        selection.addRange(newRange);
+        
+        console.log('✅ 空のコードタグを挿入しました');
+      }
+    }
+  }
+
+  // リストの処理
+  toggleList(listType, markdownPrefix) {
+    console.log(`📋 リスト設定: ${listType}, isSourceMode: ${this.isSourceMode}`);
+    
+    if (this.isSourceMode) {
+      // ソースモードではカーソル位置にマークダウンを挿入
+      this.insertTextAtCursor(markdownPrefix);
+    } else {
+      // WYSIWYGではDOM操作でリストを作成
+      this.applyListFormat(listType);
+    }
+  }
+  
+  // リスト書式を適用
+  applyListFormat(listType) {
+    const selection = window.getSelection();
+    if (selection.rangeCount === 0) return;
+    
+    const range = selection.getRangeAt(0);
+    const tagName = listType === 'insertUnorderedList' ? 'ul' : 'ol';
+    
+    console.log(`📋 リスト書式適用: ${tagName}`);
+    
+    // 現在の選択範囲を含む要素を取得
+    let currentElement = range.commonAncestorContainer;
+    if (currentElement.nodeType === Node.TEXT_NODE) {
+      currentElement = currentElement.parentElement;
+    }
+    
+    // 既存のリスト要素を探す
+    let listElement = currentElement;
+    while (listElement && listElement.id !== 'wysiwyg-content' && 
+           listElement.tagName !== 'UL' && listElement.tagName !== 'OL') {
+      listElement = listElement.parentElement;
+    }
+    
+    if (listElement && (listElement.tagName === 'UL' || listElement.tagName === 'OL')) {
+      // リスト内にいる場合
+      if (listElement.tagName.toLowerCase() === tagName) {
+        // 同じタイプのリストの場合は解除
+        const parent = listElement.parentNode;
+        while (listElement.firstChild) {
+          if (listElement.firstChild.tagName === 'LI') {
+            const p = document.createElement('p');
+            p.innerHTML = listElement.firstChild.innerHTML;
+            parent.insertBefore(p, listElement);
+            listElement.removeChild(listElement.firstChild);
+          } else {
+            parent.insertBefore(listElement.firstChild, listElement);
+          }
+        }
+        parent.removeChild(listElement);
+        console.log('✅ リストを解除しました');
+      } else {
+        // 違うタイプのリストに変換
+        const newList = document.createElement(tagName);
+        newList.innerHTML = listElement.innerHTML;
+        listElement.parentNode.replaceChild(newList, listElement);
+        console.log('✅ リストタイプを変更しました');
+      }
+    } else {
+      // 新しくリストを作成
+      const list = document.createElement(tagName);
+      const li = document.createElement('li');
+      
+      // 選択範囲の内容を取得
+      const contents = range.extractContents();
+      li.appendChild(contents);
+      list.appendChild(li);
+      
+      // リストを挿入
+      range.insertNode(list);
+      
+      // カーソルをli内に移動
+      range.selectNodeContents(li);
+      range.collapse(false);
+      selection.removeAllRanges();
+      selection.addRange(range);
+      
+      console.log('✅ 新規リストを作成しました');
+    }
+    
+    setTimeout(() => this.handleContentChange({}), 100);
+  }
+
+  // 引用の処理
+  toggleBlockquote() {
+    console.log(`💬 引用設定: isSourceMode: ${this.isSourceMode}`);
+    
+    if (this.isSourceMode) {
+      // ソースモードではカーソル位置にマークダウンを挿入
+      this.insertTextAtCursor('> ');
+    } else {
+      // WYSIWYGではblockquote要素として処理（DOM操作）
+      this.applyBlockFormat('blockquote');
+    }
+  }
+  
+  // ブロック要素の書式を適用
+  applyBlockFormat(tagName) {
+    const selection = window.getSelection();
+    if (selection.rangeCount === 0) return;
+    
+    const range = selection.getRangeAt(0);
+    console.log(`📦 ブロック書式適用: ${tagName}`);
+    
+    // 現在の選択範囲を含むブロック要素を取得
+    let blockElement = range.commonAncestorContainer;
+    if (blockElement.nodeType === Node.TEXT_NODE) {
+      blockElement = blockElement.parentElement;
+    }
+    
+    // wysiwyg-contentまで辿る
+    while (blockElement && blockElement.id !== 'wysiwyg-content' && 
+           !['P', 'DIV', 'BLOCKQUOTE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6'].includes(blockElement.tagName)) {
+      blockElement = blockElement.parentElement;
+    }
+    
+    if (blockElement && blockElement.id !== 'wysiwyg-content') {
+      if (blockElement.tagName === tagName.toUpperCase()) {
+        // 既に同じタグの場合は解除（通常のpタグに戻す）
+        const p = document.createElement('p');
+        p.innerHTML = blockElement.innerHTML;
+        blockElement.parentNode.replaceChild(p, blockElement);
+        console.log('✅ ブロック書式を解除しました');
+      } else {
+        // 別のタグに変換
+        const newElement = document.createElement(tagName);
+        newElement.innerHTML = blockElement.innerHTML;
+        blockElement.parentNode.replaceChild(newElement, blockElement);
+        console.log('✅ ブロック書式を適用しました');
+      }
+    } else {
+      // 新規にブロック要素を作成
+      const newElement = document.createElement(tagName);
+      const contents = range.extractContents();
+      newElement.appendChild(contents);
+      range.insertNode(newElement);
+      console.log('✅ 新規ブロック要素を作成しました');
+    }
+    
+    setTimeout(() => this.handleContentChange({}), 100);
+  }
+
+  // コードブロックの処理
+  toggleCodeBlock() {
+    console.log(`💻 コードブロック設定: isSourceMode: ${this.isSourceMode}`);
+    
+    if (this.isSourceMode) {
+      this.wrapText('```\n', '\n```');
+    } else {
+      // WYSIWYGではpre/code要素として処理（DOM操作）
+      this.applyCodeBlock();
+    }
+  }
+  
+  // コードブロックを適用
+  applyCodeBlock() {
+    const selection = window.getSelection();
+    if (selection.rangeCount === 0) return;
+    
+    const range = selection.getRangeAt(0);
+    const selectedText = selection.toString() || 'コード';
+    
+    console.log('📦 コードブロック適用');
+    
+    // pre/code要素を作成
+    const pre = document.createElement('pre');
+    const code = document.createElement('code');
+    code.textContent = selectedText;
+    pre.appendChild(code);
+    
+    // 選択範囲を削除してpre要素を挿入
+    range.deleteContents();
+    range.insertNode(pre);
+    
+    // カーソルをpre要素の後に移動
+    range.setStartAfter(pre);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    
+    console.log('✅ コードブロックを作成しました');
+    setTimeout(() => this.handleContentChange({}), 100);
+  }
+
+  // 水平線の処理
+  insertHorizontalRule() {
+    console.log(`➖ 水平線設定: isSourceMode: ${this.isSourceMode}`);
+    
+    if (this.isSourceMode) {
+      this.insertText('\n---\n');
+    } else {
+      // WYSIWYGではhr要素として処理（DOM操作）
+      this.insertHtmlAtCursor('<hr>');
+    }
+  }
+  
+  // HTMLをカーソル位置に挿入する汎用メソッド
+  insertHtmlAtCursor(html) {
+    const selection = window.getSelection();
+    if (selection.rangeCount === 0) return;
+    
+    const range = selection.getRangeAt(0);
+    range.deleteContents();
+    
+    // HTML文字列からDOM要素を作成
+    const temp = document.createElement('div');
+    temp.innerHTML = html;
+    
+    // 作成された要素を挿入
+    const frag = document.createDocumentFragment();
+    while (temp.firstChild) {
+      frag.appendChild(temp.firstChild);
+    }
+    
+    range.insertNode(frag);
+    
+    // カーソルを挿入した要素の後に移動
+    range.collapse(false);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    
+    console.log('✅ HTMLを挿入しました:', html);
+    setTimeout(() => this.handleContentChange({}), 100);
+  }
+  
+  // テキストをカーソル位置に挿入するメソッド
+  insertTextAtCursor(text) {
+    const selection = window.getSelection();
+    if (selection.rangeCount === 0) return;
+    
+    const range = selection.getRangeAt(0);
+    range.deleteContents();
+    
+    const textNode = document.createTextNode(text);
+    range.insertNode(textNode);
+    
+    // カーソルをテキストの後に移動
+    range.setStartAfter(textNode);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    
+    console.log('✅ テキストを挿入しました:', text);
+    setTimeout(() => this.handleContentChange({}), 100);
   }
 
   // MarkdownテキストをHTMLに変換
@@ -403,6 +1128,14 @@ class SimpleMarkdownEditor {
     this.setupEditor();
     this.setupToolbar();
     this.setupEventListeners();
+    this.setupFileNameEditor();
+    this.updateFileNameDisplay();
+    
+    // 初期コンテンツを記録
+    this.originalContent = this.getCurrentContent();
+
+    // 初期ファイルデータを処理（サーバーから埋め込まれたデータ）
+    this.handleInitialFileData();
 
     // URLパラメータによるファイル読み込みを追加
     this.handleURLFileParameter();
@@ -449,8 +1182,21 @@ class SimpleMarkdownEditor {
       editorElement.innerHTML = '<div contenteditable="true" class="wysiwyg-editor-content" id="wysiwyg-content"></div>';
 
       const content = document.getElementById('wysiwyg-content');
-      content.addEventListener('input', () => {
+      
+      // 入力イベント（リアルタイム変換とワードカウント更新）
+      content.addEventListener('input', (e) => {
         this.updateWordCount();
+        this.handleContentChange(e);
+      });
+
+      // キーボードショートカット（書式設定）
+      content.addEventListener('keydown', (e) => {
+        this.handleKeyboardShortcuts(e);
+      });
+
+      // ペーストイベント（書式を保持）
+      content.addEventListener('paste', (e) => {
+        this.handlePaste(e);
       });
 
       // リンク・画像編集機能
@@ -472,20 +1218,21 @@ class SimpleMarkdownEditor {
   setupToolbar() {
     // 基本的なMarkdown記法ボタンの設定
     const toolbarButtons = {
-      bold: () => this.wrapText('**', '**'),
-      italic: () => this.wrapText('*', '*'),
-      strike: () => this.wrapText('~~', '~~'),
-      code: () => this.wrapText('`', '`'),
-      bulletList: () => this.insertAtLineStart('- '),
-      orderedList: () => this.insertNumberedList(),
-      blockquote: () => this.insertAtLineStart('> '),
-      codeBlock: () => this.wrapText('```\n', '\n```'),
-      horizontalRule: () => this.insertText('\n---\n'),
+      bold: () => this.toggleFormatting('bold', '**', '**'),
+      italic: () => this.toggleFormatting('italic', '*', '*'),
+      strike: () => this.toggleFormatting('strikeThrough', '~~', '~~'),
+      underline: () => this.toggleFormatting('underline', '__', '__'),
+      code: () => this.toggleInlineCode(),
+      bulletList: () => this.toggleList('insertUnorderedList', '- '),
+      orderedList: () => this.toggleList('insertOrderedList', '1. '),
+      blockquote: () => this.toggleBlockquote(),
+      codeBlock: () => this.toggleCodeBlock(),
+      horizontalRule: () => this.insertHorizontalRule(),
       link: () => this.insertLink(),
       image: () => this.insertImage(),
       table: () => this.insertTable(),
-      undo: () => document.execCommand('undo'),
-      redo: () => document.execCommand('redo')
+      undo: () => this.performUndo(),
+      redo: () => this.performRedo()
     };
 
     // ツールバーボタンのイベントリスナーを設定
@@ -494,6 +1241,7 @@ class SimpleMarkdownEditor {
       if (button) {
         button.addEventListener('click', (e) => {
           e.preventDefault();
+          console.log(`🎯 ツールバーボタンクリック: ${buttonName}`);
           toolbarButtons[buttonName]();
         });
       }
@@ -505,11 +1253,18 @@ class SimpleMarkdownEditor {
       headingSelect.addEventListener('change', (e) => {
         const value = e.target.value;
         if (value === 'p') {
-          // 段落は何もしない
+          // 段落に変換
+          this.applyBlockFormat('p');
         } else if (value) {
           const level = parseInt(value);
-          const prefix = '#'.repeat(level) + ' ';
-          this.insertAtLineStart(prefix);
+          if (this.isSourceMode) {
+            // ソースモードではMarkdown記法を使用
+            const prefix = '#'.repeat(level) + ' ';
+            this.insertAtLineStart(prefix);
+          } else {
+            // WYSIWYGモードではDOM操作
+            this.applyBlockFormat('h' + level);
+          }
         }
         e.target.value = ''; // 選択後にリセット
       });
@@ -533,6 +1288,8 @@ class SimpleMarkdownEditor {
       helpBtn.addEventListener('click', () => this.showHelp());
     }
 
+    // Subagents機能は削除済み
+
     // ファイル操作ボタン
     const newFileBtn = document.getElementById('new-file-btn');
     if (newFileBtn) {
@@ -553,6 +1310,17 @@ class SimpleMarkdownEditor {
     if (saveAsBtn) {
       saveAsBtn.addEventListener('click', () => this.saveAsFile());
     }
+  }
+
+  // Undo/Redoの実装（execCommandが非推奨でも、Undo/Redoは例外的に使用）
+  performUndo() {
+    console.log('⏪ Undo実行');
+    document.execCommand('undo');
+  }
+  
+  performRedo() {
+    console.log('⏩ Redo実行');
+    document.execCommand('redo');
   }
 
   setupHeaderButtons() {
@@ -1203,12 +1971,263 @@ class SimpleMarkdownEditor {
     }
   }
 
-  insertImage() {
-    const url = prompt('画像URLを入力してください:');
-    const alt = prompt('画像の説明を入力してください:', '画像');
+  async insertImage() {
+    // 画像挿入ダイアログを表示
+    const dialog = this.createImageInsertDialog();
+    document.body.appendChild(dialog);
+  }
 
-    if (url && alt) {
-      this.insertText(`![${alt}](${url})`);
+  createImageInsertDialog() {
+    const dialog = document.createElement('div');
+    dialog.className = 'image-insert-modal';
+    dialog.innerHTML = `
+      <div class="image-insert-dialog">
+        <div class="dialog-header">
+          <h3>🖼️ 画像を挿入</h3>
+          <button class="close-btn" id="closeImageDialog">✕</button>
+        </div>
+        
+        <div class="dialog-content">
+          <div class="insert-method-tabs">
+            <button class="method-tab active" data-method="url">📎 URLから挿入</button>
+            <button class="method-tab" data-method="drive">📁 Google Driveから選択</button>
+          </div>
+          
+          <div class="insert-method-content">
+            <!-- URL入力方式 -->
+            <div class="method-panel active" id="url-panel">
+              <div class="form-group">
+                <label for="imageUrl">画像URL:</label>
+                <input type="url" id="imageUrl" class="form-input" placeholder="https://example.com/image.jpg">
+              </div>
+              <div class="form-group">
+                <label for="imageAlt">説明テキスト:</label>
+                <input type="text" id="imageAlt" class="form-input" placeholder="画像の説明">
+              </div>
+            </div>
+            
+            <!-- Google Drive方式 -->
+            <div class="method-panel" id="drive-panel">
+              <div class="drive-selection-area">
+                <div class="drive-status" id="driveStatus">
+                  <div class="status-checking">🔄 Google Drive接続を確認中...</div>
+                </div>
+                <button class="btn btn-primary" id="selectFromDrive" style="display: none;">
+                  📁 Google Driveから画像を選択
+                </button>
+                <div class="selected-drive-file" id="selectedDriveFile" style="display: none;">
+                  <div class="file-preview-small">
+                    <img id="driveFilePreview" src="" alt="">
+                  </div>
+                  <div class="file-info-small">
+                    <div class="file-name" id="driveFileName">-</div>
+                    <div class="file-meta" id="driveFileMeta">-</div>
+                  </div>
+                  <button class="btn btn-secondary btn-small" id="changeDriveFile">変更</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="dialog-footer">
+          <button class="btn btn-secondary" id="cancelImageInsert">キャンセル</button>
+          <button class="btn btn-primary" id="confirmImageInsert" disabled>挿入</button>
+        </div>
+      </div>
+    `;
+
+    this.setupImageDialogEvents(dialog);
+    return dialog;
+  }
+
+  setupImageDialogEvents(dialog) {
+    let selectedImageData = null;
+    let currentMethod = 'url';
+
+    // タブ切り替え
+    dialog.querySelectorAll('.method-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        const method = tab.dataset.method;
+        this.switchImageInsertMethod(dialog, method);
+        currentMethod = method;
+        this.updateImageInsertButton(dialog, currentMethod, selectedImageData);
+      });
+    });
+
+    // 閉じるボタン
+    dialog.querySelector('#closeImageDialog').addEventListener('click', () => {
+      this.closeImageDialog(dialog);
+    });
+
+    // キャンセルボタン
+    dialog.querySelector('#cancelImageInsert').addEventListener('click', () => {
+      this.closeImageDialog(dialog);
+    });
+
+    // 挿入ボタン
+    dialog.querySelector('#confirmImageInsert').addEventListener('click', () => {
+      this.handleImageInsert(dialog, currentMethod, selectedImageData);
+    });
+
+    // URL入力の監視
+    const urlInput = dialog.querySelector('#imageUrl');
+    const altInput = dialog.querySelector('#imageAlt');
+    
+    [urlInput, altInput].forEach(input => {
+      input.addEventListener('input', () => {
+        this.updateImageInsertButton(dialog, currentMethod, selectedImageData);
+      });
+    });
+
+    // Google Drive関連
+    const selectFromDriveBtn = dialog.querySelector('#selectFromDrive');
+    const changeDriveFileBtn = dialog.querySelector('#changeDriveFile');
+
+    selectFromDriveBtn.addEventListener('click', async () => {
+      await this.openGoogleDriveExplorer((fileData) => {
+        selectedImageData = fileData;
+        this.showSelectedDriveFile(dialog, fileData);
+        this.updateImageInsertButton(dialog, currentMethod, selectedImageData);
+      });
+    });
+
+    changeDriveFileBtn.addEventListener('click', async () => {
+      await this.openGoogleDriveExplorer((fileData) => {
+        selectedImageData = fileData;
+        this.showSelectedDriveFile(dialog, fileData);
+        this.updateImageInsertButton(dialog, currentMethod, selectedImageData);
+      });
+    });
+
+    // モーダル背景クリックで閉じる
+    dialog.addEventListener('click', (e) => {
+      if (e.target === dialog) {
+        this.closeImageDialog(dialog);
+      }
+    });
+
+    // Google Drive接続確認
+    this.checkGoogleDriveConnection(dialog);
+  }
+
+  switchImageInsertMethod(dialog, method) {
+    // タブの切り替え
+    dialog.querySelectorAll('.method-tab').forEach(tab => {
+      tab.classList.toggle('active', tab.dataset.method === method);
+    });
+
+    // パネルの切り替え  
+    dialog.querySelectorAll('.method-panel').forEach(panel => {
+      panel.classList.toggle('active', panel.id === `${method}-panel`);
+    });
+  }
+
+  async checkGoogleDriveConnection(dialog) {
+    const statusEl = dialog.querySelector('#driveStatus');
+    const selectBtn = dialog.querySelector('#selectFromDrive');
+
+    try {
+      const response = await fetch('http://127.0.0.1:8080/api/status');
+      const data = await response.json();
+
+      if (data.status === 'running' && data.driveServiceAvailable) {
+        statusEl.innerHTML = '<div class="status-success">✅ Google Drive接続済み</div>';
+        selectBtn.style.display = 'block';
+      } else {
+        statusEl.innerHTML = '<div class="status-warning">⚠️ Google Drive未接続</div>';
+      }
+    } catch (error) {
+      statusEl.innerHTML = `
+        <div class="status-error">
+          ❌ Google Driveサービスに接続できません<br>
+          <small>SightEditRelay.exeを起動してください</small>
+        </div>
+      `;
+    }
+  }
+
+  async openGoogleDriveExplorer(onFileSelected) {
+    // Google Drive Explorer の動的インポート
+    if (!window.GoogleDriveExplorer) {
+      try {
+        const module = await import('../components/google-drive-explorer.js');
+        window.GoogleDriveExplorer = module.default;
+        
+        // CSSの動的ロード
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = '../components/google-drive-explorer.css';
+        document.head.appendChild(link);
+      } catch (error) {
+        console.error('Google Drive Explorer のロードに失敗:', error);
+        alert('Google Drive Explorerを読み込めませんでした。');
+        return;
+      }
+    }
+
+    const explorer = new window.GoogleDriveExplorer();
+    await explorer.show(onFileSelected);
+  }
+
+  showSelectedDriveFile(dialog, fileData) {
+    const selectedFileEl = dialog.querySelector('#selectedDriveFile');
+    const selectBtnEl = dialog.querySelector('#selectFromDrive');
+    
+    selectedFileEl.style.display = 'flex';
+    selectBtnEl.style.display = 'none';
+
+    // プレビュー画像
+    const previewImg = dialog.querySelector('#driveFilePreview');
+    previewImg.src = fileData.url;
+    previewImg.alt = fileData.alt || fileData.name;
+
+    // ファイル情報
+    dialog.querySelector('#driveFileName').textContent = fileData.name;
+    dialog.querySelector('#driveFileMeta').textContent = 'Google Drive';
+
+    // Alt textも自動設定
+    const altInput = dialog.querySelector('#imageAlt');
+    if (!altInput.value) {
+      altInput.value = fileData.alt || fileData.name.replace(/\.[^/.]+$/, '');
+    }
+  }
+
+  updateImageInsertButton(dialog, method, selectedImageData) {
+    const insertBtn = dialog.querySelector('#confirmImageInsert');
+    let isValid = false;
+
+    if (method === 'url') {
+      const url = dialog.querySelector('#imageUrl').value.trim();
+      const alt = dialog.querySelector('#imageAlt').value.trim();
+      isValid = url && alt;
+    } else if (method === 'drive') {
+      isValid = selectedImageData && selectedImageData.url;
+    }
+
+    insertBtn.disabled = !isValid;
+  }
+
+  handleImageInsert(dialog, method, selectedImageData) {
+    let imageUrl, imageAlt;
+
+    if (method === 'url') {
+      imageUrl = dialog.querySelector('#imageUrl').value.trim();
+      imageAlt = dialog.querySelector('#imageAlt').value.trim();
+    } else if (method === 'drive') {
+      imageUrl = selectedImageData.url;
+      imageAlt = dialog.querySelector('#imageAlt').value.trim() || selectedImageData.alt;
+    }
+
+    if (imageUrl && imageAlt) {
+      this.insertText(`![${imageAlt}](${imageUrl})`);
+      this.closeImageDialog(dialog);
+    }
+  }
+
+  closeImageDialog(dialog) {
+    if (dialog && dialog.parentNode) {
+      document.body.removeChild(dialog);
     }
   }
 
@@ -1357,6 +2376,8 @@ class SimpleMarkdownEditor {
     this.showModal('ヘルプ', helpContent);
   }
 
+  // Subagents機能は削除済み
+
   showModal(title, content) {
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
@@ -1390,12 +2411,16 @@ class SimpleMarkdownEditor {
 
   newFile() {
     const currentContent = this.getCurrentContent();
-    if (currentContent.trim() && confirm('現在の内容は失われます。新規ファイルを作成しますか？')) {
+    if (this.isModified && confirm('現在の変更は失われます。新規ファイルを作成しますか？')) {
       this.clearContent();
       this.currentFileName = null;
-    } else if (!currentContent.trim()) {
+      this.originalContent = '';
+      this.setModified(false);
+    } else if (!this.isModified) {
       this.clearContent();
       this.currentFileName = null;
+      this.originalContent = '';
+      this.setModified(false);
     }
   }
 
@@ -1565,6 +2590,8 @@ class SimpleMarkdownEditor {
           }
 
           this.currentFileName = file.name;
+          this.originalContent = content;
+          this.setModified(false);
           this.updateWordCount();
         };
         reader.readAsText(file);
@@ -1574,8 +2601,6 @@ class SimpleMarkdownEditor {
   }
 
   async saveFile() {
-    const content = this.getCurrentContent();
-
     // バージョン履歴に保存
     if (this.versionIntegration) {
       try {
@@ -1585,29 +2610,132 @@ class SimpleMarkdownEditor {
       }
     }
 
-    // ローカルファイルとして保存
-    const blob = new Blob([content], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = this.currentFileName || 'document.md';
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  saveAsFile() {
-    const filename = prompt('ファイル名を入力してください:', this.currentFileName || 'document.md');
-    if (filename) {
-      this.currentFileName = filename;
+    if (this.currentFileName) {
+      // 既存のファイル名で保存（上書き保存）
       const content = this.getCurrentContent();
       const blob = new Blob([content], { type: 'text/markdown' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = filename;
+      a.download = this.currentFileName;
       a.click();
       URL.revokeObjectURL(url);
+    } else {
+      // ファイル名がない場合は名前を付けて保存
+      this.saveAsFile();
     }
+  }
+
+  async saveAsFile() {
+    // File System Access API を使用（ファイルを開くと同じネイティブダイアログ）
+    if ('showSaveFilePicker' in window) {
+      await this.saveWithFileSystemAPI();
+    } else {
+      // フォールバック: 古いブラウザ用
+      this.saveWithLegacyDownload();
+    }
+  }
+  
+  async saveWithFileSystemAPI() {
+    try {
+      const content = this.getCurrentContent();
+      const defaultFileName = this.currentFileName || 'document.md';
+      
+      // File System Access API を使用してネイティブな保存ダイアログを表示
+      const fileHandle = await window.showSaveFilePicker({
+        suggestedName: defaultFileName,
+        types: [
+          {
+            description: 'Markdown files',
+            accept: {
+              'text/markdown': ['.md', '.markdown'],
+            },
+          },
+          {
+            description: 'Text files',
+            accept: {
+              'text/plain': ['.txt'],
+            },
+          },
+          {
+            description: 'HTML files',
+            accept: {
+              'text/html': ['.html', '.htm'],
+            },
+          },
+        ],
+        excludeAcceptAllOption: false,
+      });
+      
+      // ファイル名を更新
+      this.currentFileName = fileHandle.name;
+      this.originalContent = content;
+      this.setModified(false);
+      
+      // ファイルに書き込み
+      const writable = await fileHandle.createWritable();
+      
+      let contentToSave = content;
+      
+      // 拡張子に応じて内容を変換
+      if (fileHandle.name.endsWith('.html') || fileHandle.name.endsWith('.htm')) {
+        contentToSave = this.convertToHTML(content);
+      }
+      
+      await writable.write(contentToSave);
+      await writable.close();
+      
+      // 成功メッセージ（オプション）
+      console.log(`ファイルを保存しました: ${fileHandle.name}`);
+      
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        // ユーザーがキャンセルした場合は何もしない
+        console.log('保存がキャンセルされました');
+      } else {
+        console.error('ファイル保存エラー:', error);
+        
+        // File System Access API が失敗した場合のフォールバック
+        this.saveWithLegacyDownload();
+      }
+    }
+  }
+  
+  saveWithLegacyDownload() {
+    // 従来のダウンロード方式（フォールバック）
+    const content = this.getCurrentContent();
+    const defaultFileName = this.currentFileName || 'document.md';
+    
+    const blob = new Blob([content], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = defaultFileName;
+    a.click();
+    URL.revokeObjectURL(url);
+    
+    console.log('レガシーダウンロードで保存しました');
+  }
+  
+  convertToHTML(markdown) {
+    // 簡単なHTML変換（既存のmarkdownToHtmlメソッドを使用）
+    const html = this.markdownToHtml(markdown);
+    return `<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${this.currentFileName || 'Document'}</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; padding: 20px; max-width: 800px; margin: 0 auto; }
+    pre { background: #f4f4f4; padding: 10px; overflow-x: auto; }
+    code { background: #f4f4f4; padding: 2px 4px; }
+  </style>
+</head>
+<body>
+  ${html}
+</body>
+</html>`;
   }
 
   updateWordCount() {
@@ -1618,6 +2746,80 @@ class SimpleMarkdownEditor {
       const wordCount = content.split(/\s+/).filter(word => word.length > 0).length;
       wordCountElement.textContent = `文字数: ${charCount} | 単語数: ${wordCount}`;
     }
+  }
+
+  updateFileNameDisplay() {
+    const fileNameEl = document.getElementById('current-file-name');
+    const modifiedIndicator = document.getElementById('file-modified-indicator');
+    if (!fileNameEl) return;
+    
+    const fileName = this.currentFileName || '無題';
+    fileNameEl.textContent = fileName;
+    
+    // 変更インジケーターを更新
+    if (modifiedIndicator) {
+      modifiedIndicator.style.display = this.isModified ? 'inline' : 'none';
+    }
+    
+    // ページタイトルを更新
+    document.title = `${fileName}${this.isModified ? ' *' : ''} - SightEdit`;
+  }
+  
+  // ファイルの変更状態を設定
+  setModified(modified) {
+    this.isModified = modified;
+    this.updateFileNameDisplay();
+  }
+  
+  // ファイル名編集機能をセットアップ
+  setupFileNameEditor() {
+    const fileNameEl = document.getElementById('current-file-name');
+    if (!fileNameEl) return;
+    
+    fileNameEl.addEventListener('click', () => {
+      if (fileNameEl.classList.contains('editing')) return;
+      
+      const currentName = this.currentFileName || '無題';
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = currentName === '無題' ? '' : currentName;
+      input.className = 'file-name editing';
+      input.style.width = Math.max(100, currentName.length * 8 + 20) + 'px';
+      
+      const saveEdit = () => {
+        const newName = input.value.trim();
+        if (newName && newName !== '無題') {
+          // .md 拡張子を自動追加
+          this.currentFileName = newName.endsWith('.md') ? newName : newName + '.md';
+        } else {
+          this.currentFileName = null;
+        }
+        this.updateFileNameDisplay();
+        fileNameEl.style.display = 'inline';
+        input.remove();
+      };
+      
+      const cancelEdit = () => {
+        fileNameEl.style.display = 'inline';
+        input.remove();
+      };
+      
+      input.addEventListener('blur', saveEdit);
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          saveEdit();
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          cancelEdit();
+        }
+      });
+      
+      fileNameEl.style.display = 'none';
+      fileNameEl.parentNode.insertBefore(input, fileNameEl);
+      input.focus();
+      input.select();
+    });
   }
 
   setupEventListeners() {
@@ -1640,6 +2842,24 @@ class SimpleMarkdownEditor {
         }
       }
     });
+    
+    // ソースエディターの変更監視
+    const sourceEditor = document.getElementById('source-editor');
+    if (sourceEditor) {
+      sourceEditor.addEventListener('input', () => {
+        if (this.isSourceMode) {
+          this.checkIfModified();
+        }
+      });
+    }
+    
+    // ドラッグアンドドロップ機能を設定
+    this.setupDragAndDrop();
+    
+    // ウィンドウタイトルからファイル名を取得する試み
+    this.extractFileNameFromWindowTitle();
+    
+    // WYSIWYGエディターの変更監視は既存のhandleContentChangeで対応済み
   }
 
   getCaretPosition(element) {
@@ -1686,15 +2906,82 @@ class SimpleMarkdownEditor {
     selection.addRange(range);
   }
 
+  // 初期ファイルデータを処理（サーバーから埋め込まれたデータ）
+  handleInitialFileData() {
+    console.log('🎯 初期ファイルデータチェック開始');
+    
+    // サーバーから埋め込まれたファイルデータをチェック
+    if (window.INITIAL_FILE_DATA) {
+      console.log('📁 初期ファイルデータ発見:', window.INITIAL_FILE_DATA);
+      
+      const { fileName, content, originalPath } = window.INITIAL_FILE_DATA;
+      
+      try {
+        // コンテンツを設定
+        this.setContent(content);
+        
+        // ファイル名と状態を更新
+        this.currentFileName = fileName;
+        this.originalContent = content;
+        this.setModified(false);
+        this.updateWordCount();
+        
+        console.log(`✅ 初期ファイルデータを正常に読み込みました: ${fileName}`);
+        console.log(`📊 コンテンツサイズ: ${content.length}文字`);
+        
+        // 初期データを削除（メモリ節約）
+        delete window.INITIAL_FILE_DATA;
+        
+        return true; // 初期データが処理されたことを示す
+        
+      } catch (error) {
+        console.error('❌ 初期ファイルデータ処理エラー:', error);
+        this.showModal('初期ファイル読み込みエラー', 
+          `初期ファイルデータの処理に失敗しました。<br>
+           エラー: ${error.message}`);
+      }
+    }
+    
+    // エラー情報をチェック
+    if (window.INITIAL_FILE_ERROR) {
+      console.error('❌ 初期ファイル読み込みエラー:', window.INITIAL_FILE_ERROR);
+      
+      const { message, path } = window.INITIAL_FILE_ERROR;
+      this.showModal('ファイル読み込みエラー', 
+        `ファイルの読み込みに失敗しました。<br>
+         ファイル: ${path}<br>
+         エラー: ${message}`);
+      
+      // エラー情報を削除
+      delete window.INITIAL_FILE_ERROR;
+    }
+    
+    return false; // 初期データが処理されなかったことを示す
+  }
+
   // URLパラメータ処理
   handleURLFileParameter() {
+    // 初期ファイルデータが既に処理されている場合はスキップ
+    if (this.currentFileName && this.currentFileName !== '無題') {
+      console.log('⏭️ 初期ファイルデータが既に処理されているためURLパラメータ処理をスキップ');
+      return;
+    }
+    
     const urlParams = new URLSearchParams(window.location.search);
     const fileUrl = urlParams.get('file');
     
+    console.log('🌐 URLパラメータ処理開始');
+    console.log('📋 全URLパラメータ:', window.location.search);
+    console.log('📄 fileパラメータ:', fileUrl);
+    
     if (fileUrl) {
-      // セキュリティチェック: localhostのみ許可
-      if (!fileUrl.startsWith('http://localhost:') && !fileUrl.startsWith('https://localhost:')) {
-        console.warn('セキュリティ警告: localhost以外のURLは許可されていません:', fileUrl);
+      console.log('📁 ファイルURL検出:', fileUrl);
+      
+      // file:// プロトコルの場合はセキュリティチェックをスキップ
+      if (fileUrl.startsWith('file:///')) {
+        console.log('🔓 ローカルファイルプロトコルを検出、セキュリティチェックをスキップ');
+      } else if (!fileUrl.startsWith('http://localhost:') && !fileUrl.startsWith('https://localhost:')) {
+        console.warn('⚠️ セキュリティ警告: localhost以外のURLは許可されていません:', fileUrl);
         this.showModal('セキュリティエラー', 
           'セキュリティ上の理由により、localhost以外のURLからのファイル読み込みは許可されていません。');
         return;
@@ -1798,10 +3085,15 @@ class SimpleMarkdownEditor {
       
       // ファイル名を推定して設定
       const filename = this.extractFilenameFromURL(fileUrl);
+      console.log('📂 抽出されたファイル名:', filename);
+      
       this.currentFileName = filename;
+      this.originalContent = content;
+      this.setModified(false);
+      this.updateFileNameDisplay(); // ファイル名表示を更新
       this.updateWordCount();
       
-      console.log('外部ファイルの読み込み完了:', filename);
+      console.log('✅ 外部ファイルの読み込み完了:', filename);
       
       // 成功メッセージを表示（オプション）
       const statusElement = document.getElementById('word-count');
@@ -1847,13 +3139,230 @@ class SimpleMarkdownEditor {
 
   // URLからファイル名を抽出
   extractFilenameFromURL(url) {
+    console.log('🔍 ファイル名抽出開始 - 元URL:', url);
+    
     try {
+      // Windows file:// プロトコルの特別処理
+      if (url.startsWith('file:///')) {
+        console.log('📁 file://プロトコル検出');
+        
+        // file:///C:/path/to/file.md の形式を処理
+        let filePath = decodeURIComponent(url.replace('file:///', ''));
+        console.log('📂 デコード後のパス:', filePath);
+        
+        // Windows パス区切り文字で分割
+        const pathParts = filePath.split(/[\\\/]/);
+        const filename = pathParts[pathParts.length - 1];
+        console.log('📄 抽出されたファイル名:', filename);
+        
+        return filename || 'local-file.md';
+      }
+      
+      // 通常のHTTP URLの処理
       const urlObj = new URL(url);
       const pathname = urlObj.pathname;
+      console.log('🌐 URLパス名:', pathname);
+      
       const filename = pathname.split('/').pop();
+      console.log('📄 抽出されたファイル名:', filename);
+      
       return filename || 'external-file.md';
-    } catch {
-      return 'external-file.md';
+      
+    } catch (error) {
+      console.error('❌ ファイル名抽出エラー:', error);
+      console.log('🔧 フォールバック処理を実行');
+      
+      // フォールバック: 手動でファイル名を抽出
+      const fallbackName = this.extractFilenameManually(url);
+      console.log('🆘 フォールバック結果:', fallbackName);
+      
+      return fallbackName || 'unknown-file.md';
+    }
+  }
+  
+  // 手動でファイル名を抽出（フォールバック用）
+  extractFilenameManually(url) {
+    console.log('🛠️ 手動ファイル名抽出:', url);
+    
+    // 最後のスラッシュまたはバックスラッシュより後を取得
+    const lastSlash = Math.max(url.lastIndexOf('/'), url.lastIndexOf('\\'));
+    if (lastSlash !== -1) {
+      const filename = url.substring(lastSlash + 1);
+      console.log('✂️ 切り出し結果:', filename);
+      
+      // URLエンコードをデコード
+      try {
+        const decoded = decodeURIComponent(filename);
+        console.log('🔓 デコード結果:', decoded);
+        return decoded;
+      } catch {
+        return filename;
+      }
+    }
+    
+    return null;
+  }
+
+  // ドラッグアンドドロップ機能を設定
+  setupDragAndDrop() {
+    const dropZone = document.body;
+    
+    // ドラッグオーバーイベント
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropZone.classList.add('drag-over');
+    });
+    
+    // ドラッグリーブイベント
+    dropZone.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      // 子要素の場合は除外
+      if (!dropZone.contains(e.relatedTarget)) {
+        dropZone.classList.remove('drag-over');
+      }
+    });
+    
+    // ドロップイベント
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropZone.classList.remove('drag-over');
+      
+      const files = Array.from(e.dataTransfer.files);
+      if (files.length > 0) {
+        // 最初のファイルを処理
+        this.handleDroppedFile(files[0]);
+      }
+    });
+  }
+  
+  // ドロップされたファイルを処理
+  async handleDroppedFile(file) {
+    console.log('📋 ファイルドロップ:', file.name, file.type);
+    
+    // ファイルタイプをチェック
+    if (!this.isSupportedFileType(file)) {
+      this.showModal('ファイルタイプエラー', 
+        `サポートされていないファイル形式です。<br>
+         サポート形式: .md, .txt, .html`);
+      return;
+    }
+    
+    try {
+      // ファイルを読み込み
+      const content = await this.readFileAsText(file);
+      
+      // 現在の内容が変更されている場合は確認
+      if (this.isModified) {
+        const confirmed = confirm(`現在の変更は失われます。\n"${file.name}"を開きますか？`);
+        if (!confirmed) return;
+      }
+      
+      // コンテンツを設定
+      this.setContent(content);
+      
+      // ファイル名と状態を更新
+      this.currentFileName = file.name;
+      this.originalContent = content;
+      this.setModified(false);
+      this.updateWordCount();
+      
+      console.log(`✅ ファイルを正常に読み込みました: ${file.name}`);
+      
+    } catch (error) {
+      console.error('ファイル読み込みエラー:', error);
+      this.showModal('ファイル読み込みエラー', 
+        `ファイルの読み込みに失敗しました。<br>
+         エラー: ${error.message}`);
+    }
+  }
+  
+  // サポートされたファイルタイプかチェック
+  isSupportedFileType(file) {
+    const supportedTypes = [
+      'text/markdown',
+      'text/plain', 
+      'text/html',
+      'application/octet-stream' // 拡張子で判定する必要がある場合
+    ];
+    
+    const supportedExtensions = ['.md', '.txt', '.html', '.htm'];
+    const fileExtension = this.getFileExtension(file.name).toLowerCase();
+    
+    return supportedTypes.includes(file.type) || 
+           supportedExtensions.includes(fileExtension);
+  }
+  
+  // ファイルの拡張子を取得
+  getFileExtension(fileName) {
+    const lastDotIndex = fileName.lastIndexOf('.');
+    return lastDotIndex !== -1 ? fileName.slice(lastDotIndex) : '';
+  }
+  
+  // ファイルをテキストとして読み込み
+  readFileAsText(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      
+      reader.onload = (e) => {
+        resolve(e.target.result);
+      };
+      
+      reader.onerror = (e) => {
+        reject(new Error('ファイル読み込みエラー'));
+      };
+      
+      reader.readAsText(file, 'utf-8');
+    });
+  }
+  
+  // ウィンドウタイトルからファイル名を抽出しようとする
+  extractFileNameFromWindowTitle() {
+    // ウィンドウタイトルをチェック
+    const originalTitle = document.title;
+    console.log('📝 ウィンドウタイトル:', originalTitle);
+    
+    // タイトルからファイル名を抽出するパターンを試す
+    const patterns = [
+      // パターン1: "filename.md - SightEdit"
+      /^(.+\.(?:md|txt|html?))(?: - .+)?$/i,
+      // パターン2: "フルパス\\filename.md"
+      /[\\\/]([^\\\/]+\.(?:md|txt|html?))$/i,
+      // パターン3: ただのファイル名
+      /^([^\\\/\:*?"<>|]+\.(?:md|txt|html?))$/i
+    ];
+    
+    for (const pattern of patterns) {
+      const match = originalTitle.match(pattern);
+      if (match && match[1]) {
+        const extractedFileName = match[1];
+        console.log('✅ ウィンドウタイトルからファイル名を抽出:', extractedFileName);
+        
+        // 既にファイル名が設定されていない場合のみ設定
+        if (!this.currentFileName || this.currentFileName === '無題') {
+          this.currentFileName = extractedFileName;
+          this.updateFileNameDisplay();
+        }
+        
+        break;
+      }
+    }
+  }
+  
+  // コンテンツを設定する共通メソッド
+  setContent(content) {
+    if (this.isSourceMode) {
+      const sourceEditor = document.getElementById('source-editor');
+      if (sourceEditor) {
+        sourceEditor.value = content;
+      }
+    } else {
+      const wysiwygContent = document.getElementById('wysiwyg-content');
+      if (wysiwygContent) {
+        wysiwygContent.innerHTML = this.markdownToHtml(content);
+      }
     }
   }
 
@@ -2373,6 +3882,7 @@ class ExportUI {
       'markdown': '.md',
       'html': '.html',
       'pdf': '.pdf',
+      'docx': '.docx',
       'text': '.txt'
     };
 
@@ -2396,11 +3906,467 @@ class ExportUI {
   }
 }
 
+// 検索・置換機能クラス
+class SearchReplaceManager {
+  constructor(editor) {
+    this.editor = editor;
+    this.isVisible = false;
+    this.currentMatches = [];
+    this.currentMatchIndex = -1;
+    this.lastSearchTerm = '';
+    this.highlightClass = 'search-highlight';
+    this.currentHighlightClass = 'search-highlight current';
+    
+    this.initElements();
+    this.bindEvents();
+  }
+
+  initElements() {
+    this.overlay = document.getElementById('search-replace-overlay');
+    this.dialog = this.overlay.querySelector('.search-replace-dialog');
+    this.searchInput = document.getElementById('search-input');
+    this.replaceInput = document.getElementById('replace-input');
+    this.searchCount = document.getElementById('search-count');
+    this.matchCaseCheckbox = document.getElementById('match-case');
+    this.wholeWordCheckbox = document.getElementById('whole-word');
+    this.regexCheckbox = document.getElementById('use-regex');
+    this.searchPrevBtn = document.getElementById('search-prev');
+    this.searchNextBtn = document.getElementById('search-next');
+    this.replaceCurrentBtn = document.getElementById('replace-current');
+    this.replaceAllBtn = document.getElementById('replace-all');
+    this.searchCloseBtn = document.getElementById('search-close');
+    this.searchReplaceCloseBtn = document.getElementById('search-replace-close');
+    this.searchReplaceBtn = document.getElementById('search-replace-btn');
+  }
+
+  bindEvents() {
+    // 検索ボタン
+    this.searchReplaceBtn.addEventListener('click', () => this.show());
+    
+    // 閉じるボタン
+    this.searchCloseBtn.addEventListener('click', () => this.hide());
+    this.searchReplaceCloseBtn.addEventListener('click', () => this.hide());
+    
+    // オーバーレイクリック
+    this.overlay.addEventListener('click', (e) => {
+      if (e.target === this.overlay) this.hide();
+    });
+    
+    // 検索入力
+    this.searchInput.addEventListener('input', () => this.performSearch());
+    this.searchInput.addEventListener('keydown', (e) => this.handleSearchInputKeydown(e));
+    
+    // 置換入力
+    this.replaceInput.addEventListener('keydown', (e) => this.handleReplaceInputKeydown(e));
+    
+    // オプション変更
+    this.matchCaseCheckbox.addEventListener('change', () => this.performSearch());
+    this.wholeWordCheckbox.addEventListener('change', () => this.performSearch());
+    this.regexCheckbox.addEventListener('change', () => this.performSearch());
+    
+    // ナビゲーションボタン
+    this.searchPrevBtn.addEventListener('click', () => this.goToPreviousMatch());
+    this.searchNextBtn.addEventListener('click', () => this.goToNextMatch());
+    
+    // 置換ボタン
+    this.replaceCurrentBtn.addEventListener('click', () => this.replaceCurrent());
+    this.replaceAllBtn.addEventListener('click', () => this.replaceAll());
+
+    // フォーム送信防止
+    this.dialog.querySelector('form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      this.goToNextMatch();
+    });
+  }
+
+  show() {
+    this.isVisible = true;
+    this.overlay.style.display = 'flex';
+    
+    // 選択テキストがある場合、検索欄にセット
+    const selectedText = this.getSelectedText();
+    if (selectedText) {
+      this.searchInput.value = selectedText;
+    }
+    
+    this.searchInput.focus();
+    this.searchInput.select();
+    
+    // 検索を実行
+    if (this.searchInput.value) {
+      this.performSearch();
+    }
+  }
+
+  hide() {
+    this.isVisible = false;
+    this.overlay.style.display = 'none';
+    this.clearHighlights();
+    this.currentMatches = [];
+    this.currentMatchIndex = -1;
+    this.updateUI();
+    
+    // エディターにフォーカスを戻す
+    this.editor.focus();
+  }
+
+  getSelectedText() {
+    const selection = window.getSelection();
+    return selection.toString().trim();
+  }
+
+  performSearch() {
+    const searchTerm = this.searchInput.value;
+    
+    if (!searchTerm) {
+      this.clearHighlights();
+      this.currentMatches = [];
+      this.currentMatchIndex = -1;
+      this.updateUI();
+      return;
+    }
+
+    this.lastSearchTerm = searchTerm;
+    this.findMatches(searchTerm);
+    this.highlightMatches();
+    this.updateUI();
+    
+    if (this.currentMatches.length > 0) {
+      this.currentMatchIndex = 0;
+      this.scrollToCurrentMatch();
+    }
+  }
+
+  findMatches(searchTerm) {
+    this.clearHighlights();
+    this.currentMatches = [];
+    
+    const content = this.getEditorContent();
+    if (!content) return;
+    
+    try {
+      const regex = this.createSearchRegex(searchTerm);
+      const matches = [...content.matchAll(regex)];
+      
+      this.currentMatches = matches.map(match => ({
+        index: match.index,
+        length: match[0].length,
+        text: match[0]
+      }));
+    } catch (error) {
+      console.error('検索エラー:', error);
+      this.showError('検索パターンにエラーがあります');
+    }
+  }
+
+  createSearchRegex(searchTerm) {
+    let pattern = searchTerm;
+    let flags = 'g';
+    
+    if (!this.regexCheckbox.checked) {
+      // 正規表現でない場合はエスケープ
+      pattern = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+    
+    if (this.wholeWordCheckbox.checked) {
+      pattern = `\\b${pattern}\\b`;
+    }
+    
+    if (!this.matchCaseCheckbox.checked) {
+      flags += 'i';
+    }
+    
+    return new RegExp(pattern, flags);
+  }
+
+  getEditorContent() {
+    // WYSIWYGモードとソースモードの両方に対応
+    if (this.editor.isSourceMode && this.editor.isSourceMode()) {
+      const sourceEditor = document.getElementById('source-editor');
+      return sourceEditor ? sourceEditor.value : '';
+    } else {
+      const editorElement = document.getElementById('editor') || document.querySelector('.editor-content');
+      return editorElement ? editorElement.textContent || editorElement.innerText : '';
+    }
+  }
+
+  highlightMatches() {
+    if (this.currentMatches.length === 0) return;
+    
+    // WYSIWYGモードの場合のハイライト処理
+    if (!this.editor.isSourceMode || !this.editor.isSourceMode()) {
+      this.highlightInWysiwyg();
+    }
+  }
+
+  highlightInWysiwyg() {
+    const editorElement = document.getElementById('editor') || document.querySelector('.editor-content');
+    if (!editorElement) return;
+    
+    const walker = document.createTreeWalker(
+      editorElement,
+      NodeFilter.SHOW_TEXT,
+      null,
+      false
+    );
+    
+    const textNodes = [];
+    let node;
+    while (node = walker.nextNode()) {
+      textNodes.push(node);
+    }
+    
+    // テキストノードを後ろから処理（インデックスの変更を避けるため）
+    for (let i = textNodes.length - 1; i >= 0; i--) {
+      const textNode = textNodes[i];
+      this.highlightTextNode(textNode);
+    }
+  }
+
+  highlightTextNode(textNode) {
+    const text = textNode.textContent;
+    const regex = this.createSearchRegex(this.lastSearchTerm);
+    const matches = [...text.matchAll(regex)];
+    
+    if (matches.length === 0) return;
+    
+    const fragment = document.createDocumentFragment();
+    let lastIndex = 0;
+    
+    matches.forEach(match => {
+      // マッチ前のテキスト
+      if (match.index > lastIndex) {
+        fragment.appendChild(document.createTextNode(text.substring(lastIndex, match.index)));
+      }
+      
+      // ハイライト要素
+      const highlight = document.createElement('span');
+      highlight.className = this.highlightClass;
+      highlight.textContent = match[0];
+      highlight.dataset.searchMatch = 'true';
+      fragment.appendChild(highlight);
+      
+      lastIndex = match.index + match[0].length;
+    });
+    
+    // 残りのテキスト
+    if (lastIndex < text.length) {
+      fragment.appendChild(document.createTextNode(text.substring(lastIndex)));
+    }
+    
+    textNode.parentNode.replaceChild(fragment, textNode);
+  }
+
+  clearHighlights() {
+    const highlights = document.querySelectorAll(`.${this.highlightClass.replace(' ', '.')}`);
+    highlights.forEach(highlight => {
+      const parent = highlight.parentNode;
+      parent.replaceChild(document.createTextNode(highlight.textContent), highlight);
+      parent.normalize(); // 隣接するテキストノードを結合
+    });
+  }
+
+  goToNextMatch() {
+    if (this.currentMatches.length === 0) return;
+    
+    this.currentMatchIndex = (this.currentMatchIndex + 1) % this.currentMatches.length;
+    this.scrollToCurrentMatch();
+    this.updateCurrentHighlight();
+  }
+
+  goToPreviousMatch() {
+    if (this.currentMatches.length === 0) return;
+    
+    this.currentMatchIndex = this.currentMatchIndex <= 0 
+      ? this.currentMatches.length - 1 
+      : this.currentMatchIndex - 1;
+    this.scrollToCurrentMatch();
+    this.updateCurrentHighlight();
+  }
+
+  updateCurrentHighlight() {
+    // 全てのハイライトから current クラスを削除
+    document.querySelectorAll('.search-highlight.current').forEach(el => {
+      el.classList.remove('current');
+    });
+    
+    // 現在のマッチをハイライト
+    const highlights = document.querySelectorAll('.search-highlight');
+    if (highlights[this.currentMatchIndex]) {
+      highlights[this.currentMatchIndex].classList.add('current');
+    }
+  }
+
+  scrollToCurrentMatch() {
+    const highlights = document.querySelectorAll('.search-highlight');
+    if (highlights[this.currentMatchIndex]) {
+      highlights[this.currentMatchIndex].scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'center' 
+      });
+    }
+  }
+
+  replaceCurrent() {
+    const replaceText = this.replaceInput.value;
+    const highlights = document.querySelectorAll('.search-highlight');
+    
+    if (!highlights[this.currentMatchIndex]) return;
+    
+    const currentHighlight = highlights[this.currentMatchIndex];
+    currentHighlight.textContent = replaceText;
+    currentHighlight.classList.remove('search-highlight', 'current');
+    
+    // マッチリストから削除
+    this.currentMatches.splice(this.currentMatchIndex, 1);
+    
+    if (this.currentMatchIndex >= this.currentMatches.length) {
+      this.currentMatchIndex = 0;
+    }
+    
+    this.updateUI();
+    
+    if (this.currentMatches.length > 0) {
+      this.updateCurrentHighlight();
+    }
+  }
+
+  replaceAll() {
+    const replaceText = this.replaceInput.value;
+    const highlights = document.querySelectorAll('.search-highlight');
+    
+    let count = 0;
+    highlights.forEach(highlight => {
+      highlight.textContent = replaceText;
+      highlight.classList.remove('search-highlight', 'current');
+      count++;
+    });
+    
+    this.currentMatches = [];
+    this.currentMatchIndex = -1;
+    this.updateUI();
+    
+    this.showMessage(`${count}件を置換しました`);
+  }
+
+  updateUI() {
+    const matchCount = this.currentMatches.length;
+    const currentIndex = this.currentMatchIndex + 1;
+    
+    // カウント表示
+    if (matchCount > 0) {
+      this.searchCount.textContent = `${currentIndex}/${matchCount}`;
+      this.searchCount.style.display = 'inline';
+    } else if (this.searchInput.value) {
+      this.searchCount.textContent = '0/0';
+      this.searchCount.style.display = 'inline';
+    } else {
+      this.searchCount.style.display = 'none';
+    }
+    
+    // ボタンの有効/無効
+    const hasMatches = matchCount > 0;
+    const hasSearch = this.searchInput.value.length > 0;
+    
+    this.searchPrevBtn.disabled = !hasMatches;
+    this.searchNextBtn.disabled = !hasMatches;
+    this.replaceCurrentBtn.disabled = !hasMatches;
+    this.replaceAllBtn.disabled = !hasMatches || !hasSearch;
+  }
+
+  handleSearchInputKeydown(e) {
+    switch(e.key) {
+      case 'Enter':
+        e.preventDefault();
+        if (e.shiftKey) {
+          this.goToPreviousMatch();
+        } else {
+          this.goToNextMatch();
+        }
+        break;
+      case 'Escape':
+        this.hide();
+        break;
+    }
+  }
+
+  handleReplaceInputKeydown(e) {
+    switch(e.key) {
+      case 'Enter':
+        e.preventDefault();
+        if (e.ctrlKey || e.metaKey) {
+          this.replaceAll();
+        } else {
+          this.replaceCurrent();
+        }
+        break;
+      case 'Escape':
+        this.hide();
+        break;
+    }
+  }
+
+  showMessage(message) {
+    // 既存のメッセージがある場合は削除
+    const existing = document.querySelector('.search-message');
+    if (existing) existing.remove();
+    
+    const messageEl = document.createElement('div');
+    messageEl.className = 'search-message';
+    messageEl.textContent = message;
+    messageEl.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #28a745;
+      color: white;
+      padding: 10px 15px;
+      border-radius: 4px;
+      z-index: 10006;
+      font-size: 14px;
+    `;
+    
+    document.body.appendChild(messageEl);
+    
+    setTimeout(() => {
+      messageEl.remove();
+    }, 3000);
+  }
+
+  showError(message) {
+    // 既存のメッセージがある場合は削除
+    const existing = document.querySelector('.search-message');
+    if (existing) existing.remove();
+    
+    const messageEl = document.createElement('div');
+    messageEl.className = 'search-message';
+    messageEl.textContent = message;
+    messageEl.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #dc3545;
+      color: white;
+      padding: 10px 15px;
+      border-radius: 4px;
+      z-index: 10006;
+      font-size: 14px;
+    `;
+    
+    document.body.appendChild(messageEl);
+    
+    setTimeout(() => {
+      messageEl.remove();
+    }, 5000);
+  }
+}
+
 // グローバルにUI機能を初期化
 let aiCommandUI = null;
 let exportUI = null;
 let chatPanel = null;
 let chatManager = null;
+let searchReplaceManager = null;
 
 // エディター初期化後に機能を追加
 document.addEventListener('DOMContentLoaded', () => {
@@ -2413,10 +4379,16 @@ document.addEventListener('DOMContentLoaded', () => {
   setTimeout(async () => {
     aiCommandUI = new AICommandUI(editor);
     exportUI = new ExportUI(editor);
+    searchReplaceManager = new SearchReplaceManager(editor);
+    // 図表生成機能を初期化（同期実行）
+    setTimeout(() => {
+      initializeDiagramFeature();
+    }, 100);
 
     // グローバルアクセス用
     window.aiCommandUI = aiCommandUI;
     window.exportUI = exportUI;
+    window.searchReplaceManager = searchReplaceManager;
 
     // AICommandManager を aiManager として公開（AICommandManager は AIManager を拡張）
     if (aiCommandUI.commandManager) {
@@ -2512,6 +4484,51 @@ async function initChatFeature(editor) {
 // キーボードショートカットの設定
 function setupKeyboardShortcuts() {
   document.addEventListener('keydown', (e) => {
+    // Ctrl+F: 検索・置換ダイアログを開く
+    if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+      e.preventDefault();
+      if (searchReplaceManager) {
+        searchReplaceManager.show();
+      }
+    }
+
+    // Ctrl+H: 検索・置換ダイアログを開く（置換フィールドにフォーカス）
+    if ((e.ctrlKey || e.metaKey) && e.key === 'h') {
+      e.preventDefault();
+      if (searchReplaceManager) {
+        searchReplaceManager.show();
+        // 少し遅延させて置換フィールドにフォーカス
+        setTimeout(() => {
+          if (searchReplaceManager.replaceInput) {
+            searchReplaceManager.replaceInput.focus();
+          }
+        }, 100);
+      }
+    }
+
+    // F3: 次を検索
+    if (e.key === 'F3' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+      e.preventDefault();
+      if (searchReplaceManager && searchReplaceManager.currentMatches.length > 0) {
+        searchReplaceManager.goToNextMatch();
+      }
+    }
+
+    // Shift+F3: 前を検索
+    if (e.key === 'F3' && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      if (searchReplaceManager && searchReplaceManager.currentMatches.length > 0) {
+        searchReplaceManager.goToPreviousMatch();
+      }
+    }
+
+    // Escape: 検索ダイアログを閉じる（検索ダイアログが開いている場合のみ）
+    if (e.key === 'Escape' && searchReplaceManager && searchReplaceManager.isVisible) {
+      e.preventDefault();
+      searchReplaceManager.hide();
+      return;
+    }
+
     // Ctrl+K: チャットパネルのトグル
     if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
       e.preventDefault();
@@ -2612,5 +4629,397 @@ SimpleMarkdownEditor.prototype.testClaudeConnection = async function(apiKey, mod
     return false;
   }
 };
+
+// 図表生成機能の初期化
+function initializeDiagramFeature() {
+  try {
+    // ログ出力を最小化
+    
+    // DiagramGeneratorクラスを動的に定義
+    if (!window.DiagramGenerator) {
+      // 動的読み込み実行
+      loadDiagramGeneratorScript();
+      return;
+    }
+    
+    // DiagramGeneratorをグローバルスコープで初期化
+    window.diagramGenerator = new DiagramGenerator();
+    
+    // 図表モーダルのイベントリスナー設定
+    const diagramBtn = document.getElementById('diagram-btn');
+    const diagramModal = document.getElementById('diagram-modal');
+    const diagramClose = document.getElementById('diagram-close');
+    const diagramGenerate = document.getElementById('diagram-generate');
+    const diagramInsert = document.getElementById('diagram-insert');
+    const diagramCopy = document.getElementById('diagram-copy');
+    const diagramExport = document.getElementById('diagram-export');
+    
+    // 図表タイプボタンを生成
+    const typeGrid = document.getElementById('diagram-type-grid');
+    if (typeGrid) {
+      Object.entries(window.diagramGenerator.diagramTypes).forEach(([key, type]) => {
+        const btn = document.createElement('button');
+        btn.className = 'diagram-type-btn';
+        btn.dataset.type = key;
+        btn.innerHTML = `
+          <span class="diagram-type-icon">${type.icon}</span>
+          <div>${type.name}</div>
+        `;
+        btn.addEventListener('click', () => {
+          // 他のボタンの選択状態を解除
+          typeGrid.querySelectorAll('.diagram-type-btn').forEach(b => b.classList.remove('selected'));
+          // このボタンを選択状態に
+          btn.classList.add('selected');
+          
+          // プレースホルダーを更新
+          const textarea = document.getElementById('diagram-description');
+          if (textarea) {
+            textarea.placeholder = type.prompt + '（例：ユーザー登録の流れを表すフローチャート）';
+          }
+        });
+        typeGrid.appendChild(btn);
+      });
+      
+      // デフォルトでフローチャートを選択
+      const firstBtn = typeGrid.querySelector('[data-type="flowchart"]');
+      if (firstBtn) {
+        firstBtn.click();
+      }
+    }
+    
+    // モーダル表示/非表示
+    if (diagramBtn) {
+      diagramBtn.addEventListener('click', async () => {
+        // ライブラリを初期化
+        await window.diagramGenerator.init();
+        diagramModal.style.display = 'flex';
+      });
+    }
+    
+    if (diagramClose) {
+      diagramClose.addEventListener('click', () => {
+        diagramModal.style.display = 'none';
+        resetDiagramModal();
+      });
+    }
+    
+    // モーダル外クリックで閉じる
+    if (diagramModal) {
+      diagramModal.addEventListener('click', (e) => {
+        if (e.target === diagramModal) {
+          diagramModal.style.display = 'none';
+          resetDiagramModal();
+        }
+      });
+    }
+    
+    // 図表生成
+    if (diagramGenerate) {
+      diagramGenerate.addEventListener('click', async () => {
+        const selectedType = typeGrid.querySelector('.diagram-type-btn.selected');
+        const description = document.getElementById('diagram-description').value;
+        const width = parseInt(document.getElementById('diagram-width').value);
+        const height = parseInt(document.getElementById('diagram-height').value);
+        
+        if (!selectedType) {
+          alert('図表タイプを選択してください。');
+          return;
+        }
+        
+        if (!description.trim()) {
+          alert('図表の説明を入力してください。');
+          return;
+        }
+        
+        const type = selectedType.dataset.type;
+        
+        try {
+          showLoading(true);
+          
+          // AI生成
+          const code = await window.diagramGenerator.generateDiagramCode(type, description, { width, height });
+          
+          // プレビュー表示
+          const previewContainer = document.getElementById('diagram-preview');
+          const previewSection = document.querySelector('.diagram-preview-section');
+          
+          await window.diagramGenerator.renderDiagram(type, code, previewContainer, { width, height });
+          
+          // プレビューセクションを表示
+          previewSection.style.display = 'block';
+          
+          // ボタンを有効化
+          diagramInsert.style.display = 'inline-block';
+          diagramCopy.style.display = 'inline-block';
+          diagramExport.style.display = 'inline-block';
+          
+          // コードを保存（挿入・コピー用）
+          diagramInsert.dataset.code = code;
+          diagramInsert.dataset.type = type;
+          diagramCopy.dataset.code = code;
+          diagramCopy.dataset.type = type;
+          diagramExport.dataset.code = code;
+          diagramExport.dataset.type = type;
+          
+        } catch (error) {
+          console.error('図表生成エラー:', error);
+          alert('図表の生成に失敗しました: ' + error.message);
+        } finally {
+          showLoading(false);
+        }
+      });
+    }
+    
+    // エディタに挿入
+    if (diagramInsert) {
+      diagramInsert.addEventListener('click', () => {
+        const code = diagramInsert.dataset.code;
+        const type = diagramInsert.dataset.type;
+        
+        if (code && window.editorManager) {
+          const markdownCode = window.diagramGenerator.convertToMarkdown(type, code);
+          
+          // エディタに挿入
+          const editor = window.editorManager.editor;
+          if (editor && editor.focus) {
+            editor.focus();
+            
+            // カーソル位置に挿入
+            const selection = window.getSelection();
+            if (selection.rangeCount > 0) {
+              const range = selection.getRangeAt(0);
+              range.deleteContents();
+              range.insertNode(document.createTextNode('\n\n' + markdownCode + '\n\n'));
+              
+              // カーソルを挿入位置の後に移動
+              range.collapse(false);
+              selection.removeAllRanges();
+              selection.addRange(range);
+            }
+          }
+          
+          // モーダルを閉じる
+          diagramModal.style.display = 'none';
+          resetDiagramModal();
+        }
+      });
+    }
+    
+    // クリップボードにコピー
+    if (diagramCopy) {
+      diagramCopy.addEventListener('click', async () => {
+        const code = diagramCopy.dataset.code;
+        const type = diagramCopy.dataset.type;
+        
+        if (code) {
+          const markdownCode = window.diagramGenerator.convertToMarkdown(type, code);
+          
+          try {
+            await navigator.clipboard.writeText(markdownCode);
+            alert('クリップボードにコピーしました。');
+          } catch (error) {
+            console.error('コピーエラー:', error);
+            alert('コピーに失敗しました。');
+          }
+        }
+      });
+    }
+    
+    // 画像としてエクスポート
+    if (diagramExport) {
+      diagramExport.addEventListener('click', async () => {
+        const code = diagramExport.dataset.code;
+        const type = diagramExport.dataset.type;
+        const width = parseInt(document.getElementById('diagram-width').value);
+        const height = parseInt(document.getElementById('diagram-height').value);
+        
+        if (code) {
+          try {
+            const dataUrl = await window.diagramGenerator.exportAsImage(type, code, 'png', { width, height });
+            
+            // ダウンロードリンクを作成
+            const link = document.createElement('a');
+            link.href = dataUrl;
+            link.download = `diagram_${Date.now()}.png`;
+            link.click();
+            
+          } catch (error) {
+            console.error('エクスポートエラー:', error);
+            alert('エクスポートに失敗しました: ' + error.message);
+          }
+        }
+      });
+    }
+    
+    // 初期化完了
+    
+  } catch (error) {
+    console.error('図表生成機能の初期化エラー:', error);
+  }
+}
+
+// ローディング表示の制御
+function showLoading(show) {
+  const loading = document.getElementById('diagram-loading');
+  if (loading) {
+    loading.style.display = show ? 'flex' : 'none';
+  }
+}
+
+// モーダルをリセット
+function resetDiagramModal() {
+  // フィールドをクリア
+  document.getElementById('diagram-description').value = '';
+  
+  // プレビューを非表示
+  const previewSection = document.querySelector('.diagram-preview-section');
+  if (previewSection) {
+    previewSection.style.display = 'none';
+  }
+  
+  // ボタンを非表示
+  document.getElementById('diagram-insert').style.display = 'none';
+  document.getElementById('diagram-copy').style.display = 'none';
+  document.getElementById('diagram-export').style.display = 'none';
+  
+  // データ属性をクリア
+  ['diagram-insert', 'diagram-copy', 'diagram-export'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) {
+      delete btn.dataset.code;
+      delete btn.dataset.type;
+    }
+  });
+}
+
+// DiagramGeneratorスクリプトを動的に読み込む
+function loadDiagramGeneratorScript() {
+  // Chrome拡張機能では動的インポートを使用
+  import('../lib/diagram-generator.js').then(module => {
+    window.diagramGenerator = module.default || module;
+    console.log('図表生成機能を初期化しました');
+  }).catch(error => {
+    console.warn('図表生成機能の読み込みをスキップ:', error);
+  });
+  return; // scriptタグの処理をスキップ
+  
+  const script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src = './src/lib/diagram-generator.js';
+  
+  script.onload = () => {
+    console.log('DiagramGeneratorスクリプトが正常に読み込まれました');
+    initializeDiagramFeature(); // 再実行
+  };
+  
+  script.onerror = (error) => {
+    console.error('DiagramGeneratorスクリプトの読み込みに失敗:', error);
+    // フォールバック: クラスを直接定義
+    defineDiagramGeneratorFallback();
+    initializeDiagramFeature(); // 再実行
+  };
+  
+  document.head.appendChild(script);
+}
+
+// DiagramGeneratorのフォールバック実装
+function defineDiagramGeneratorFallback() {
+  // フォールバック実装
+  
+  window.DiagramGenerator = class {
+    constructor() {
+      this.initialized = false;
+      this.mermaidLoaded = false;
+      this.chartJsLoaded = false;
+      
+      // 20種類の図表タイプ定義
+      this.diagramTypes = {
+        // フローチャート系
+        flowchart: { name: 'フローチャート', icon: '🔄', engine: 'mermaid', template: 'graph TD\n  A[開始] --> B{条件}\n  B -->|Yes| C[処理1]\n  B -->|No| D[処理2]\n  C --> E[終了]\n  D --> E' },
+        sequence: { name: 'シーケンス図', icon: '📊', engine: 'mermaid', template: 'sequenceDiagram\n  participant A as ユーザー\n  participant B as システム\n  A->>B: リクエスト\n  B-->>A: レスポンス' },
+        gantt: { name: 'ガントチャート', icon: '📅', engine: 'mermaid', template: 'gantt\n  title プロジェクト計画\n  dateFormat YYYY-MM-DD\n  section タスク\n  タスク1: 2024-01-01, 30d\n  タスク2: 2024-02-01, 20d' },
+        swimlane: { name: 'スイムレーン図', icon: '🏊', engine: 'mermaid', template: 'graph TD\n  subgraph 部署A\n    A1[タスク1]\n    A2[タスク2]\n  end\n  subgraph 部署B\n    B1[承認]\n    B2[実行]\n  end\n  A1 --> B1\n  B1 --> A2\n  A2 --> B2' },
+        
+        // チャート系（Chart.js）
+        barChart: { name: '棒グラフ', icon: '📊', engine: 'chartjs', template: { type: 'bar', data: { labels: ['1月', '2月', '3月', '4月', '5月'], datasets: [{ label: '売上', data: [12, 19, 3, 5, 2], backgroundColor: 'rgba(75, 192, 192, 0.6)' }] } } },
+        lineChart: { name: '折れ線グラフ', icon: '📈', engine: 'chartjs', template: { type: 'line', data: { labels: ['1月', '2月', '3月', '4月', '5月'], datasets: [{ label: '推移', data: [65, 59, 80, 81, 56], borderColor: 'rgba(255, 99, 132, 1)', tension: 0.1 }] } } },
+        pieChart: { name: '円グラフ', icon: '🥧', engine: 'mermaid', template: 'pie title 売上構成\n  "製品A" : 45\n  "製品B" : 30\n  "製品C" : 25' },
+        doughnutChart: { name: 'ドーナツグラフ', icon: '🍩', engine: 'chartjs', template: { type: 'doughnut', data: { labels: ['A', 'B', 'C', 'D'], datasets: [{ data: [30, 25, 20, 25], backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0'] }] } } },
+        scatterChart: { name: '散布図', icon: '📈', engine: 'chartjs', template: { type: 'scatter', data: { datasets: [{ label: 'データポイント', data: [{x: 10, y: 20}, {x: 15, y: 25}, {x: 20, y: 30}, {x: 25, y: 28}], backgroundColor: 'rgba(255, 99, 132, 0.6)' }] } } },
+        
+        // ビジネス・組織系
+        orgChart: { name: '組織図', icon: '🏢', engine: 'mermaid', template: 'graph TB\n  CEO[CEO]\n  CTO[CTO]\n  CFO[CFO]\n  CEO --> CTO\n  CEO --> CFO' },
+        mindmap: { name: 'マインドマップ', icon: '🧠', engine: 'mermaid', template: 'mindmap\n  root((中心))\n    分岐1\n      子1\n      子2\n    分岐2\n      子3' },
+        kanban: { name: 'かんばんボード', icon: '📋', engine: 'svg', template: '<svg viewBox="0 0 400 300"><rect x="10" y="10" width="120" height="280" fill="#f8f9fa" stroke="#ccc"/><text x="70" y="35" text-anchor="middle" font-weight="bold">TODO</text><rect x="20" y="50" width="100" height="60" fill="white" stroke="#ddd"/><text x="70" y="85" text-anchor="middle">タスク1</text><rect x="140" y="10" width="120" height="280" fill="#fff3cd" stroke="#ccc"/><text x="200" y="35" text-anchor="middle" font-weight="bold">進行中</text><rect x="270" y="10" width="120" height="280" fill="#d4edda" stroke="#ccc"/><text x="330" y="35" text-anchor="middle" font-weight="bold">完了</text></svg>' },
+        
+        // UI/デザイン系（SVG）
+        wireframe: { name: 'ワイヤーフレーム', icon: '📱', engine: 'svg', template: '<svg viewBox="0 0 300 400"><rect x="10" y="10" width="280" height="60" fill="#f0f0f0" stroke="#ccc"/><text x="150" y="45" text-anchor="middle">ヘッダー</text><rect x="10" y="80" width="280" height="250" fill="white" stroke="#ccc"/><text x="150" y="210" text-anchor="middle">メインコンテンツ</text><rect x="10" y="340" width="280" height="50" fill="#f0f0f0" stroke="#ccc"/><text x="150" y="370" text-anchor="middle">フッター</text></svg>' },
+        mockup: { name: 'モックアップ', icon: '🎨', engine: 'svg', template: '<svg viewBox="0 0 300 200"><rect width="300" height="200" fill="#f8f9fa" stroke="#dee2e6"/><rect x="20" y="20" width="260" height="40" fill="#007bff"/><text x="150" y="45" text-anchor="middle" fill="white">タイトル</text></svg>' },
+        icon: { name: 'アイコン', icon: '🎨', engine: 'svg', template: '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#667eea"/><text x="50" y="60" text-anchor="middle" fill="white" font-size="20">★</text></svg>' },
+        
+        // テクニカル系
+        network: { name: 'ネットワーク図', icon: '🌐', engine: 'mermaid', template: 'graph LR\n  A[PC] --> B[Router]\n  B --> C[Internet]\n  B --> D[Server]' },
+        database: { name: 'データベース設計', icon: '🗄️', engine: 'mermaid', template: 'graph LR\n  A[アプリ] --> B[API]\n  B --> C[データベース]\n  C --> D[テーブル1]\n  C --> E[テーブル2]' },
+        architecture: { name: 'アーキテクチャ図', icon: '🏗️', engine: 'mermaid', template: 'graph TB\n  A[Web] --> B[API]\n  B --> C[DB]' },
+        
+        // その他
+        userPersona: { name: 'ユーザーペルソナ', icon: '👤', engine: 'svg', template: '<svg viewBox="0 0 300 400"><circle cx="150" cy="80" r="50" fill="#ddd"/><text x="150" y="150" text-anchor="middle" font-size="18" font-weight="bold">田中太郎</text><text x="150" y="170" text-anchor="middle">30歳 会社員</text></svg>' },
+        infographic: { name: 'インフォグラフィック', icon: '📊', engine: 'svg', template: '<svg viewBox="0 0 300 400"><text x="150" y="40" text-anchor="middle" font-size="24" font-weight="bold">統計データ</text><circle cx="150" cy="120" r="40" fill="#007bff"/><text x="150" y="125" text-anchor="middle" fill="white" font-size="18">75%</text></svg>' }
+      };
+    }
+    
+    async init() {
+      // フォールバック初期化
+      this.initialized = true;
+    }
+    
+    async generateDiagramCode(type, description, options = {}) {
+      const diagramType = this.diagramTypes[type];
+      if (!diagramType) {
+        throw new Error(`Unknown diagram type: ${type}`);
+      }
+      
+      // シンプルなテンプレート返却
+      if (diagramType.engine === 'chartjs') {
+        return JSON.stringify(diagramType.template, null, 2);
+      }
+      return diagramType.template;
+    }
+    
+    async renderDiagram(type, code, container, options = {}) {
+      const diagramType = this.diagramTypes[type];
+      if (!diagramType) {
+        throw new Error(`Unknown diagram type: ${type}`);
+      }
+      
+      // 基本的なプレビュー表示
+      container.innerHTML = `
+        <div style="padding: 20px; background: #f8f9fa; border-radius: 8px;">
+          <h4>${diagramType.icon} ${diagramType.name}</h4>
+          <pre style="background: white; padding: 15px; border-radius: 4px; overflow: auto; font-size: 12px;">${code}</pre>
+          <p style="color: #666; font-size: 12px; margin-top: 10px;">
+            ※ フォールバックモード: 基本プレビューを表示中
+          </p>
+        </div>
+      `;
+    }
+    
+    convertToMarkdown(type, code) {
+      const diagramType = this.diagramTypes[type];
+      
+      if (diagramType.engine === 'mermaid') {
+        return `\`\`\`mermaid\n${code}\n\`\`\``;
+      } else if (diagramType.engine === 'chartjs') {
+        return `\`\`\`json\n${code}\n\`\`\``;
+      }
+      
+      return code;
+    }
+    
+    async exportAsImage() {
+      throw new Error('画像エクスポートはフォールバックモードでは利用できません');
+    }
+  };
+}
 
 export default SimpleMarkdownEditor;

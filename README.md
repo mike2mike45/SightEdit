@@ -1,313 +1,359 @@
-# SightEdit Chrome Extension
+# SightEdit - Visual Markdown Editor
 
-Chrome拡張版SightEdit - TipTapベースのWYSIWYG Markdownエディター with AI機能 + Google Driveバージョン履歴
+![SightEdit Logo](assets/icon128.png)
 
-## 📁 プロジェクト構成
+**SightEdit**は、AI統合型のWYSIWYG Markdownエディターです。Chrome拡張機能として動作し、図表生成、チャット機能、バージョン管理など豊富な機能を提供します。
 
-```
-SightEdit/
-├── src/                      # ソースコード
-│   ├── background/          # バックグラウンドスクリプト
-│   ├── editor/              # エディタ本体
-│   ├── lib/                 # 共通ライブラリ
-│   │   ├── ai-manager.js    # AI機能管理
-│   │   └── version-manager.js # バージョン履歴管理
-│   └── popup/               # 拡張機能ポップアップ
-├── dist/                    # ビルド出力（Chrome拡張機能）
-├── SightEdit用C#中継アプリケーション/  # ファイル関連付け用中継アプリ
-│   ├── SightEditRelay.cs    # C#中継アプリソース（Google Drive API統合）
-│   ├── SightEditRelay.csproj # プロジェクトファイル
-│   ├── config/              # 設定とOAuth認証情報
-│   │   ├── client_secret.json (ユーザー配置)
-│   │   ├── token.json (自動生成)
-│   │   └── settings.json (自動生成)
-│   └── logs/                # 操作ログ
-├── assets/                  # アイコン等のリソース
-├── manifest.json            # Chrome拡張機能マニフェスト
-├── package.json             # Node.js依存関係
-├── webpack.config.js        # ビルド設定
-├── build-relay.bat          # C#アプリビルドスクリプト
-├── setup-file-association.bat # ファイル関連付け設定（.md/.markdown）
-└── test.md                  # 動作確認用テストファイル
-```
+## 🚀 主な機能
 
-## 🚀 機能
+### ✨ WYSIWYG Markdownエディター
+- **リアルタイム変換**: HTML⇄Markdown双方向変換
+- **モード切替**: WYSIWYG/ソースモード
+- **豊富なフォーマット**: 見出し、太字、斜体、コード、リスト、テーブルなど完全対応
+- **直感的ツールバー**: ワンクリックでフォーマット適用
+- **ドラッグ&ドロップ**: ファイル直接読み込み対応
 
-### ✨ エディター機能
-- **WYSIWYG Markdownエディター**: TipTapベースの高機能エディター
-- **リアルタイムプレビュー**: 入力と同時にフォーマットを確認
-- **豊富な編集機能**: 見出し、リスト、引用、コードブロック、表などをサポート
-- **ツールバー**: 直感的な操作でMarkdown要素を挿入
+### 🤖 AI統合機能
+- **複数AI対応**: Gemini API、Claude API対応
+- **AIコマンド**: 校正、要約、翻訳、執筆支援
+- **リアルタイムチャット**: AI との対話型支援
+- **コンテキスト理解**: ドキュメント内容を考慮した支援
+- **プロンプトライブラリ**: 頻用プロンプトの管理
 
-### 📚 バージョン履歴機能 (Google Drive連携)
-- **自動バージョン保存**: 保存時に自動的にGoogle Driveにスナップショット作成
-- **タイムスタンプ管理**: v_YYYYMMDD_HHMM形式で履歴を管理
-- **簡単復元**: 過去のバージョンをワンクリックで復元
-- **説明メッセージ**: 各バージョンに説明を付けて管理
-- **クラウド同期**: 複数デバイス間でバージョン履歴を共有
+### 📊 AI図表生成（20種類）
+**フローチャート系**
+- 🔄 フローチャート (Mermaid)
+- 📊 シーケンス図 (Mermaid)
+- 📅 ガントチャート (Mermaid)
+- 🏊 スイムレーン図 (Mermaid)
 
-### 🤖 AI機能
-- **マルチプロバイダー対応**: Gemini（デフォルト）& Claude
-- **Geminiモデル**:
-  - Gemini 2.5 Pro（推奨・無料枠あり）
-  - Gemini 2.0 Flash（最新・無料枠あり）
-  - Gemini 1.5 Flash（高速・無料枠あり）
-- **Claudeモデル**:
-  - Claude 3.5 Sonnet（最新・2024年10月版）
-  - Claude 3.5 Haiku（高速・2024年10月版）
-  - Claude 3 Opus（高性能）
+**チャート系**
+- 📊 棒グラフ (Chart.js)
+- 📈 折れ線グラフ (Chart.js)
+- 🥧 円グラフ (Mermaid)
+- 🍩 ドーナツグラフ (Chart.js)
+- 📈 散布図 (Chart.js)
 
-### 💬 AI チャット機能（NEW!）
-- **リアルタイムチャット**: AIとストリーミング形式で対話
-- **コンテキスト連携**: 選択範囲やドキュメント全体を会話に含める
-- **会話履歴管理**: IndexedDBで会話を自動保存・検索
-- **セッション管理**: お気に入り登録、フィルター、検索機能
-- **Markdown対応**: 応答をリッチテキストで表示
-- **XSS保護**: DOMPurifyで安全なHTML表示
-- **キーボードショートカット**:
-  - `Ctrl+K`: チャットパネルのトグル
-  - `Ctrl+L`: 会話クリア
-  - `Ctrl+Enter`: メッセージ送信
+**ビジネス系**
+- 🏢 組織図 (Mermaid)
+- 🧠 マインドマップ (Mermaid)
+- 📋 かんばんボード (SVG)
 
-詳細は [AIチャット機能ガイド](docs/AI_CHAT_FEATURE.md) をご覧ください。
+**UI/デザイン系**
+- 📱 ワイヤーフレーム (SVG)
+- 🎨 モックアップ (SVG)
+- 🎨 アイコン (SVG)
 
-### 🎯 AI機能一覧
-- 📝 **要約**: テキストの要約生成
-- ✏️ **校正**: 誤字脱字・文法チェック
-- 🌐 **翻訳**: 多言語翻訳
-- 📋 **タイトル生成**: 適切なタイトル提案
-- 📑 **見出し生成**: 構造化された見出し提案
-- 🏷️ **キーワード抽出**: 重要キーワードの抽出
+**テクニカル系**
+- 🌐 ネットワーク図 (Mermaid)
+- 🗄️ データベース設計 (Mermaid)
+- 🏗️ アーキテクチャ図 (Mermaid)
 
-### 📤 エクスポート機能
-- Markdown形式
-- HTML形式
-- PDF形式
-- DOCX形式
-- プレーンテキスト形式
+**その他**
+- 👤 ユーザーペルソナ (SVG)
+- 📊 インフォグラフィック (SVG)
 
-## 🛠️ インストール
+### 📁 バージョン管理・履歴
+- **ローカル履歴**: 自動スナップショット、差分表示、復元機能
+- **タイムスタンプ管理**: 編集履歴の詳細管理
+- **検索機能**: 日時・内容での履歴検索
+- **Git統合**: ローカルリポジトリ連携（オプション）
 
-### 1. プロジェクトのセットアップ
+### 📤 エクスポート・インポート
+- **エクスポート**: Markdown、HTML、PDF、Word、画像
+- **インポート**: Markdown、Word、テキストファイル
+- **一括エクスポート**: 複数形式での同時出力
 
+### 🔍 高度な検索・置換
+- **インクリメンタル検索**: リアルタイム検索
+- **正規表現サポート**: パターンマッチング
+- **大文字小文字区別**: 設定可能な検索オプション
+- **一括置換**: 全件置換機能
+
+### 🎨 モダンなUI
+- **グラデーションヘッダー**: 視覚的に魅力的なデザイン
+- **アイコンベース操作**: 直感的なアイコン操作
+- **レスポンシブ対応**: 各種画面サイズ対応
+- **ツールチップ**: 機能説明の表示
+
+## 🛠 技術スタック
+
+- **プラットフォーム**: Chrome Extension (Manifest V3)
+- **言語**: JavaScript (ES6+)
+- **エディター**: contentEditable API
+- **Markdown**: TurndownService, marked
+- **AI図表**: Mermaid.js, Chart.js, SVG
+- **ビルド**: Webpack 5, Babel
+- **テスト**: Jest
+
+## 📥 インストール
+
+### Chrome Web Store（推奨）
+1. [Chrome Web Store](https://chrome.google.com/webstore)でSightEditを検索
+2. 「Chromeに追加」をクリック
+
+### 開発版インストール
 ```bash
+# リポジトリをクローン
+git clone https://github.com/mike2mike45/sightedit.git
+cd sightedit
+
 # 依存関係をインストール
 npm install
 
 # ビルド
 npm run build
+
+# Chromeで拡張機能をロード
+# 1. chrome://extensions/ を開く
+# 2. デベロッパーモードを有効化
+# 3. 「パッケージ化されていない拡張機能を読み込む」
+# 4. dist/ フォルダを選択
 ```
 
-### 2. Chrome拡張として読み込み
-1. Chrome で `chrome://extensions/` を開く
-2. 「デベロッパーモード」を有効にする
-3. 「パッケージ化されていない拡張機能を読み込む」をクリック
-4. `dist`フォルダを選択
-5. 拡張機能IDをメモ（例: `chibfgpnajlchhljdojcpmamhplnogcp`）
+## 📋 プロジェクト構造
 
-### 3. Google Drive連携のセットアップ
-
-#### ステップ1: Google Cloud プロジェクト作成
-
-1. [Google Cloud Console](https://console.cloud.google.com/projectcreate) にアクセス
-2. プロジェクト名を入力: 例「SightEdit」
-3. 「作成」をクリック
-4. プロジェクトIDをメモ
-
-#### ステップ2: API有効化
-
-1. [Google Cloud Console - APIライブラリ](https://console.cloud.google.com/apis/library)
-2. 「Google Drive API」を検索して有効化
-3. （オプション）「Google Sheets API」も有効化
-
-#### ステップ3: OAuth認証情報取得
-
-1. [認証情報ページ](https://console.cloud.google.com/apis/credentials)
-2. 「認証情報を作成」→「OAuth クライアント ID」
-3. アプリケーションの種類: 「デスクトップアプリケーション」
-4. 名前: 「SightEdit Version Manager」
-5. 「JSONをダウンロード」をクリック
-6. ダウンロードしたファイルを `client_secret.json` にリネーム
-7. `C:\Program Files\SightEditRelay\config\` にコピー
-
-#### ステップ4: C#中継アプリのビルドとインストール
-
-```bash
-# C#中継アプリをビルド
-.\build-relay.bat
-
-# ファイル関連付けを設定（管理者権限で実行）
-.\setup-file-association.bat
+```
+SightEdit/
+├── src/                    # ソースコード
+│   ├── editor/             # エディター本体
+│   │   ├── editor.html     # メインエディターUI
+│   │   ├── simple-editor.js # エディターコア実装
+│   │   ├── chat-panel.js   # AIチャット機能
+│   │   └── local-history-panel.js # ローカル履歴
+│   ├── lib/                # ライブラリ
+│   │   ├── ai-manager.js   # AI機能管理
+│   │   ├── diagram-generator.js # 図表生成
+│   │   ├── export-manager.js # エクスポート管理
+│   │   ├── prompt-manager.js # プロンプト管理
+│   │   ├── version-manager.js # バージョン管理
+│   │   └── local-history-manager.js # 履歴管理
+│   ├── i18n/               # 国際化リソース
+│   │   └── ja.json         # 日本語リソース
+│   └── core/               # コアシステム
+├── dist/                   # ビルド出力
+├── assets/                 # 静的リソース
+├── tests/                  # テストコード
+├── manifest.json           # Chrome拡張マニフェスト
+├── webpack.config.js       # Webpack設定
+└── package.json            # プロジェクト設定
 ```
 
-#### ステップ5: 初回認証
+## 🚀 使い方
 
-1. `.md`ファイルをダブルクリックしてSightEditを起動
-2. 初回起動時にブラウザでGoogleアカウント認証画面が開く
-3. 「SightEditを許可」をクリック
-4. 以降は自動的にGoogle Driveと連携
+### 基本操作
+1. Chrome拡張アイコンをクリック
+2. 「エディターを開く」を選択
+3. WYSIWYG/ソースモードで編集
+4. ツールバーで書式設定
 
-### 4. ファイル関連付け設定（Windows）
+### AI機能の設定
+1. 「⚙️ 設定」ボタンをクリック
+2. AI設定タブを選択
+3. APIキーを設定
+   - **Gemini API**: [Google AI Studio](https://aistudio.google.com/app/apikey)
+   - **Claude API**: [Anthropic Console](https://console.anthropic.com/account/keys)
+4. モデルを選択して保存
 
-上記のステップ4で完了していますが、手動で設定する場合：
+### 図表生成
+1. 「📊 図表」ボタンをクリック
+2. 20種類から図表タイプを選択
+3. 自然言語で説明を入力
+4. サイズを調整（200px〜2000px）
+5. 「🎨 生成」→プレビュー→挿入
 
-```bash
-# 管理者権限で実行
-.\setup-file-association.bat
-```
+### AIチャット
+1. 「💬 Chat」ボタンをクリック、または `Ctrl+K`
+2. コンテキストオプションを選択
+3. メッセージを入力して送信
+4. リアルタイムでAI応答を確認
 
-これで`.md`ファイルをダブルクリックするとSightEditで開きます。
+### バージョン履歴
+1. 自動でスナップショット作成
+2. 履歴パネルでタイムライン表示
+3. 差分確認、復元可能
+
+### エクスポート
+1. 「📤 エクスポート」ボタンをクリック
+2. 形式を選択（Markdown/HTML/PDF/DOCX/画像）
+3. ダウンロード開始
+
+## ⌨️ キーボードショートカット
+
+- `Ctrl+S`: 保存
+- `Ctrl+F`: 検索
+- `Ctrl+H`: 置換
+- `Ctrl+K`: AIチャット
+- `Ctrl+L`: 会話クリア
+- `F3`: 次を検索
+- `Shift+F3`: 前を検索
+- `Escape`: モーダルを閉じる
 
 ## 🔧 開発
 
-### スクリプト
+### 開発環境セットアップ
 ```bash
-# 開発ビルド（ファイル監視）
+# 依存関係をインストール
+npm install
+
+# 開発モード（ウォッチ付き）
 npm run dev
 
 # 本番ビルド
 npm run build
 
-# distフォルダをクリア
-npm run clean
-
 # テスト実行
 npm test
+
+# ビルドクリーン
+npm run clean
 ```
 
-### プロジェクト構造
-```
-src/
-├── background/         # バックグラウンドスクリプト
-├── content/           # コンテンツスクリプト
-├── editor/            # メインエディター
-├── lib/               # 共通ライブラリ
-│   ├── ai-manager.js  # AI機能管理
-│   ├── export-manager.js # エクスポート機能
-│   └── version-manager.js # バージョン履歴管理
-└── popup/             # ポップアップUI
-```
+### 開発コマンド詳細
+- `npm run dev`: 開発モードでWebpackをウォッチ
+- `npm run build`: 本番用にビルド
+- `npm test`: Jestでテスト実行
+- `npm test:watch`: テストをウォッチモードで実行
+- `npm run clean`: distディレクトリをクリーン
 
 ## ⚙️ 設定
 
-### AI API設定
-
-#### Gemini API
-1. [Google AI Studio](https://aistudio.google.com/app/apikey) でAPIキーを取得
-2. 拡張機能の設定からAPIキーを入力
-3. AIza...で始まるAPIキーを使用
-
-#### Claude API
-1. [Anthropic Console](https://console.anthropic.com/account/keys) でAPIキーを取得
-2. 拡張機能の設定からAPIキーを入力
-3. sk-ant-...で始まるAPIキーを使用
-
-### バージョン履歴設定
-
-設定は `C:\Program Files\SightEditRelay\config\settings.json` で管理されます。
-
-```json
+### AI設定
+```javascript
 {
-  "version_history": {
-    "enabled": true,
-    "auto_save_enabled": true,
-    "auto_save_interval_seconds": 300,
-    "max_local_versions": 10,
-    "drive_folder_name": "SightEdit Version History"
-  },
-  "google_api": {
-    "retry_attempts": 3,
-    "request_timeout_seconds": 30,
-    "rate_limit_per_hour": 1000
-  },
-  "ui": {
-    "show_version_panel": true,
-    "confirm_restore": true,
-    "show_diff_on_restore": true
+  provider: 'gemini|claude',
+  apiKey: 'your-api-key',
+  model: 'model-name',
+  maxTokens: 2000,
+  temperature: 0.7
+}
+```
+
+### エディター設定
+```javascript
+{
+  autoSave: true,
+  autoSaveInterval: 30000,
+  wordWrap: true,
+  fontSize: 16,
+  theme: 'default',
+  language: 'ja'
+}
+```
+
+### エクスポート設定
+```javascript
+{
+  defaultFormat: 'markdown',
+  pdfOptions: {
+    pageSize: 'A4',
+    margin: 20,
+    orientation: 'portrait'
   }
 }
 ```
 
-## 📋 使用方法
+## 📊 パフォーマンス
 
-### エディターの起動
-1. **拡張機能アイコンをクリック** → 「エディターを開く」
-2. **ポップアップから** → メインボタンをクリック
-3. **ページ内のフローティングボタン** → 📝アイコンをクリック
-4. **.mdファイルをダブルクリック** → 自動的にSightEditで開く
-
-### バージョン履歴の使用
-
-#### バージョンの保存
-1. ファイルを編集
-2. 「保存」ボタンをクリック
-3. バージョン説明を入力（オプション）
-4. 自動的にGoogle Driveにバージョンが保存される
-
-#### バージョンの復元
-1. 右側のバージョンパネルを開く
-2. 復元したいバージョンの「復元」ボタンをクリック
-3. 確認ダイアログで「復元」を選択
-4. ファイルが選択したバージョンに戻る
-
-### AI機能の使用
-
-#### AI コマンド
-1. テキストを選択
-2. 🤖 AIボタンをクリック
-3. 実行したい機能を選択
-4. 結果を確認・コピー・挿入
-
-#### AI チャット
-1. 💬 Chatボタンをクリック、または `Ctrl+K` を押す
-2. チャットパネルが開く
-3. コンテキストオプションを選択（なし/選択範囲/ドキュメント全体）
-4. メッセージを入力して送信
-5. AIの応答がリアルタイムで表示される
-6. 📋 履歴ボタンで過去の会話を管理
-
-詳しくは [AIチャット機能ガイド](docs/AI_CHAT_FEATURE.md) をご覧ください。
-
-### エクスポート
-1. 📤 エクスポートボタンをクリック
-2. 形式を選択（Markdown/HTML/PDF/DOCX/テキスト）
-3. ファイルがダウンロードされます
+- **起動時間**: <2秒
+- **レンダリング**: <100ms
+- **ファイル処理**: 10MBまで対応
+- **メモリ使用量**: <50MB
+- **対応ブラウザ**: Chrome 88+, Edge 88+
 
 ## 🔒 セキュリティ
 
-- APIキーはローカルストレージに暗号化されて保存
-- Google Drive OAuth認証情報は `config/` フォルダに安全に保存
-- ファイルアクセス権は所有者のみ読み取り可能
-- 外部サーバーへのデータ送信なし（AI API、Google Drive API除く）
-- ユーザーの同意なしにデータを収集しません
+- **ローカル保存**: 機密データはローカル保存
+- **HTTPS強制**: API通信の暗号化
+- **XSS対策**: DOMPurifyでサニタイゼーション
+- **最小権限**: 必要最小限の権限要求
+- **APIキー保護**: ローカルストレージで暗号化保存
 
-## 🐛 トラブルシューティング
+## 🌍 対応言語
 
-### バージョン履歴が機能しない
-
-1. `client_secret.json` が正しい場所に配置されているか確認
-2. Google Drive APIが有効になっているか確認
-3. `logs/sightedit_relay.log` でエラーを確認
-
-### OAuth認証エラー
-
-1. ブラウザでGoogle認証ダイアログが開かない
-   → ポップアップブロッカーを無効化
-
-2. 認証後もエラーが出る
-   → `config/token.json` を削除して再認証
-
-### ファイルが開かない
-
-1. `.md`ファイルの関連付けを確認
-2. `setup-file-association.bat` を管理者権限で再実行
+- 日本語 🇯🇵
+- English 🇺🇸
 
 ## 📝 ライセンス
 
-MIT License
+MIT License - 詳細は[LICENSE](LICENSE)ファイルを参照
+
+## 🤝 コントリビュート
+
+1. フォークしてブランチ作成
+2. 機能追加・バグ修正
+3. テスト追加・実行
+4. プルリクエスト作成
+
+詳細は[CONTRIBUTING.md](CONTRIBUTING.md)を参照
+
+## 🐛 バグ報告・機能要望
+
+[GitHub Issues](https://github.com/mike2mike45/sightedit/issues)で報告してください。
+
+## 🆘 トラブルシューティング
+
+### よくある問題
+
+**図表ボタンが動作しない**
+- ブラウザのコンソール（F12）でエラーを確認
+- 拡張機能を再読み込み
+
+**AI機能が動作しない**
+- APIキーが正しく設定されているか確認
+- ネットワーク接続を確認
+- API制限に達していないか確認
+
+**エクスポートできない**
+- ポップアップブロッカーを無効化
+- ダウンロード権限を確認
+
+## 📞 サポート
+
+- **公式サイト**: https://duckengine.com
+- **GitHub**: https://github.com/mike2mike45/sightedit
+- **Issues**: バグ報告・機能要望
+- **Discussions**: 質問・議論
+
+## 🎯 ロードマップ
+
+### v1.1.0（予定）
+- [ ] リアルタイム共同編集
+- [ ] クラウド同期機能
+- [ ] カスタムテーマエディター
+
+### v1.2.0（予定）
+- [ ] プラグインシステム
+- [ ] Webブック出版機能
+- [ ] TypeScript移行
+
+### 今後の予定
+- [ ] PWA対応
+- [ ] Firefox/Safari対応
+- [ ] WebAssembly活用
+
+## 📈 統計
+
+- **対応図表**: 20種類
+- **サポートAI**: 2プロバイダー（Gemini, Claude）
+- **エクスポート形式**: 5形式
+- **対応言語**: 2言語（日本語, 英語）
+- **対応ブラウザ**: Chrome/Edge
 
 ## 🙏 謝辞
 
-- TipTap - リッチテキストエディター
-- Google Drive API - バージョン管理
-- Gemini API & Claude API - AI機能
+- **TurndownService** - HTML→Markdown変換
+- **marked** - Markdown→HTMLパース
+- **Mermaid.js** - ダイアグラム生成
+- **Chart.js** - チャート生成
+- **DOMPurify** - XSS対策
+
+---
+
+**開発**: DuckEngine LLC  
+**バージョン**: 1.0.0  
+**更新日**: 2025年1月14日
+
+[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-Download-brightgreen)](https://chrome.google.com/webstore)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Version](https://img.shields.io/badge/Version-1.0.0-blue.svg)](https://github.com/mike2mike45/sightedit)

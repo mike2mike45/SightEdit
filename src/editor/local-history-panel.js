@@ -32,23 +32,24 @@ export class LocalHistoryPanel {
             <div class="history-panel-header">
                 <h3>📝 編集履歴</h3>
                 <div class="history-panel-actions">
-                    <button class="btn-icon" id="refresh-history" title="更新">
-                        🔄
+                    <button class="btn-icon btn-icon-update" id="refresh-history" title="履歴を更新">
+                        🔄 更新
                     </button>
-                    <button class="btn-icon" id="clear-history" title="すべてクリア">
-                        🗑️
+                    <button class="btn-icon btn-icon-clear" id="clear-history" title="すべての履歴をクリア">
+                        🗑️ クリア
                     </button>
-                    <button class="btn-icon" id="close-history-panel" title="閉じる">
-                        ×
+                    <button class="btn-icon" id="close-history-panel" title="履歴パネルを閉じる">
+                        × 閉じる
                     </button>
                 </div>
             </div>
             <div class="history-panel-content">
                 <div class="history-info">
                     <p class="storage-info">読み込み中...</p>
+                    <p class="help-text">📖 クリックして復元・ボタンで個別操作</p>
                 </div>
                 <div class="history-list" id="history-list">
-                    <div class="loading">読み込み中...</div>
+                    <div class="loading">📋 履歴を読み込んでいます...</div>
                 </div>
             </div>
         `;
@@ -106,21 +107,49 @@ export class LocalHistoryPanel {
 
             .history-panel-actions {
                 display: flex;
-                gap: 8px;
+                gap: 6px;
+                flex-wrap: wrap;
             }
 
             .btn-icon {
-                background: none;
-                border: none;
-                font-size: 18px;
+                background: #f8f9fa;
+                border: 1px solid #dee2e6;
+                font-size: 12px;
                 cursor: pointer;
-                padding: 4px 8px;
+                padding: 6px 10px;
                 border-radius: 4px;
-                transition: background 0.2s;
+                transition: all 0.2s;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 4px;
+                font-weight: 500;
+                color: #495057;
+                white-space: nowrap;
             }
 
             .btn-icon:hover {
                 background: #e0e0e0;
+                transform: scale(1.05);
+            }
+
+            .btn-icon:active {
+                transform: scale(0.95);
+            }
+
+            /* 閉じるボタンを特に目立たせる */
+            #close-history-panel {
+                background: #f8f9fa;
+                border: 1px solid #dee2e6;
+                color: #dc3545;
+                font-weight: bold;
+                font-size: 20px;
+            }
+
+            #close-history-panel:hover {
+                background: #dc3545;
+                color: white;
+                border-color: #dc3545;
             }
 
             .history-panel-content {

@@ -109,6 +109,12 @@ export class VersionIntegration {
             return result;
         } catch (error) {
             console.error('バージョン保存エラー:', error);
+            
+            // サーバー接続エラーの場合は詳細なメッセージを表示
+            if (error.isServerConnectionError) {
+                this.showErrorDialog(error.message);
+            }
+            
             throw error;
         }
     }
@@ -375,5 +381,95 @@ export class VersionIntegration {
      */
     cleanup() {
         this.stopAutoSave();
+    }
+
+    /**
+     * エラーダイアログを表示
+     */
+    showErrorDialog(message) {
+        // 既存のダイアログがある場合は削除
+        const existingDialog = document.querySelector('.error-dialog');
+        if (existingDialog) {
+            existingDialog.remove();
+        }
+
+        // ダイアログを作成
+        const dialog = document.createElement('div');
+        dialog.className = 'error-dialog';
+        dialog.innerHTML = `
+            <div class="error-dialog-content">
+                <h3>⚠️ エラー</h3>
+                <p style="white-space: pre-wrap;">${message}</p>
+                <div class="dialog-buttons">
+                    <button class="btn btn-primary" id="error-ok-btn">OK</button>
+                </div>
+            </div>
+        `;
+
+        // スタイルを追加
+        const style = document.createElement('style');
+        style.textContent = `
+            .error-dialog {
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: white;
+                padding: 24px;
+                border-radius: 8px;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+                z-index: 10002;
+                min-width: 400px;
+                max-width: 500px;
+                animation: slideIn 0.3s ease;
+            }
+            .error-dialog h3 {
+                margin: 0 0 16px 0;
+                font-size: 20px;
+                color: #d32f2f;
+            }
+            .error-dialog p {
+                margin: 0 0 8px 0;
+                color: #666;
+                line-height: 1.5;
+            }
+            .error-dialog .dialog-buttons {
+                display: flex;
+                justify-content: flex-end;
+                gap: 8px;
+                margin-top: 16px;
+            }
+            .error-dialog .btn {
+                padding: 8px 16px;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 14px;
+            }
+            .error-dialog .btn-primary {
+                background: #d32f2f;
+                color: white;
+            }
+            .error-dialog .btn-primary:hover {
+                background: #b71c1c;
+            }
+        `;
+        document.head.appendChild(style);
+
+        document.body.appendChild(dialog);
+
+        // OKボタンのイベントリスナー
+        const okBtn = document.getElementById('error-ok-btn');
+        okBtn.addEventListener('click', () => {
+            dialog.remove();
+        });
+
+        // ESCキーでも閉じれるように
+        document.addEventListener('keydown', function escHandler(e) {
+            if (e.key === 'Escape') {
+                dialog.remove();
+                document.removeEventListener('keydown', escHandler);
+            }
+        });
     }
 }
